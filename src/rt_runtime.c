@@ -7,6 +7,8 @@
 // Forward declarations for I/O subsystems
 extern rt_status rt_file_init(void);
 extern void rt_file_cleanup(void);
+extern rt_status rt_net_init(void);
+extern void rt_net_cleanup(void);
 
 // Global configuration
 static rt_config g_config = RT_CONFIG_DEFAULT;
@@ -37,6 +39,15 @@ rt_status rt_init(const rt_config *cfg) {
         return status;
     }
 
+    // Initialize network I/O subsystem
+    status = rt_net_init();
+    if (RT_FAILED(status)) {
+        rt_file_cleanup();
+        rt_scheduler_cleanup();
+        rt_actor_cleanup();
+        return status;
+    }
+
     return RT_SUCCESS;
 }
 
@@ -49,6 +60,7 @@ void rt_shutdown(void) {
 }
 
 void rt_cleanup(void) {
+    rt_net_cleanup();
     rt_file_cleanup();
     rt_scheduler_cleanup();
     rt_actor_cleanup();
