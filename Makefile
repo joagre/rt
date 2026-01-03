@@ -64,15 +64,33 @@ run-pingpong: $(BUILD_DIR)/pingpong
 run-fileio: $(BUILD_DIR)/fileio
 	./$(BUILD_DIR)/fileio
 
+# Run echo server/client example
+.PHONY: run-echo
+run-echo: $(BUILD_DIR)/echo
+	./$(BUILD_DIR)/echo
+
+# Run minimal echo example
+.PHONY: run-minimal-echo
+run-minimal-echo: $(BUILD_DIR)/minimal_echo
+	./$(BUILD_DIR)/minimal_echo
+
+# Run minimal network example
+.PHONY: run-minimal-net
+run-minimal-net: $(BUILD_DIR)/minimal_net
+	./$(BUILD_DIR)/minimal_net
+
 # Help
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  all          - Build library and examples (default)"
-	@echo "  clean        - Remove build artifacts"
-	@echo "  run-pingpong - Build and run ping-pong example"
-	@echo "  run-fileio   - Build and run file I/O example"
-	@echo "  help         - Show this help message"
+	@echo "  all               - Build library and examples (default)"
+	@echo "  clean             - Remove build artifacts"
+	@echo "  run-pingpong      - Build and run ping-pong example"
+	@echo "  run-fileio        - Build and run file I/O example"
+	@echo "  run-echo          - Build and run echo server/client example"
+	@echo "  run-minimal-echo  - Build and run minimal echo example"
+	@echo "  run-minimal-net   - Build and run minimal network example"
+	@echo "  help              - Show this help message"
 
 # Dependencies
 .PHONY: deps
