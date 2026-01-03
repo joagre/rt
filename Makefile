@@ -1,0 +1,77 @@
+# Compiler and flags
+CC := gcc
+CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -Werror -O2 -g
+CPPFLAGS := -Iinclude -D_POSIX_C_SOURCE=200809L
+LDFLAGS :=
+LDLIBS := -pthread
+
+# Directories
+SRC_DIR := src
+INC_DIR := include
+BUILD_DIR := build
+EXAMPLES_DIR := examples
+
+# Source files
+SRCS := $(wildcard $(SRC_DIR)/*.c)
+ASM_SRCS := $(wildcard $(SRC_DIR)/*.S)
+OBJS := $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o) $(ASM_SRCS:$(SRC_DIR)/%.S=$(BUILD_DIR)/%.o)
+
+# Library
+LIB := $(BUILD_DIR)/librt.a
+
+# Examples
+EXAMPLE_SRCS := $(wildcard $(EXAMPLES_DIR)/*.c)
+EXAMPLES := $(EXAMPLE_SRCS:$(EXAMPLES_DIR)/%.c=$(BUILD_DIR)/%)
+
+# Default target
+.PHONY: all
+all: $(LIB) $(EXAMPLES)
+
+# Create build directory
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+# Compile source files
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+
+# Compile assembly files
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.S | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) -c $< -o $@
+
+# Create static library
+$(LIB): $(OBJS)
+	ar rcs $@ $^
+
+# Build examples
+$(BUILD_DIR)/%: $(EXAMPLES_DIR)/%.c $(LIB)
+	$(CC) $(CFLAGS) $(CPPFLAGS) $< -o $@ -L$(BUILD_DIR) -lrt $(LDLIBS)
+
+# Clean
+.PHONY: clean
+clean:
+	rm -rf $(BUILD_DIR)
+
+# Run ping-pong example
+.PHONY: run-pingpong
+run-pingpong: $(BUILD_DIR)/pingpong
+	./$(BUILD_DIR)/pingpong
+
+# Help
+.PHONY: help
+help:
+	@echo "Available targets:"
+	@echo "  all          - Build library and examples (default)"
+	@echo "  clean        - Remove build artifacts"
+	@echo "  run-pingpong - Build and run ping-pong example"
+	@echo "  help         - Show this help message"
+
+# Dependencies
+.PHONY: deps
+deps:
+	@echo "No external dependencies required"
+
+# Print variables for debugging
+.PHONY: print-%
+print-%:
+	@echo '$*=$($*)'

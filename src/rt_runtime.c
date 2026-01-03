@@ -1,0 +1,96 @@
+#include "rt_runtime.h"
+#include "rt_actor.h"
+#include "rt_scheduler.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+// Global configuration
+static rt_config g_config = RT_CONFIG_DEFAULT;
+
+rt_status rt_init(const rt_config *cfg) {
+    if (cfg) {
+        g_config = *cfg;
+    }
+
+    // Initialize actor subsystem
+    rt_status status = rt_actor_init(g_config.max_actors);
+    if (RT_FAILED(status)) {
+        return status;
+    }
+
+    // Initialize scheduler
+    status = rt_scheduler_init();
+    if (RT_FAILED(status)) {
+        rt_actor_cleanup();
+        return status;
+    }
+
+    return RT_SUCCESS;
+}
+
+void rt_run(void) {
+    rt_scheduler_run();
+}
+
+void rt_shutdown(void) {
+    rt_scheduler_shutdown();
+}
+
+void rt_cleanup(void) {
+    rt_scheduler_cleanup();
+    rt_actor_cleanup();
+}
+
+actor_id rt_spawn(actor_fn fn, void *arg) {
+    actor_config cfg = RT_ACTOR_CONFIG_DEFAULT;
+    cfg.stack_size = g_config.default_stack_size;
+    return rt_spawn_ex(fn, arg, &cfg);
+}
+
+actor_id rt_spawn_ex(actor_fn fn, void *arg, const actor_config *cfg) {
+    if (!fn) {
+        return ACTOR_ID_INVALID;
+    }
+
+    actor_config actual_cfg = *cfg;
+    if (actual_cfg.stack_size == 0) {
+        actual_cfg.stack_size = g_config.default_stack_size;
+    }
+
+    actor *a = rt_actor_alloc(fn, arg, &actual_cfg);
+    if (!a) {
+        return ACTOR_ID_INVALID;
+    }
+
+    return a->id;
+}
+
+_Noreturn void rt_exit(void) {
+    actor *current = rt_actor_current();
+    if (current) {
+        printf("Actor %u (%s) exiting\n", current->id,
+               current->name ? current->name : "unnamed");
+        rt_actor_free(current);
+    }
+
+    // Yield back to scheduler and never return
+    rt_scheduler_yield();
+
+    // Should never reach here
+    fprintf(stderr, "rt_exit: returned from scheduler yield\n");
+    abort();
+}
+
+actor_id rt_self(void) {
+    actor *current = rt_actor_current();
+    return current ? current->id : ACTOR_ID_INVALID;
+}
+
+void rt_yield(void) {
+    rt_scheduler_yield();
+}
+
+bool rt_actor_alive(actor_id id) {
+    actor *a = rt_actor_get(id);
+    return a != NULL && a->state != ACTOR_STATE_DEAD;
+}
