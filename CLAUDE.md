@@ -70,6 +70,14 @@ All runtime functions return `rt_status` with a code and optional string literal
 
 ## Important Implementation Details
 
+### Runtime Configuration
+The runtime is configured via `rt_config` structure passed to `rt_init()`:
+- `default_stack_size`: Default actor stack size in bytes (default: 65536)
+- `max_actors`: Maximum number of concurrent actors (default: 64)
+- `completion_queue_size`: Size of I/O completion queues for each subsystem (default: 64)
+
+After `rt_run()` completes, call `rt_cleanup()` to free all runtime resources.
+
 ### Completion Queue
 Lock-free SPSC queue with atomic head/tail pointers. Capacity must be power of 2. Producer (I/O thread) pushes, consumer (scheduler) pops.
 
