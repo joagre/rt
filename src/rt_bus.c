@@ -9,7 +9,7 @@
 #include <sys/time.h>
 
 // Forward declarations
-rt_status rt_bus_init(void);
+rt_status rt_bus_init(size_t max_buses);
 void rt_bus_cleanup(void);
 void rt_bus_cleanup_actor(actor_id id);
 
@@ -30,26 +30,23 @@ typedef struct {
     bool     active;
 } bus_subscriber;
 
-#define MAX_SUBSCRIBERS 32
-
 // Bus structure
 typedef struct {
     bus_id           id;
     rt_bus_config    config;
-    bus_entry       *entries;         // Ring buffer
+    bus_entry       *entries;         // Ring buffer (dynamically allocated)
     size_t           head;             // Write position
     size_t           tail;             // Oldest entry position
     size_t           count;            // Number of valid entries
-    bus_subscriber   subscribers[MAX_SUBSCRIBERS];
+    bus_subscriber  *subscribers;     // Dynamically allocated array
     size_t           num_subscribers;
     bool             active;
 } bus_t;
 
-#define MAX_BUSES 32
-
 // Bus table
 static struct {
-    bus_t     buses[MAX_BUSES];
+    bus_t    *buses;        // Dynamically allocated array
+    size_t    max_buses;    // Maximum number of buses
     bus_id    next_id;
     bool      initialized;
 } g_bus_table = {0};
@@ -67,7 +64,7 @@ static bus_t *find_bus(bus_id id) {
         return NULL;
     }
 
-    for (size_t i = 0; i < MAX_BUSES; i++) {
+    for (size_t i = 0; i < g_bus_table.max_buses; i++) {
         if (g_bus_table.buses[i].active && g_bus_table.buses[i].id == id) {
             return &g_bus_table.buses[i];
         }
@@ -78,7 +75,7 @@ static bus_t *find_bus(bus_id id) {
 
 // Find subscriber index in bus
 static int find_subscriber(bus_t *bus, actor_id id) {
-    for (size_t i = 0; i < MAX_SUBSCRIBERS; i++) {
+    for (size_t i = 0; i < bus->config.max_subscribers; i++) {
         if (bus->subscribers[i].active && bus->subscribers[i].id == id) {
             return (int)i;
         }
@@ -114,12 +111,22 @@ static void expire_old_entries(bus_t *bus) {
 }
 
 // Initialize bus subsystem
-rt_status rt_bus_init(void) {
+rt_status rt_bus_init(size_t max_buses) {
     if (g_bus_table.initialized) {
         return RT_SUCCESS;
     }
 
-    memset(&g_bus_table, 0, sizeof(g_bus_table));
+    if (max_buses == 0) {
+        return RT_ERROR(RT_ERR_INVALID, "max_buses must be > 0");
+    }
+
+    // Allocate bus table
+    g_bus_table.buses = calloc(max_buses, sizeof(bus_t));
+    if (!g_bus_table.buses) {
+        return RT_ERROR(RT_ERR_NOMEM, "Failed to allocate bus table");
+    }
+
+    g_bus_table.max_buses = max_buses;
     g_bus_table.next_id = 1;
     g_bus_table.initialized = true;
 
@@ -133,7 +140,7 @@ void rt_bus_cleanup(void) {
     }
 
     // Destroy all buses
-    for (size_t i = 0; i < MAX_BUSES; i++) {
+    for (size_t i = 0; i < g_bus_table.max_buses; i++) {
         bus_t *bus = &g_bus_table.buses[i];
         if (bus->active) {
             // Free all entry data
@@ -143,10 +150,15 @@ void rt_bus_cleanup(void) {
                 }
             }
             free(bus->entries);
+            free(bus->subscribers);
             bus->active = false;
         }
     }
 
+    // Free bus table
+    free(g_bus_table.buses);
+    g_bus_table.buses = NULL;
+    g_bus_table.max_buses = 0;
     g_bus_table.initialized = false;
 }
 
@@ -156,14 +168,14 @@ void rt_bus_cleanup_actor(actor_id id) {
         return;
     }
 
-    for (size_t i = 0; i < MAX_BUSES; i++) {
+    for (size_t i = 0; i < g_bus_table.max_buses; i++) {
         bus_t *bus = &g_bus_table.buses[i];
         if (!bus->active) {
             continue;
         }
 
         // Remove actor from subscribers
-        for (size_t j = 0; j < MAX_SUBSCRIBERS; j++) {
+        for (size_t j = 0; j < bus->config.max_subscribers; j++) {
             if (bus->subscribers[j].active && bus->subscribers[j].id == id) {
                 bus->subscribers[j].active = false;
                 bus->num_subscribers--;
@@ -183,13 +195,13 @@ rt_status rt_bus_create(const rt_bus_config *cfg, bus_id *out) {
         return RT_ERROR(RT_ERR_INVALID, "Bus subsystem not initialized");
     }
 
-    if (cfg->max_entries == 0 || cfg->max_entry_size == 0) {
+    if (cfg->max_entries == 0 || cfg->max_entry_size == 0 || cfg->max_subscribers == 0) {
         return RT_ERROR(RT_ERR_INVALID, "Invalid bus configuration");
     }
 
     // Find free slot
     bus_t *bus = NULL;
-    for (size_t i = 0; i < MAX_BUSES; i++) {
+    for (size_t i = 0; i < g_bus_table.max_buses; i++) {
         if (!g_bus_table.buses[i].active) {
             bus = &g_bus_table.buses[i];
             break;
@@ -206,11 +218,19 @@ rt_status rt_bus_create(const rt_bus_config *cfg, bus_id *out) {
         return RT_ERROR(RT_ERR_NOMEM, "Failed to allocate bus entries");
     }
 
+    // Allocate subscriber array
+    bus_subscriber *subscribers = calloc(cfg->max_subscribers, sizeof(bus_subscriber));
+    if (!subscribers) {
+        free(entries);
+        return RT_ERROR(RT_ERR_NOMEM, "Failed to allocate bus subscribers");
+    }
+
     // Initialize bus
     memset(bus, 0, sizeof(bus_t));
     bus->id = g_bus_table.next_id++;
     bus->config = *cfg;
     bus->entries = entries;
+    bus->subscribers = subscribers;
     bus->head = 0;
     bus->tail = 0;
     bus->count = 0;
@@ -218,8 +238,8 @@ rt_status rt_bus_create(const rt_bus_config *cfg, bus_id *out) {
     bus->active = true;
 
     *out = bus->id;
-    RT_LOG_DEBUG("Created bus %u (max_entries=%zu, max_entry_size=%zu)",
-                 bus->id, cfg->max_entries, cfg->max_entry_size);
+    RT_LOG_DEBUG("Created bus %u (max_entries=%zu, max_entry_size=%zu, max_subscribers=%zu)",
+                 bus->id, cfg->max_entries, cfg->max_entry_size, cfg->max_subscribers);
 
     return RT_SUCCESS;
 }
@@ -243,6 +263,7 @@ rt_status rt_bus_destroy(bus_id id) {
     }
 
     free(bus->entries);
+    free(bus->subscribers);
     bus->active = false;
 
     RT_LOG_DEBUG("Destroyed bus %u", id);
@@ -321,7 +342,7 @@ rt_status rt_bus_subscribe(bus_id id) {
 
     // Find free subscriber slot
     bus_subscriber *sub = NULL;
-    for (size_t i = 0; i < MAX_SUBSCRIBERS; i++) {
+    for (size_t i = 0; i < bus->config.max_subscribers; i++) {
         if (!bus->subscribers[i].active) {
             sub = &bus->subscribers[i];
             break;

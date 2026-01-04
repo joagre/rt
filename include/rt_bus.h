@@ -16,6 +16,7 @@ typedef struct {
     uint32_t max_age_ms;      // expire entries after ms, 0 = no expiry
     size_t   max_entries;     // ring buffer capacity
     size_t   max_entry_size;  // max payload bytes per entry
+    size_t   max_subscribers; // maximum concurrent subscribers
 } rt_bus_config;
 
 // Default bus configuration
@@ -23,7 +24,8 @@ typedef struct {
     .max_readers = 0, \
     .max_age_ms = 0, \
     .max_entries = 16, \
-    .max_entry_size = 256 \
+    .max_entry_size = 256, \
+    .max_subscribers = 32 \
 }
 
 // Bus operations

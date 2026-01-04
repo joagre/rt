@@ -134,11 +134,12 @@ int main(void) {
     }
 
     // Create bus with retention policy
-    rt_bus_config bus_cfg;
+    rt_bus_config bus_cfg = RT_BUS_CONFIG_DEFAULT;
     bus_cfg.max_readers = 0;        // Unlimited readers (data persists)
     bus_cfg.max_age_ms = 0;         // No time-based expiry
     bus_cfg.max_entries = 16;       // Ring buffer size
     bus_cfg.max_entry_size = 256;   // Max payload size
+    bus_cfg.max_subscribers = 32;   // Maximum concurrent subscribers
 
     status = rt_bus_create(&bus_cfg, &g_sensor_bus);
     if (RT_FAILED(status)) {
