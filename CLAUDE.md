@@ -75,9 +75,13 @@ All runtime functions return `rt_status` with a code and optional string literal
 
 ## Important Implementation Details
 
-### Runtime Configuration
-The runtime uses compile-time configuration via `rt_static_config.h`:
+### Memory Allocation - Two-Tier Configuration
+
+The runtime uses a **two-tier system** for deterministic memory allocation:
+
+**1. Compile-Time Limits (`rt_static_config.h`)** - Hard upper bounds that determine static allocation:
 - `RT_MAX_ACTORS`: Maximum concurrent actors (64)
+- `RT_MAX_BUSES`: Maximum concurrent buses (32)
 - `RT_MAILBOX_ENTRY_POOL_SIZE`: Mailbox entry pool (256)
 - `RT_MESSAGE_DATA_POOL_SIZE`: Message data pool (256)
 - `RT_LINK_ENTRY_POOL_SIZE`: Link entry pool (128)
@@ -85,8 +89,22 @@ The runtime uses compile-time configuration via `rt_static_config.h`:
 - `RT_TIMER_ENTRY_POOL_SIZE`: Timer entry pool (64)
 - `RT_COMPLETION_QUEUE_SIZE`: I/O completion queue size (64)
 - `RT_MAX_MESSAGE_SIZE`: Maximum message size in bytes (256)
+- `RT_DEFAULT_STACK_SIZE`: Default actor stack size (65536)
 
-The `rt_config` structure passed to `rt_init()` validates runtime parameters against these compile-time limits. After `rt_run()` completes, call `rt_cleanup()` to free actor stacks.
+**2. Runtime Configuration (`rt_config`)** - Validates actual usage against compile-time limits:
+- Passed to `rt_init()` to specify requested resources
+- Each field must be ≤ corresponding compile-time limit
+- Allows running with fewer resources than maximum (e.g., compile with RT_MAX_ACTORS=64, run with max_actors=32)
+
+**Memory characteristics:**
+- All runtime structures (except actor stacks) are **statically allocated** based on compile-time limits
+- Only malloc used: actor stacks at spawn time
+- No malloc in hot paths (IPC, scheduling, I/O completions)
+- Memory footprint calculable at link time
+- Zero heap fragmentation in message passing
+- Ideal for embedded/safety-critical systems
+
+After `rt_run()` completes, call `rt_cleanup()` to free actor stacks.
 
 ### Completion Queue
 Lock-free SPSC queue with atomic head/tail pointers. Capacity must be power of 2. Producer (I/O thread) pushes, consumer (scheduler) pops.
