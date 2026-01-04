@@ -428,19 +428,50 @@ The `mode` parameter in `rt_file_open()` specifies file permissions (e.g., 0644)
 
 File operations block the calling actor and yield to the scheduler.
 
-## Runtime Initialization
+## Memory Allocation Architecture
+
+The runtime uses a **two-tier configuration system** for deterministic memory allocation:
+
+### Compile-Time Limits (`rt_static_config.h`)
+
+Hard upper bounds that determine static allocation sizes. These limits **cannot be exceeded** at runtime and require recompilation to change:
+
+```c
+#define RT_MAX_ACTORS 64                    // Maximum concurrent actors
+#define RT_MAX_BUSES 32                     // Maximum concurrent buses
+#define RT_MAILBOX_ENTRY_POOL_SIZE 256      // Mailbox entry pool
+#define RT_MESSAGE_DATA_POOL_SIZE 256       // Message data pool
+#define RT_MAX_MESSAGE_SIZE 256             // Maximum message size
+#define RT_LINK_ENTRY_POOL_SIZE 128         // Link entry pool
+#define RT_MONITOR_ENTRY_POOL_SIZE 128      // Monitor entry pool
+#define RT_TIMER_ENTRY_POOL_SIZE 64         // Timer entry pool
+#define RT_COMPLETION_QUEUE_SIZE 64         // I/O completion queue size
+#define RT_DEFAULT_STACK_SIZE 65536         // Default actor stack size
+```
+
+All runtime structures (except actor stacks) are **statically allocated** based on these limits. This ensures:
+- Deterministic memory footprint (calculable at link time)
+- No heap fragmentation in message passing
+- No malloc in hot paths (scheduling, IPC, I/O completions)
+- Suitable for embedded/MCU deployment
+
+### Runtime Configuration (`rt_config`)
+
+Validates actual usage against compile-time limits. Allows running with fewer resources than the maximum:
 
 ```c
 typedef struct {
     size_t default_stack_size;    // default actor stack, bytes
-    size_t max_actors;            // maximum concurrent actors
-    size_t completion_queue_size; // entries per I/O completion queue
+    size_t max_actors;            // maximum concurrent actors (≤ RT_MAX_ACTORS)
+    size_t completion_queue_size; // I/O completion queue size (≤ RT_COMPLETION_QUEUE_SIZE)
+    size_t max_buses;             // maximum concurrent buses (≤ RT_MAX_BUSES)
 } rt_config;
 
 #define RT_CONFIG_DEFAULT { \
     .default_stack_size = 65536, \
     .max_actors = 64, \
-    .completion_queue_size = 64 \
+    .completion_queue_size = 64, \
+    .max_buses = 32 \
 }
 
 // Initialize runtime (call once from main)

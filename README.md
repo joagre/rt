@@ -22,6 +22,38 @@ The runtime is minimalistic by design: predictable behavior, no heap allocation 
 - ✅ File I/O (async read/write with worker thread)
 - ✅ Bus (pub-sub with retention policies)
 
+## Memory Model
+
+The runtime uses a **two-tier configuration** for predictable memory allocation:
+
+### 1. Compile-Time Limits (`include/rt_static_config.h`)
+
+Hard limits that determine static allocation. Edit and recompile to change:
+
+```c
+#define RT_MAX_ACTORS 64                // Maximum concurrent actors
+#define RT_MAILBOX_ENTRY_POOL_SIZE 256  // Mailbox pool size
+#define RT_MESSAGE_DATA_POOL_SIZE 256   // Message pool size
+// ... and more (see rt_static_config.h for full list)
+```
+
+### 2. Runtime Configuration (`rt_config`)
+
+Actual usage validated against compile-time limits:
+
+```c
+rt_config cfg = RT_CONFIG_DEFAULT;
+cfg.max_actors = 32;  // Use fewer actors than RT_MAX_ACTORS
+rt_init(&cfg);
+```
+
+**Memory characteristics:**
+- All structures (except actor stacks) are **statically allocated**
+- No malloc in hot paths (IPC, scheduling, I/O completions)
+- Memory footprint is **calculable at link time**
+- No heap fragmentation
+- Perfect for embedded/safety-critical systems
+
 ## Building
 
 ```bash
