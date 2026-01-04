@@ -9,6 +9,7 @@ The runtime is minimalistic by design: predictable behavior, no heap allocation 
 
 ## Features
 
+- ✅ **Static memory allocation** - Deterministic footprint, zero fragmentation, safety-critical ready
 - ✅ Cooperative multitasking with manual x86-64 context switching
 - ✅ Priority-based round-robin scheduler (4 priority levels)
 - ✅ Actor lifecycle management (spawn, exit)
@@ -321,8 +322,9 @@ rt_unlink(other);
 1. **Minimalistic**: Only essential features, no bloat
 2. **Predictable**: Cooperative scheduling, no surprises
 3. **Modern C11**: Clean, safe, standards-compliant code
-4. **No heap in hot paths**: Fixed-size stacks, pre-allocated tables
-5. **Explicit control**: Actors yield explicitly, no preemption
+4. **Static allocation**: Deterministic memory, zero fragmentation, compile-time footprint
+5. **No heap in hot paths**: O(1) pool allocation for all runtime operations
+6. **Explicit control**: Actors yield explicitly, no preemption
 
 ## Implementation Notes
 
@@ -359,6 +361,176 @@ All I/O operations (timers, file, network) are handled by dedicated worker threa
 **File I/O subsystem**: Worker thread processes read/write requests asynchronously.
 
 **Network I/O subsystem**: Worker thread handles socket operations (accept, connect, send, recv) asynchronously.
+
+## Memory Configuration
+
+### Static Allocation Architecture
+
+The runtime uses **static memory allocation** for deterministic behavior suitable for embedded systems. All memory pools are configured at compile time via `include/rt_static_config.h`, providing:
+
+- **Deterministic footprint**: Total memory usage known at compile/link time
+- **Zero fragmentation**: No malloc in hot paths (message passing, timers, etc.)
+- **Predictable allocation**: Pool exhaustion returns clear errors instead of allocation failures
+- **Safety-critical ready**: Suitable for DO-178C and similar certifications
+
+**Only one malloc**: Actor stacks are the only dynamic allocation (at spawn time, ~64KB each).
+
+### Memory Footprint Calculation
+
+The total memory footprint consists of two components:
+
+**1. Static Data (BSS segment)** - calculated from `rt_static_config.h`:
+
+| Component | Formula | Default Size |
+|-----------|---------|--------------|
+| Actor table | `RT_MAX_ACTORS × ~200 bytes` | 12.8 KB |
+| Mailbox pool | `RT_MAILBOX_ENTRY_POOL_SIZE × ~40 bytes` | 10.2 KB |
+| Message pool | `RT_MESSAGE_DATA_POOL_SIZE × RT_MAX_MESSAGE_SIZE` | 64 KB |
+| Link pool | `RT_LINK_ENTRY_POOL_SIZE × ~16 bytes` | 2 KB |
+| Monitor pool | `RT_MONITOR_ENTRY_POOL_SIZE × ~16 bytes` | 2 KB |
+| Timer pool | `RT_TIMER_ENTRY_POOL_SIZE × ~40 bytes` | 2.5 KB |
+| Bus tables | `RT_MAX_BUSES × ~200 bytes` | 6.4 KB |
+| Completion queues | `6 × RT_COMPLETION_QUEUE_SIZE × ~100 bytes` | 38.4 KB |
+| **Total static** | | **~138 KB** |
+
+**2. Dynamic Memory (Heap)** - actor stacks only:
+
+```
+Heap = (Number of actors) × (Average stack size)
+```
+
+Example: 20 actors × 32 KB = 640 KB
+
+**Total footprint** = Static data + Dynamic stacks = ~778 KB (default configuration)
+
+### Configuring Memory Limits
+
+Edit `include/rt_static_config.h` to adjust memory usage for your application:
+
+```c
+// Maximum number of concurrent actors
+#define RT_MAX_ACTORS 64
+
+// IPC pools (message passing hot path)
+#define RT_MAILBOX_ENTRY_POOL_SIZE 256    // Mailbox entries
+#define RT_MESSAGE_DATA_POOL_SIZE  256    // Message data buffers
+#define RT_MAX_MESSAGE_SIZE        256    // Max bytes per message
+
+// Actor relationship pools
+#define RT_LINK_ENTRY_POOL_SIZE    128    // Bidirectional links
+#define RT_MONITOR_ENTRY_POOL_SIZE 128    // Unidirectional monitors
+
+// Timer pool
+#define RT_TIMER_ENTRY_POOL_SIZE   64     // Active timers
+
+// I/O completion queues (one per subsystem)
+#define RT_COMPLETION_QUEUE_SIZE   64     // Must be power of 2
+
+// Bus configuration
+#define RT_MAX_BUSES               32     // Maximum number of buses
+#define RT_MAX_BUS_ENTRIES         64     // Entries per bus
+#define RT_MAX_BUS_SUBSCRIBERS     32     // Subscribers per bus
+
+// Actor stack configuration
+#define RT_DEFAULT_STACK_SIZE      65536  // 64 KB default
+```
+
+### Configuration Examples
+
+**Small embedded system (drone sensor node):**
+```c
+#define RT_MAX_ACTORS              16     // Few actors
+#define RT_MAILBOX_ENTRY_POOL_SIZE 64     // Limited messaging
+#define RT_MESSAGE_DATA_POOL_SIZE  64
+#define RT_TIMER_ENTRY_POOL_SIZE   16
+#define RT_DEFAULT_STACK_SIZE      16384  // 16 KB stacks
+// Static: ~35 KB, Dynamic: 16 actors × 16 KB = 256 KB
+// Total: ~291 KB
+```
+
+**High-throughput system (network gateway):**
+```c
+#define RT_MAX_ACTORS              128    // Many concurrent actors
+#define RT_MAILBOX_ENTRY_POOL_SIZE 512    // Heavy messaging
+#define RT_MESSAGE_DATA_POOL_SIZE  512
+#define RT_MAX_MESSAGE_SIZE        1024   // Larger messages
+#define RT_COMPLETION_QUEUE_SIZE   128
+// Static: ~550 KB, Dynamic: varies by active actors
+```
+
+**Memory-constrained MCU (STM32F4 with 192KB RAM):**
+```c
+#define RT_MAX_ACTORS              8
+#define RT_MAILBOX_ENTRY_POOL_SIZE 32
+#define RT_MESSAGE_DATA_POOL_SIZE  32
+#define RT_MAX_MESSAGE_SIZE        128    // Smaller messages
+#define RT_LINK_ENTRY_POOL_SIZE    16
+#define RT_MONITOR_ENTRY_POOL_SIZE 16
+#define RT_TIMER_ENTRY_POOL_SIZE   8
+#define RT_DEFAULT_STACK_SIZE      8192   // 8 KB stacks
+// Static: ~12 KB, Dynamic: 8 actors × 8 KB = 64 KB
+// Total: ~76 KB (fits in 192 KB RAM with margin)
+```
+
+### Sizing Guidelines
+
+**RT_MAX_ACTORS**: Set to maximum concurrent actors needed
+- Default (64): General-purpose development
+- Small (8-16): Constrained embedded systems
+- Large (128+): Server-like applications
+
+**RT_MAILBOX_ENTRY_POOL_SIZE**: Set to peak concurrent messages
+- Formula: `(RT_MAX_ACTORS × avg_mailbox_depth × 1.5)`
+- Default (256): ~4 messages per actor with margin
+- Increase if seeing "Mailbox pool exhausted" errors
+
+**RT_MESSAGE_DATA_POOL_SIZE**: Set to peak concurrent messages
+- Should match or exceed `RT_MAILBOX_ENTRY_POOL_SIZE`
+- Shared by IPC, timers, links, and bus
+- Increase if seeing "Message pool exhausted" errors
+
+**RT_MAX_MESSAGE_SIZE**: Set to largest message payload
+- Default (256 bytes): Most use cases
+- Small (64-128): Memory-constrained systems
+- Large (512-1024): Network packets or file data
+- Note: All messages use this size (some waste for small messages)
+
+**RT_TIMER_ENTRY_POOL_SIZE**: Set to maximum active timers
+- Count both one-shot and periodic timers
+- Increase if seeing "Timer pool exhausted" errors
+
+**RT_COMPLETION_QUEUE_SIZE**: Set to peak concurrent I/O operations
+- Must be power of 2 (ring buffer)
+- Default (64): Moderate I/O concurrency
+- Increase for high-throughput I/O workloads
+
+### Checking Memory Usage
+
+After configuration, rebuild and check actual memory usage:
+
+```bash
+make clean && make all
+
+# Check static data size (BSS + DATA segments)
+size build/librt.a
+
+# Check total binary size
+size build/pingpong
+
+# Runtime verification
+# Pool exhaustion errors will be logged if limits are too low
+./build/your_application
+```
+
+### Pool Exhaustion Handling
+
+When a pool is exhausted, the runtime returns clear errors:
+- **IPC send**: Returns `RT_ERR_NOMEM` ("Mailbox pool exhausted")
+- **Timer creation**: Returns `RT_ERR_NOMEM` ("Timer pool exhausted")
+- **Link/Monitor**: Returns `RT_ERR_NOMEM` ("Link pool exhausted")
+- **Exit messages**: Dropped with `RT_LOG_ERROR` (non-critical)
+
+If you see pool exhaustion errors, increase the relevant pool size in `rt_static_config.h` and rebuild.
 
 ### Current Limitations
 
