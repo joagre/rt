@@ -1,4 +1,5 @@
 #include "rt_bus.h"
+#include "rt_internal.h"
 #include "rt_static_config.h"
 #include "rt_pool.h"
 #include "rt_actor.h"
@@ -7,14 +8,8 @@
 #include "rt_log.h"
 #include <stdlib.h>
 #include <string.h>
-#include <stddef.h>
 #include <time.h>
 #include <sys/time.h>
-
-// Message data entry type (matches rt_ipc.c)
-typedef struct {
-    uint8_t data[RT_MAX_MESSAGE_SIZE];
-} message_data_entry;
 
 // External IPC pools (defined in rt_ipc.c)
 extern rt_pool g_message_pool_mgr;
@@ -120,7 +115,7 @@ static void expire_old_entries(bus_t *bus) {
 
         // Expire this entry
         if (entry->data) {
-            message_data_entry *msg_data = (message_data_entry*)((char*)entry->data - offsetof(message_data_entry, data));
+            message_data_entry *msg_data = DATA_TO_MSG_ENTRY(entry->data);
             rt_pool_free(&g_message_pool_mgr, msg_data);
         }
         entry->valid = false;
@@ -165,7 +160,7 @@ void rt_bus_cleanup(void) {
             // Free all entry data from pool
             for (size_t j = 0; j < bus->config.max_entries; j++) {
                 if (bus->entries[j].valid && bus->entries[j].data) {
-                    message_data_entry *msg_data = (message_data_entry*)((char*)bus->entries[j].data - offsetof(message_data_entry, data));
+                    message_data_entry *msg_data = DATA_TO_MSG_ENTRY(bus->entries[j].data);
                     rt_pool_free(&g_message_pool_mgr, msg_data);
                 }
             }
@@ -274,7 +269,7 @@ rt_status rt_bus_destroy(bus_id id) {
     // Free all entry data from pool
     for (size_t i = 0; i < bus->config.max_entries; i++) {
         if (bus->entries[i].valid && bus->entries[i].data) {
-            message_data_entry *msg_data = (message_data_entry*)((char*)bus->entries[i].data - offsetof(message_data_entry, data));
+            message_data_entry *msg_data = DATA_TO_MSG_ENTRY(bus->entries[i].data);
             rt_pool_free(&g_message_pool_mgr, msg_data);
         }
     }
@@ -314,7 +309,7 @@ rt_status rt_bus_publish(bus_id id, const void *data, size_t len) {
         bus_entry *oldest = &bus->entries[bus->tail];
         if (oldest->valid && oldest->data) {
             // Free from message pool using offsetof pattern
-            message_data_entry *msg_data = (message_data_entry*)((char*)oldest->data - offsetof(message_data_entry, data));
+            message_data_entry *msg_data = DATA_TO_MSG_ENTRY(oldest->data);
             rt_pool_free(&g_message_pool_mgr, msg_data);
         }
         oldest->valid = false;
@@ -483,7 +478,7 @@ rt_status rt_bus_read(bus_id id, void *buf, size_t max_len, size_t *actual_len) 
     // Check if entry should be removed (max_readers)
     if (bus->config.max_readers > 0 && entry->read_count >= bus->config.max_readers) {
         if (entry->data) {
-            message_data_entry *msg_data = (message_data_entry*)((char*)entry->data - offsetof(message_data_entry, data));
+            message_data_entry *msg_data = DATA_TO_MSG_ENTRY(entry->data);
             rt_pool_free(&g_message_pool_mgr, msg_data);
         }
         entry->valid = false;

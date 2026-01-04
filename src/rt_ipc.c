@@ -1,4 +1,5 @@
 #include "rt_ipc.h"
+#include "rt_internal.h"
 #include "rt_static_config.h"
 #include "rt_pool.h"
 #include "rt_actor.h"
@@ -12,10 +13,7 @@ static mailbox_entry g_mailbox_pool[RT_MAILBOX_ENTRY_POOL_SIZE];
 static bool g_mailbox_used[RT_MAILBOX_ENTRY_POOL_SIZE];
 rt_pool g_mailbox_pool_mgr;  // Non-static so rt_link.c can access
 
-// Message data pool - fixed size entries
-typedef struct {
-    uint8_t data[RT_MAX_MESSAGE_SIZE];
-} message_data_entry;
+// Message data pool - fixed size entries (type defined in rt_internal.h)
 
 static message_data_entry g_message_pool[RT_MESSAGE_DATA_POOL_SIZE];
 static bool g_message_used[RT_MESSAGE_DATA_POOL_SIZE];
@@ -153,7 +151,7 @@ rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms) {
     if (current->active_msg) {
         if (current->active_msg->data) {
             // Calculate message_data_entry pointer from data pointer
-            message_data_entry *msg_data = (message_data_entry*)((char*)current->active_msg->data - offsetof(message_data_entry, data));
+            message_data_entry *msg_data = DATA_TO_MSG_ENTRY(current->active_msg->data);
             rt_pool_free(&g_message_pool_mgr, msg_data);
         }
         rt_pool_free(&g_mailbox_pool_mgr, current->active_msg);
@@ -202,7 +200,7 @@ void rt_ipc_release(const rt_message *msg) {
     if (current->active_msg) {
         if (current->active_msg->data) {
             // Calculate message_data_entry pointer from data pointer
-            message_data_entry *msg_data = (message_data_entry*)((char*)current->active_msg->data - offsetof(message_data_entry, data));
+            message_data_entry *msg_data = DATA_TO_MSG_ENTRY(current->active_msg->data);
             rt_pool_free(&g_message_pool_mgr, msg_data);
         }
         rt_pool_free(&g_mailbox_pool_mgr, current->active_msg);
@@ -237,7 +235,7 @@ void rt_ipc_mailbox_clear(mailbox *mbox) {
         mailbox_entry *next = entry->next;
         if (entry->data) {
             // Calculate message_data_entry pointer from data pointer
-            message_data_entry *msg_data = (message_data_entry*)((char*)entry->data - offsetof(message_data_entry, data));
+            message_data_entry *msg_data = DATA_TO_MSG_ENTRY(entry->data);
             rt_pool_free(&g_message_pool_mgr, msg_data);
         }
         rt_pool_free(&g_mailbox_pool_mgr, entry);
@@ -256,7 +254,7 @@ void rt_ipc_free_active_msg(mailbox_entry *entry) {
 
     if (entry->data) {
         // Calculate message_data_entry pointer from data pointer
-        message_data_entry *msg_data = (message_data_entry*)((char*)entry->data - offsetof(message_data_entry, data));
+        message_data_entry *msg_data = DATA_TO_MSG_ENTRY(entry->data);
         rt_pool_free(&g_message_pool_mgr, msg_data);
     }
     rt_pool_free(&g_mailbox_pool_mgr, entry);
