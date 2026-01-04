@@ -26,6 +26,22 @@ rt_status rt_actor_init(size_t max_actors) {
     return RT_SUCCESS;
 }
 
+// Clear all entries from a mailbox
+static void mailbox_clear(mailbox *mbox) {
+    mailbox_entry *entry = mbox->head;
+    while (entry) {
+        mailbox_entry *next = entry->next;
+        if (entry->data) {
+            free(entry->data);
+        }
+        free(entry);
+        entry = next;
+    }
+    mbox->head = NULL;
+    mbox->tail = NULL;
+    mbox->count = 0;
+}
+
 void rt_actor_cleanup(void) {
     if (g_actor_table.actors) {
         // Free all actor stacks and mailboxes
@@ -33,17 +49,7 @@ void rt_actor_cleanup(void) {
             actor *a = &g_actor_table.actors[i];
             if (a->state != ACTOR_STATE_DEAD && a->stack) {
                 free(a->stack);
-
-                // Free mailbox entries
-                mailbox_entry *entry = a->mbox.head;
-                while (entry) {
-                    mailbox_entry *next = entry->next;
-                    if (entry->data) {
-                        free(entry->data);
-                    }
-                    free(entry);
-                    entry = next;
-                }
+                mailbox_clear(&a->mbox);
             }
         }
         free(g_actor_table.actors);
@@ -123,19 +129,7 @@ void rt_actor_free(actor *a) {
     }
 
     // Free mailbox entries
-    mailbox_entry *entry = a->mbox.head;
-    while (entry) {
-        mailbox_entry *next = entry->next;
-        if (entry->data) {
-            free(entry->data);
-        }
-        free(entry);
-        entry = next;
-    }
-
-    a->mbox.head = NULL;
-    a->mbox.tail = NULL;
-    a->mbox.count = 0;
+    mailbox_clear(&a->mbox);
 
     a->state = ACTOR_STATE_DEAD;
     g_actor_table.num_actors--;

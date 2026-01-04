@@ -2,16 +2,11 @@
 #include <stdio.h>
 
 int main(void) {
-    printf("Starting minimal network test\n");
-    fflush(stdout);
+    printf("=== Minimal Network Test ===\n\n");
 
     // Initialize runtime
     rt_config cfg = RT_CONFIG_DEFAULT;
     cfg.max_actors = 2;
-    cfg.default_stack_size = 65536;
-
-    printf("Calling rt_init\n");
-    fflush(stdout);
 
     rt_status status = rt_init(&cfg);
     if (RT_FAILED(status)) {
@@ -21,12 +16,11 @@ int main(void) {
     }
 
     printf("Runtime initialized successfully\n");
-    fflush(stdout);
 
     // Cleanup immediately
     rt_cleanup();
 
-    printf("Test completed\n");
+    printf("\n=== Test completed ===\n");
 
     return 0;
 }

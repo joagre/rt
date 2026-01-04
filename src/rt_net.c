@@ -97,6 +97,22 @@ static int set_nonblocking(int fd) {
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
+// Poll file descriptor for readiness with 100ms timeout
+// Returns: 1 = ready, 0 = timeout, -1 = error
+static int poll_fd(int fd, bool for_write) {
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(fd, &fds);
+
+    struct timeval tv = { .tv_sec = 0, .tv_usec = 100000 }; // 100ms
+
+    if (for_write) {
+        return select(fd + 1, NULL, &fds, NULL, &tv);
+    } else {
+        return select(fd + 1, &fds, NULL, NULL, &tv);
+    }
+}
+
 // Network I/O worker thread
 static void *net_worker_thread(void *arg) {
     (void)arg;
@@ -114,7 +130,6 @@ static void *net_worker_thread(void *arg) {
             continue;
         }
 
-        RT_LOG_TRACE("Network worker: processing op=%d from requester=%u", req.op, req.requester);
 
         // Process request
         net_completion comp = {
@@ -157,36 +172,21 @@ static void *net_worker_thread(void *arg) {
             }
 
             case NET_OP_ACCEPT: {
-                struct sockaddr_in client_addr;
-                socklen_t client_len = sizeof(client_addr);
-
-                // For blocking accept, use select with polling to avoid blocking other requests
+                // For blocking accept, poll to avoid blocking other requests
                 if (req.timeout_ms != 0) {
-                    fd_set readfds;
-                    FD_ZERO(&readfds);
-                    FD_SET(req.data.accept.fd, &readfds);
-
-                    // Use 100ms polling interval to allow processing other requests
-                    struct timeval tv;
-                    tv.tv_sec = 0;
-                    tv.tv_usec = 100000; // 100ms
-
-                    RT_LOG_TRACE("Network worker: accept polling on fd=%d", req.data.accept.fd);
-                    int ret = select(req.data.accept.fd + 1, &readfds, NULL, NULL, &tv);
-                    RT_LOG_TRACE("Network worker: accept select returned %d", ret);
+                    int ret = poll_fd(req.data.accept.fd, false);
                     if (ret < 0) {
                         comp.status = RT_ERROR(RT_ERR_IO, strerror(errno));
                         break;
                     } else if (ret == 0) {
-                        // Timeout - requeue request and process other requests
-                        RT_LOG_TRACE("Network worker: accept timeout, requeuing");
-                        if (!rt_spsc_push(&g_net_io.request_queue, &req)) {
-                            RT_LOG_TRACE("Network worker: accept requeue failed - queue full");
-                        }
-                        continue; // Don't push completion, just loop
+                        // Timeout - requeue and process other requests
+                        rt_spsc_push(&g_net_io.request_queue, &req);
+                        continue;
                     }
                 }
 
+                struct sockaddr_in client_addr;
+                socklen_t client_len = sizeof(client_addr);
                 int conn_fd = accept(req.data.accept.fd, (struct sockaddr *)&client_addr, &client_len);
                 if (conn_fd < 0) {
                     if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -227,7 +227,6 @@ static void *net_worker_thread(void *arg) {
                     memcpy(&serv_addr.sin_addr.s_addr, server->h_addr_list[0], server->h_length);
                     serv_addr.sin_port = htons(req.data.connect.port);
 
-                    // Set non-blocking for connect
                     set_nonblocking(fd);
 
                     if (connect(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
@@ -245,26 +244,16 @@ static void *net_worker_thread(void *arg) {
                     }
                 }
 
-                // Poll for connection completion with 100ms timeout
-                fd_set writefds;
-                FD_ZERO(&writefds);
-                FD_SET(fd, &writefds);
-
-                struct timeval tv;
-                tv.tv_sec = 0;
-                tv.tv_usec = 100000; // 100ms polling
-
-                int ret = select(fd + 1, NULL, &writefds, NULL, &tv);
+                // Poll for connection completion
+                int ret = poll_fd(fd, true);
                 if (ret < 0) {
                     comp.status = RT_ERROR(RT_ERR_IO, strerror(errno));
                     close(fd);
                     break;
                 } else if (ret == 0) {
-                    // Timeout - requeue request and process other requests
-                    if (!rt_spsc_push(&g_net_io.request_queue, &req)) {
-                        // Queue full
-                    }
-                    continue; // Don't push completion, just loop
+                    // Timeout - requeue and process other requests
+                    rt_spsc_push(&g_net_io.request_queue, &req);
+                    continue;
                 }
 
                 // Check if connection succeeded
@@ -288,28 +277,16 @@ static void *net_worker_thread(void *arg) {
             }
 
             case NET_OP_RECV: {
-                // For blocking recv, use select with timeout
-                // Note: Even for infinite timeout (-1), we use polling to avoid blocking the worker thread
+                // Poll to avoid blocking the worker thread
                 if (req.timeout_ms != 0) {
-                    fd_set readfds;
-                    FD_ZERO(&readfds);
-                    FD_SET(req.data.rw.fd, &readfds);
-
-                    // Use 100ms polling interval for infinite timeout to avoid blocking other requests
-                    struct timeval tv;
-                    tv.tv_sec = 0;
-                    tv.tv_usec = 100000; // 100ms
-
-                    int ret = select(req.data.rw.fd + 1, &readfds, NULL, NULL, &tv);
+                    int ret = poll_fd(req.data.rw.fd, false);
                     if (ret < 0) {
                         comp.status = RT_ERROR(RT_ERR_IO, strerror(errno));
                         break;
                     } else if (ret == 0) {
-                        // Timeout - requeue request and try again later
-                        if (!rt_spsc_push(&g_net_io.request_queue, &req)) {
-                            // Queue full, skip this iteration
-                        }
-                        continue; // Don't push completion, just loop
+                        // Timeout - requeue and process other requests
+                        rt_spsc_push(&g_net_io.request_queue, &req);
+                        continue;
                     }
                 }
 
@@ -327,28 +304,16 @@ static void *net_worker_thread(void *arg) {
             }
 
             case NET_OP_SEND: {
-                // For blocking send, use select with timeout
-                // Note: Even for infinite timeout (-1), we use polling to avoid blocking the worker thread
+                // Poll to avoid blocking the worker thread
                 if (req.timeout_ms != 0) {
-                    fd_set writefds;
-                    FD_ZERO(&writefds);
-                    FD_SET(req.data.rw.fd, &writefds);
-
-                    // Use 100ms polling interval for infinite timeout to avoid blocking other requests
-                    struct timeval tv;
-                    tv.tv_sec = 0;
-                    tv.tv_usec = 100000; // 100ms
-
-                    int ret = select(req.data.rw.fd + 1, NULL, &writefds, NULL, &tv);
+                    int ret = poll_fd(req.data.rw.fd, true);
                     if (ret < 0) {
                         comp.status = RT_ERROR(RT_ERR_IO, strerror(errno));
                         break;
                     } else if (ret == 0) {
-                        // Timeout - requeue request and try again later
-                        if (!rt_spsc_push(&g_net_io.request_queue, &req)) {
-                            // Queue full, skip this iteration
-                        }
-                        continue; // Don't push completion, just loop
+                        // Timeout - requeue and process other requests
+                        rt_spsc_push(&g_net_io.request_queue, &req);
+                        continue;
                     }
                 }
 
@@ -372,8 +337,6 @@ static void *net_worker_thread(void *arg) {
             struct timespec ts = {.tv_sec = 0, .tv_nsec = 100000}; // 100us
             nanosleep(&ts, NULL);
         }
-        RT_LOG_TRACE("Network worker: pushed completion for requester=%u, status=%d",
-                     comp.requester, comp.status.code);
     }
 
     RT_LOG_DEBUG("Network I/O worker thread exiting");

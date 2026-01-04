@@ -50,7 +50,6 @@ typedef struct {
             void  *buf;
             size_t len;
             size_t offset;  // For pread/pwrite
-            bool   use_offset;
         } rw;
 
         struct {
@@ -320,8 +319,7 @@ rt_status rt_file_read(int fd, void *buf, size_t len, size_t *actual) {
         .data.rw = {
             .fd = fd,
             .buf = buf,
-            .len = len,
-            .use_offset = false
+            .len = len
         }
     };
 
@@ -346,8 +344,7 @@ rt_status rt_file_pread(int fd, void *buf, size_t len, size_t offset, size_t *ac
             .fd = fd,
             .buf = buf,
             .len = len,
-            .offset = offset,
-            .use_offset = true
+            .offset = offset
         }
     };
 
@@ -371,8 +368,7 @@ rt_status rt_file_write(int fd, const void *buf, size_t len, size_t *actual) {
         .data.rw = {
             .fd = fd,
             .buf = (void *)buf,  // Cast away const for union
-            .len = len,
-            .use_offset = false
+            .len = len
         }
     };
 
@@ -397,8 +393,7 @@ rt_status rt_file_pwrite(int fd, const void *buf, size_t len, size_t offset, siz
             .fd = fd,
             .buf = (void *)buf,  // Cast away const for union
             .len = len,
-            .offset = offset,
-            .use_offset = true
+            .offset = offset
         }
     };
 
