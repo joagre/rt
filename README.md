@@ -14,7 +14,7 @@ This is a minimal x86-64 Linux implementation demonstrating the core concepts. S
 - ✅ Timers (one-shot and periodic with timerfd/epoll)
 - ✅ Network I/O (async TCP with worker thread)
 - ✅ File I/O (async read/write with worker thread)
-- ⏳ Bus (pub-sub) - not yet implemented
+- ✅ Bus (pub-sub with retention policies)
 
 ## Building
 
@@ -36,6 +36,9 @@ make
 
 # Timer example (one-shot and periodic)
 ./build/timer
+
+# Bus pub-sub example
+./build/bus
 ```
 
 ## Project Structure
@@ -52,6 +55,7 @@ make
 │   ├── rt_timer.h       # Timer subsystem
 │   ├── rt_file.h        # File I/O subsystem
 │   ├── rt_net.h         # Network I/O subsystem
+│   ├── rt_bus.h         # Bus pub-sub subsystem
 │   ├── rt_spsc.h        # Lock-free SPSC queue
 │   └── rt_log.h         # Logging utilities
 ├── src/              # Implementation
@@ -64,12 +68,14 @@ make
 │   ├── rt_timer.c       # Timer worker thread (timerfd/epoll)
 │   ├── rt_file.c        # File I/O worker thread
 │   ├── rt_net.c         # Network I/O worker thread
+│   ├── rt_bus.c         # Bus pub-sub implementation
 │   ├── rt_spsc.c        # Lock-free queue implementation
 │   └── rt_log.c         # Logging implementation
 ├── examples/         # Example programs
 │   ├── pingpong.c       # Classic ping-pong actor example
 │   ├── timer.c          # Timer example (one-shot and periodic)
 │   ├── fileio.c         # File I/O example
+│   ├── bus.c            # Bus pub-sub example
 │   ├── echo.c           # Network echo server
 │   ├── minimal_echo.c   # Minimal network echo
 │   └── minimal_net.c    # Minimal network example
