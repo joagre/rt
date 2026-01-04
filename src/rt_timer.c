@@ -127,8 +127,8 @@ static void *timer_worker_thread(void *arg) {
 
                     // Set timer
                     struct itimerspec its;
-                    its.it_value.tv_sec = req.interval_us / 1000000;
-                    its.it_value.tv_nsec = (req.interval_us % 1000000) * 1000;
+                    its.it_value.tv_sec = req.interval_us / RT_USEC_PER_SEC;
+                    its.it_value.tv_nsec = (req.interval_us % RT_USEC_PER_SEC) * 1000;
 
                     if (req.op == TIMER_OP_EVERY) {
                         // Periodic - set interval
@@ -215,7 +215,7 @@ static void *timer_worker_thread(void *arg) {
 
             // Push completion
             while (!rt_spsc_push(&g_timer.completion_queue, &comp)) {
-                struct timespec ts = {.tv_sec = 0, .tv_nsec = 100000};
+                struct timespec ts = {.tv_sec = 0, .tv_nsec = RT_COMPLETION_RETRY_SLEEP_NS};
                 nanosleep(&ts, NULL);
             }
         }
@@ -240,7 +240,7 @@ static void *timer_worker_thread(void *arg) {
             };
 
             while (!rt_spsc_push(&g_timer.completion_queue, &tick_comp)) {
-                struct timespec ts = {.tv_sec = 0, .tv_nsec = 100000};
+                struct timespec ts = {.tv_sec = 0, .tv_nsec = RT_COMPLETION_RETRY_SLEEP_NS};
                 nanosleep(&ts, NULL);
             }
 

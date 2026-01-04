@@ -109,7 +109,7 @@ static int poll_fd(int fd, bool for_write) {
     FD_ZERO(&fds);
     FD_SET(fd, &fds);
 
-    struct timeval tv = { .tv_sec = 0, .tv_usec = 100000 }; // 100ms
+    struct timeval tv = { .tv_sec = 0, .tv_usec = RT_NET_SELECT_TIMEOUT_US };
 
     if (for_write) {
         return select(fd + 1, NULL, &fds, NULL, &tv);
@@ -130,7 +130,7 @@ static void *net_worker_thread(void *arg) {
         // Try to get a request
         if (!rt_spsc_pop(&g_net_io.request_queue, &req)) {
             // No requests, sleep briefly
-            struct timespec ts = {.tv_sec = 0, .tv_nsec = 1000000}; // 1ms
+            struct timespec ts = {.tv_sec = 0, .tv_nsec = RT_WORKER_IDLE_SLEEP_NS};
             nanosleep(&ts, NULL);
             continue;
         }
@@ -339,7 +339,7 @@ static void *net_worker_thread(void *arg) {
         // Push completion
         while (!rt_spsc_push(&g_net_io.completion_queue, &comp)) {
             // Completion queue full, wait briefly
-            struct timespec ts = {.tv_sec = 0, .tv_nsec = 100000}; // 100us
+            struct timespec ts = {.tv_sec = 0, .tv_nsec = RT_COMPLETION_RETRY_SLEEP_NS};
             nanosleep(&ts, NULL);
         }
     }

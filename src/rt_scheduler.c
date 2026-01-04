@@ -1,4 +1,5 @@
 #include "rt_scheduler.h"
+#include "rt_static_config.h"
 #include "rt_actor.h"
 #include "rt_context.h"
 #include "rt_link.h"
@@ -109,7 +110,7 @@ void rt_scheduler_run(void) {
         } else {
             // No runnable actors - they may be blocked on I/O
             // Sleep briefly to allow I/O operations to complete
-            struct timespec ts = {.tv_sec = 0, .tv_nsec = 100000}; // 100us
+            struct timespec ts = {.tv_sec = 0, .tv_nsec = RT_SCHEDULER_IDLE_SLEEP_NS};
             nanosleep(&ts, NULL);
         }
     }
