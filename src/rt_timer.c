@@ -16,7 +16,7 @@
 #include <sys/epoll.h>
 
 // Forward declarations for internal functions
-rt_status rt_timer_init(void);
+rt_status rt_timer_init(size_t queue_size);
 void rt_timer_cleanup(void);
 void rt_timer_process_completions(void);
 
@@ -255,18 +255,18 @@ static void *timer_worker_thread(void *arg) {
 }
 
 // Initialize timer subsystem
-rt_status rt_timer_init(void) {
+rt_status rt_timer_init(size_t queue_size) {
     if (g_timer.initialized) {
         return RT_SUCCESS;
     }
 
     // Initialize queues
-    rt_status status = rt_spsc_init(&g_timer.request_queue, sizeof(timer_request), 64);
+    rt_status status = rt_spsc_init(&g_timer.request_queue, sizeof(timer_request), queue_size);
     if (RT_FAILED(status)) {
         return status;
     }
 
-    status = rt_spsc_init(&g_timer.completion_queue, sizeof(timer_completion), 64);
+    status = rt_spsc_init(&g_timer.completion_queue, sizeof(timer_completion), queue_size);
     if (RT_FAILED(status)) {
         rt_spsc_destroy(&g_timer.request_queue);
         return status;

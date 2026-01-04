@@ -19,7 +19,7 @@
 #include <fcntl.h>
 
 // Forward declarations for internal functions
-rt_status rt_net_init(void);
+rt_status rt_net_init(size_t queue_size);
 void rt_net_cleanup(void);
 void rt_net_process_completions(void);
 
@@ -344,18 +344,18 @@ static void *net_worker_thread(void *arg) {
 }
 
 // Initialize network I/O subsystem
-rt_status rt_net_init(void) {
+rt_status rt_net_init(size_t queue_size) {
     if (g_net_io.initialized) {
         return RT_SUCCESS;
     }
 
     // Initialize queues (power of 2 capacity)
-    rt_status status = rt_spsc_init(&g_net_io.request_queue, sizeof(net_request), 64);
+    rt_status status = rt_spsc_init(&g_net_io.request_queue, sizeof(net_request), queue_size);
     if (RT_FAILED(status)) {
         return status;
     }
 
-    status = rt_spsc_init(&g_net_io.completion_queue, sizeof(net_completion), 64);
+    status = rt_spsc_init(&g_net_io.completion_queue, sizeof(net_completion), queue_size);
     if (RT_FAILED(status)) {
         rt_spsc_destroy(&g_net_io.request_queue);
         return status;

@@ -7,11 +7,11 @@
 #include <stdlib.h>
 
 // Forward declarations for I/O subsystems
-extern rt_status rt_file_init(void);
+extern rt_status rt_file_init(size_t queue_size);
 extern void rt_file_cleanup(void);
-extern rt_status rt_net_init(void);
+extern rt_status rt_net_init(size_t queue_size);
 extern void rt_net_cleanup(void);
-extern rt_status rt_timer_init(void);
+extern rt_status rt_timer_init(size_t queue_size);
 extern void rt_timer_cleanup(void);
 extern rt_status rt_bus_init(void);
 extern void rt_bus_cleanup(void);
@@ -48,7 +48,7 @@ rt_status rt_init(const rt_config *cfg) {
     }
 
     // Initialize file I/O subsystem
-    status = rt_file_init();
+    status = rt_file_init(g_config.completion_queue_size);
     if (RT_FAILED(status)) {
         rt_link_cleanup();
         rt_scheduler_cleanup();
@@ -57,7 +57,7 @@ rt_status rt_init(const rt_config *cfg) {
     }
 
     // Initialize network I/O subsystem
-    status = rt_net_init();
+    status = rt_net_init(g_config.completion_queue_size);
     if (RT_FAILED(status)) {
         rt_file_cleanup();
         rt_link_cleanup();
@@ -67,7 +67,7 @@ rt_status rt_init(const rt_config *cfg) {
     }
 
     // Initialize timer subsystem
-    status = rt_timer_init();
+    status = rt_timer_init(g_config.completion_queue_size);
     if (RT_FAILED(status)) {
         rt_net_cleanup();
         rt_file_cleanup();

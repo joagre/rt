@@ -7,11 +7,13 @@
 typedef struct {
     size_t default_stack_size;    // default actor stack, bytes
     size_t max_actors;            // maximum concurrent actors
+    size_t completion_queue_size; // entries per I/O completion queue
 } rt_config;
 
 #define RT_CONFIG_DEFAULT { \
     .default_stack_size = 65536, \
-    .max_actors = 64 \
+    .max_actors = 64, \
+    .completion_queue_size = 64 \
 }
 
 // Initialize runtime (call once from main)
