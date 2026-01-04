@@ -55,5 +55,5 @@ size_t rt_pool_available(const rt_pool *pool) {
 }
 
 bool rt_pool_is_empty(const rt_pool *pool) {
-    return pool->allocated >= pool->capacity;
+    return pool->allocated == 0;
 }
