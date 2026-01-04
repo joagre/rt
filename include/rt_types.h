@@ -11,6 +11,7 @@ typedef uint32_t actor_id;
 #define ACTOR_ID_INVALID  ((actor_id)0)
 
 // Special sender IDs
+#define RT_SENDER_TIMER   ((actor_id)0xFFFFFFFF)
 #define RT_SENDER_SYSTEM  ((actor_id)0xFFFFFFFE)
 
 // Priority levels (lower value = higher priority)
