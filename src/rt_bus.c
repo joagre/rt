@@ -477,10 +477,12 @@ rt_status rt_bus_read_wait(bus_id id, void *buf, size_t max_len,
         return status;  // Non-blocking
     }
 
-    // Poll until data is available
+    // Poll until data is available or timeout expires
     // Use cooperative yielding - actors remain runnable
-    // TODO: Timeout support
-    (void)timeout_ms;
+    uint64_t start_ms = 0;
+    if (timeout_ms > 0) {
+        start_ms = get_time_ms();
+    }
 
     while (true) {
         rt_yield();
@@ -492,6 +494,14 @@ rt_status rt_bus_read_wait(bus_id id, void *buf, size_t max_len,
 
         if (status.code != RT_ERR_WOULDBLOCK) {
             return status;
+        }
+
+        // Check timeout (if positive timeout specified)
+        if (timeout_ms > 0) {
+            uint64_t elapsed = get_time_ms() - start_ms;
+            if (elapsed >= (uint64_t)timeout_ms) {
+                return RT_ERROR(RT_ERR_TIMEOUT, "Bus read timeout");
+            }
         }
     }
 }
