@@ -430,11 +430,11 @@ File operations block the calling actor and yield to the scheduler.
 
 ## Memory Allocation Architecture
 
-The runtime uses a **two-tier configuration system** for deterministic memory allocation:
+The runtime uses **compile-time configuration** for deterministic memory allocation.
 
-### Compile-Time Limits (`rt_static_config.h`)
+### Compile-Time Configuration (`rt_static_config.h`)
 
-Hard upper bounds that determine static allocation sizes. These limits **cannot be exceeded** at runtime and require recompilation to change:
+All resource limits are defined at compile-time and require recompilation to change:
 
 ```c
 #define RT_MAX_ACTORS 64                    // Maximum concurrent actors
@@ -455,27 +455,11 @@ All runtime structures (except actor stacks) are **statically allocated** based 
 - No malloc in hot paths (scheduling, IPC, I/O completions)
 - Suitable for embedded/MCU deployment
 
-### Runtime Configuration (`rt_config`)
-
-Validates actual usage against compile-time limits. Allows running with fewer resources than the maximum:
+### Runtime API
 
 ```c
-typedef struct {
-    size_t default_stack_size;    // default actor stack, bytes
-    size_t max_actors;            // maximum concurrent actors (≤ RT_MAX_ACTORS)
-    size_t completion_queue_size; // I/O completion queue size (≤ RT_COMPLETION_QUEUE_SIZE)
-    size_t max_buses;             // maximum concurrent buses (≤ RT_MAX_BUSES)
-} rt_config;
-
-#define RT_CONFIG_DEFAULT { \
-    .default_stack_size = 65536, \
-    .max_actors = 64, \
-    .completion_queue_size = 64, \
-    .max_buses = 32 \
-}
-
 // Initialize runtime (call once from main)
-rt_status rt_init(const rt_config *cfg);
+rt_status rt_init(void);
 
 // Run scheduler (blocks until all actors exit or rt_shutdown called)
 void rt_run(void);

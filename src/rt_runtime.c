@@ -3,32 +3,26 @@
 #include "rt_scheduler.h"
 #include "rt_link.h"
 #include "rt_log.h"
+#include "rt_static_config.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 // Forward declarations for subsystems
 extern rt_status rt_ipc_init(void);
-extern rt_status rt_file_init(size_t queue_size);
+extern rt_status rt_file_init(void);
 extern void rt_file_cleanup(void);
-extern rt_status rt_net_init(size_t queue_size);
+extern rt_status rt_net_init(void);
 extern void rt_net_cleanup(void);
-extern rt_status rt_timer_init(size_t queue_size);
+extern rt_status rt_timer_init(void);
 extern void rt_timer_cleanup(void);
-extern rt_status rt_bus_init(size_t max_buses);
+extern rt_status rt_bus_init(void);
 extern void rt_bus_cleanup(void);
 extern rt_status rt_link_init(void);
 extern void rt_link_cleanup(void);
 
-// Global configuration
-static rt_config g_config = RT_CONFIG_DEFAULT;
-
-rt_status rt_init(const rt_config *cfg) {
-    if (cfg) {
-        g_config = *cfg;
-    }
-
+rt_status rt_init(void) {
     // Initialize actor subsystem
-    rt_status status = rt_actor_init(g_config.max_actors);
+    rt_status status = rt_actor_init();
     if (RT_FAILED(status)) {
         return status;
     }
@@ -57,7 +51,7 @@ rt_status rt_init(const rt_config *cfg) {
     }
 
     // Initialize file I/O subsystem
-    status = rt_file_init(g_config.completion_queue_size);
+    status = rt_file_init();
     if (RT_FAILED(status)) {
         rt_link_cleanup();
         rt_scheduler_cleanup();
@@ -66,7 +60,7 @@ rt_status rt_init(const rt_config *cfg) {
     }
 
     // Initialize network I/O subsystem
-    status = rt_net_init(g_config.completion_queue_size);
+    status = rt_net_init();
     if (RT_FAILED(status)) {
         rt_file_cleanup();
         rt_link_cleanup();
@@ -76,7 +70,7 @@ rt_status rt_init(const rt_config *cfg) {
     }
 
     // Initialize timer subsystem
-    status = rt_timer_init(g_config.completion_queue_size);
+    status = rt_timer_init();
     if (RT_FAILED(status)) {
         rt_net_cleanup();
         rt_file_cleanup();
@@ -87,7 +81,7 @@ rt_status rt_init(const rt_config *cfg) {
     }
 
     // Initialize bus subsystem
-    status = rt_bus_init(g_config.max_buses);
+    status = rt_bus_init();
     if (RT_FAILED(status)) {
         rt_timer_cleanup();
         rt_net_cleanup();
@@ -121,7 +115,7 @@ void rt_cleanup(void) {
 
 actor_id rt_spawn(actor_fn fn, void *arg) {
     actor_config cfg = RT_ACTOR_CONFIG_DEFAULT;
-    cfg.stack_size = g_config.default_stack_size;
+    cfg.stack_size = RT_DEFAULT_STACK_SIZE;
     return rt_spawn_ex(fn, arg, &cfg);
 }
 
@@ -137,7 +131,7 @@ actor_id rt_spawn_ex(actor_fn fn, void *arg, const actor_config *cfg) {
     actual_cfg.priority = cfg->priority;
     actual_cfg.name = cfg->name;
     if (actual_cfg.stack_size == 0) {
-        actual_cfg.stack_size = g_config.default_stack_size;
+        actual_cfg.stack_size = RT_DEFAULT_STACK_SIZE;
     }
 
     actor *a = rt_actor_alloc(fn, arg, &actual_cfg);

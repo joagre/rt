@@ -14,7 +14,7 @@
 #include <time.h>
 
 // Forward declarations for internal functions
-rt_status rt_file_init(size_t queue_size);
+rt_status rt_file_init(void);
 void rt_file_cleanup(void);
 void rt_file_process_completions(void);
 
@@ -186,25 +186,20 @@ static void *file_worker_thread(void *arg) {
 }
 
 // Initialize file I/O subsystem
-rt_status rt_file_init(size_t queue_size) {
+rt_status rt_file_init(void) {
     if (g_file_io.initialized) {
         return RT_SUCCESS;
     }
 
-    // Validate queue_size against compile-time limit
-    if (queue_size > RT_COMPLETION_QUEUE_SIZE) {
-        return RT_ERROR(RT_ERR_INVALID, "queue_size exceeds RT_COMPLETION_QUEUE_SIZE");
-    }
-
     // Initialize queues with static buffers (power of 2 capacity)
     rt_status status = rt_spsc_init(&g_file_io.request_queue, g_file_request_buffer,
-                                     sizeof(file_request), queue_size);
+                                     sizeof(file_request), RT_COMPLETION_QUEUE_SIZE);
     if (RT_FAILED(status)) {
         return status;
     }
 
     status = rt_spsc_init(&g_file_io.completion_queue, g_file_completion_buffer,
-                          sizeof(file_completion), queue_size);
+                          sizeof(file_completion), RT_COMPLETION_QUEUE_SIZE);
     if (RT_FAILED(status)) {
         rt_spsc_destroy(&g_file_io.request_queue);
         return status;

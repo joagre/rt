@@ -14,18 +14,10 @@ static actor_table g_actor_table = {0};
 // Current running actor
 static actor *g_current_actor = NULL;
 
-rt_status rt_actor_init(size_t max_actors) {
-    if (max_actors == 0) {
-        return RT_ERROR(RT_ERR_INVALID, "max_actors must be > 0");
-    }
-
-    if (max_actors > RT_MAX_ACTORS) {
-        return RT_ERROR(RT_ERR_INVALID, "max_actors exceeds RT_MAX_ACTORS");
-    }
-
+rt_status rt_actor_init(void) {
     // Use static actor array (already zero-initialized)
     g_actor_table.actors = g_actors;
-    g_actor_table.max_actors = max_actors;
+    g_actor_table.max_actors = RT_MAX_ACTORS;
     g_actor_table.num_actors = 0;
     g_actor_table.next_id = 1; // Start at 1, 0 is ACTOR_ID_INVALID
 
