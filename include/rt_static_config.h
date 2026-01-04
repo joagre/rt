@@ -98,4 +98,33 @@
 #define RT_COMPLETION_QUEUE_SIZE 64
 #endif
 
+// -----------------------------------------------------------------------------
+// Timing and Sleep Configuration
+// -----------------------------------------------------------------------------
+
+// Scheduler idle sleep duration when no actors are runnable (nanoseconds)
+// Used to avoid busy-waiting when all actors are blocked on I/O
+#ifndef RT_SCHEDULER_IDLE_SLEEP_NS
+#define RT_SCHEDULER_IDLE_SLEEP_NS 100000  // 100 microseconds
+#endif
+
+// Worker thread idle sleep when no I/O requests are pending (nanoseconds)
+#ifndef RT_WORKER_IDLE_SLEEP_NS
+#define RT_WORKER_IDLE_SLEEP_NS 1000000  // 1 millisecond
+#endif
+
+// Completion queue push retry sleep duration (nanoseconds)
+// Used when worker thread needs to push to a full completion queue
+#ifndef RT_COMPLETION_RETRY_SLEEP_NS
+#define RT_COMPLETION_RETRY_SLEEP_NS 100000  // 100 microseconds
+#endif
+
+// Network select timeout for non-blocking operations (microseconds)
+#ifndef RT_NET_SELECT_TIMEOUT_US
+#define RT_NET_SELECT_TIMEOUT_US 100000  // 100 milliseconds
+#endif
+
+// Microseconds per second (constant for time conversions)
+#define RT_USEC_PER_SEC 1000000
+
 #endif // RT_STATIC_CONFIG_H

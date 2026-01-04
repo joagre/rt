@@ -82,7 +82,7 @@ actor *rt_actor_alloc(actor_fn fn, void *arg, const actor_config *cfg) {
     }
 
     // Determine stack size
-    size_t stack_size = cfg->stack_size > 0 ? cfg->stack_size : (64 * 1024); // Default 64KB
+    size_t stack_size = cfg->stack_size > 0 ? cfg->stack_size : RT_DEFAULT_STACK_SIZE;
 
     // Allocate stack
     void *stack = malloc(stack_size);
