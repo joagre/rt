@@ -13,7 +13,7 @@ extern rt_status rt_net_init(size_t queue_size);
 extern void rt_net_cleanup(void);
 extern rt_status rt_timer_init(size_t queue_size);
 extern void rt_timer_cleanup(void);
-extern rt_status rt_bus_init(void);
+extern rt_status rt_bus_init(size_t max_buses);
 extern void rt_bus_cleanup(void);
 extern rt_status rt_link_init(void);
 extern void rt_link_cleanup(void);
@@ -78,7 +78,7 @@ rt_status rt_init(const rt_config *cfg) {
     }
 
     // Initialize bus subsystem
-    status = rt_bus_init();
+    status = rt_bus_init(g_config.max_buses);
     if (RT_FAILED(status)) {
         rt_timer_cleanup();
         rt_net_cleanup();
