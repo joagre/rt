@@ -134,6 +134,15 @@ void rt_actor_free(actor *a) {
         a->stack = NULL;
     }
 
+    // Free active message
+    if (a->active_msg) {
+        if (a->active_msg->data) {
+            free(a->active_msg->data);
+        }
+        free(a->active_msg);
+        a->active_msg = NULL;
+    }
+
     // Free mailbox entries
     mailbox_clear(&a->mbox);
 

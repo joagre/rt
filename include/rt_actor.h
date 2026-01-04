@@ -43,6 +43,9 @@ typedef struct {
     // Mailbox
     mailbox        mbox;
 
+    // Active message (for proper cleanup)
+    mailbox_entry *active_msg;
+
     // For blocked IPC_BORROW sends
     bool           waiting_for_release;
     actor_id       blocked_on_actor;
