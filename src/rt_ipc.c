@@ -113,6 +113,15 @@ rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms) {
         }
     }
 
+    // Free previous active message if any
+    if (current->active_msg) {
+        if (current->active_msg->data) {
+            free(current->active_msg->data);  // Free COPY message data
+        }
+        free(current->active_msg);  // Free entry
+        current->active_msg = NULL;
+    }
+
     // Dequeue message
     mailbox_entry *entry = current->mbox.head;
     current->mbox.head = entry->next;
@@ -126,21 +135,8 @@ rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms) {
     msg->len = entry->len;
     msg->data = entry->borrow_ptr ? entry->borrow_ptr : entry->data;
 
-    // Store entry pointer in message for later release
-    // We'll use a trick: store the entry pointer in a thread-local or global
-    // For simplicity, we'll add it to the actor structure
-    // But for this minimal version, we'll just free COPY messages immediately
-    // and keep BORROW messages until release
-
-    if (entry->borrow_ptr == NULL) {
-        // COPY message - we own the data, will be freed on next recv or release
-        // For now, just keep the entry around
-    }
-
-    // Note: We're not freeing the entry here because the user needs to access the data
-    // We'll free it on the next recv or explicit release
-    // For this minimal implementation, we'll leak entries if not released
-    // A proper implementation would track active messages
+    // Store entry as active message for later cleanup
+    current->active_msg = entry;
 
     return RT_SUCCESS;
 }
@@ -164,8 +160,14 @@ void rt_ipc_release(const rt_message *msg) {
         sender->state = ACTOR_STATE_READY;
     }
 
-    // Free the message data if it was copied
-    // This is a simplified version - proper implementation would track entries better
+    // Free the active message
+    if (current->active_msg) {
+        if (current->active_msg->data) {
+            free(current->active_msg->data);  // Free COPY message data
+        }
+        free(current->active_msg);  // Free entry
+        current->active_msg = NULL;
+    }
 }
 
 bool rt_ipc_pending(void) {
