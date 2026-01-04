@@ -53,7 +53,7 @@ On FreeRTOS, the entire actor runtime runs as a single task. Blocking I/O is del
   - Links/Monitors: Dedicated pools (128 each)
   - Timers: Timer entry pool (64)
   - Bus: Uses message pool for entry data
-- Deterministic memory: ~138KB static + variable actor stacks
+- Deterministic memory: ~231KB static + variable actor stacks
 - No heap fragmentation: Zero malloc in hot paths (message passing, timers, etc.)
 
 ### Error Handling

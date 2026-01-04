@@ -389,9 +389,9 @@ The total memory footprint consists of two components:
 | Link pool | `RT_LINK_ENTRY_POOL_SIZE × ~16 bytes` | 2 KB |
 | Monitor pool | `RT_MONITOR_ENTRY_POOL_SIZE × ~16 bytes` | 2 KB |
 | Timer pool | `RT_TIMER_ENTRY_POOL_SIZE × ~40 bytes` | 2.5 KB |
-| Bus tables | `RT_MAX_BUSES × ~200 bytes` | 6.4 KB |
-| Completion queues | `6 × RT_COMPLETION_QUEUE_SIZE × ~100 bytes` | 38.4 KB |
-| **Total static** | | **~138 KB** |
+| Bus tables | `RT_MAX_BUSES × ~3 KB` | 96 KB |
+| Completion queues | `3 subsystems × ~20 KB` | 60 KB |
+| **Total static** | **(measured)** | **~231 KB** |
 
 **2. Dynamic Memory (Heap)** - actor stacks only:
 
@@ -401,7 +401,7 @@ Heap = (Number of actors) × (Average stack size)
 
 Example: 20 actors × 32 KB = 640 KB
 
-**Total footprint** = Static data + Dynamic stacks = ~778 KB (default configuration)
+**Total footprint** = Static data + Dynamic stacks = ~871 KB (default configuration, 20 actors)
 
 ### Configuring Memory Limits
 
@@ -440,12 +440,13 @@ Edit `include/rt_static_config.h` to adjust memory usage for your application:
 **Small embedded system (drone sensor node):**
 ```c
 #define RT_MAX_ACTORS              16     // Few actors
+#define RT_MAX_BUSES               8      // Fewer buses
 #define RT_MAILBOX_ENTRY_POOL_SIZE 64     // Limited messaging
 #define RT_MESSAGE_DATA_POOL_SIZE  64
 #define RT_TIMER_ENTRY_POOL_SIZE   16
 #define RT_DEFAULT_STACK_SIZE      16384  // 16 KB stacks
-// Static: ~35 KB, Dynamic: 16 actors × 16 KB = 256 KB
-// Total: ~291 KB
+// Static: ~60 KB, Dynamic: 16 actors × 16 KB = 256 KB
+// Total: ~316 KB
 ```
 
 **High-throughput system (network gateway):**
@@ -455,12 +456,14 @@ Edit `include/rt_static_config.h` to adjust memory usage for your application:
 #define RT_MESSAGE_DATA_POOL_SIZE  512
 #define RT_MAX_MESSAGE_SIZE        1024   // Larger messages
 #define RT_COMPLETION_QUEUE_SIZE   128
-// Static: ~550 KB, Dynamic: varies by active actors
+// Static: ~650 KB, Dynamic: varies by active actors
 ```
 
 **Memory-constrained MCU (STM32F4 with 192KB RAM):**
 ```c
 #define RT_MAX_ACTORS              8
+#define RT_MAX_BUSES               4      // Minimal buses
+#define RT_MAX_BUS_ENTRIES         16     // Small buffers
 #define RT_MAILBOX_ENTRY_POOL_SIZE 32
 #define RT_MESSAGE_DATA_POOL_SIZE  32
 #define RT_MAX_MESSAGE_SIZE        128    // Smaller messages
@@ -468,8 +471,8 @@ Edit `include/rt_static_config.h` to adjust memory usage for your application:
 #define RT_MONITOR_ENTRY_POOL_SIZE 16
 #define RT_TIMER_ENTRY_POOL_SIZE   8
 #define RT_DEFAULT_STACK_SIZE      8192   // 8 KB stacks
-// Static: ~12 KB, Dynamic: 8 actors × 8 KB = 64 KB
-// Total: ~76 KB (fits in 192 KB RAM with margin)
+// Static: ~20 KB, Dynamic: 8 actors × 8 KB = 64 KB
+// Total: ~84 KB (fits in 192 KB RAM with margin)
 ```
 
 ### Sizing Guidelines

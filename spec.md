@@ -124,18 +124,19 @@ The runtime uses static allocation for deterministic behavior and suitability fo
 - **Completion queues:** Static buffers of `RT_COMPLETION_QUEUE_SIZE` (64) for each I/O subsystem
 
 **Memory Footprint (typical configuration):**
-- Static data (BSS): ~138KB
-  - Actor table: 64 × ~200 bytes = 12.8 KB
-  - Mailbox pool: 256 × ~40 bytes = 10.2 KB
-  - Message pool: 256 × 256 bytes = 64 KB
-  - Link/monitor pools: 256 × ~16 bytes = 4 KB
-  - Timer pool: 64 × ~40 bytes = 2.5 KB
-  - Bus tables: 32 × ~200 bytes = 6.4 KB
-  - Completion queues: 6 × 64 × ~100 bytes = 38.4 KB
+- Static data (BSS): ~231KB (measured with default configuration)
+  - Actor table: 64 actors × ~200 bytes = 12.8 KB
+  - Mailbox pool: 256 entries × ~40 bytes = 10.2 KB
+  - Message pool: 256 entries × 256 bytes = 64 KB
+  - Link/monitor pools: 256 entries × ~16 bytes = 4 KB
+  - Timer pool: 64 entries × ~40 bytes = 2.5 KB
+  - Bus tables: 32 buses × ~3 KB each = 96 KB
+  - Completion queues: 3 subsystems × ~20 KB each = 60 KB
+  - Note: Actual size includes alignment padding and internal structures
 - Dynamic (heap): Variable actor stacks only
   - Example: 20 actors × 32KB average = 640 KB
 
-**Total:** ~778 KB (known at compile time)
+**Total:** ~871 KB (known at compile time)
 
 **Benefits:**
 
