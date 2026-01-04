@@ -15,7 +15,7 @@
 extern rt_pool g_message_pool_mgr;
 
 // Forward declarations
-rt_status rt_bus_init(size_t max_buses);
+rt_status rt_bus_init(void);
 void rt_bus_cleanup(void);
 void rt_bus_cleanup_actor(actor_id id);
 
@@ -125,22 +125,14 @@ static void expire_old_entries(bus_t *bus) {
 }
 
 // Initialize bus subsystem
-rt_status rt_bus_init(size_t max_buses) {
+rt_status rt_bus_init(void) {
     if (g_bus_table.initialized) {
         return RT_SUCCESS;
     }
 
-    if (max_buses == 0) {
-        return RT_ERROR(RT_ERR_INVALID, "max_buses must be > 0");
-    }
-
-    if (max_buses > RT_MAX_BUSES) {
-        return RT_ERROR(RT_ERR_INVALID, "max_buses exceeds RT_MAX_BUSES");
-    }
-
     // Use static bus array (already zero-initialized)
     g_bus_table.buses = g_buses;
-    g_bus_table.max_buses = max_buses;
+    g_bus_table.max_buses = RT_MAX_BUSES;
     g_bus_table.next_id = 1;
     g_bus_table.initialized = true;
 

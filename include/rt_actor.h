@@ -83,7 +83,7 @@ typedef struct {
 } actor_table;
 
 // Initialize actor subsystem
-rt_status rt_actor_init(size_t max_actors);
+rt_status rt_actor_init(void);
 
 // Cleanup actor subsystem
 void rt_actor_cleanup(void);

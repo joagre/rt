@@ -96,10 +96,7 @@ int main(void) {
     printf("=== Actor Runtime Supervisor Demo ===\n\n");
 
     // Initialize runtime
-    rt_config cfg = RT_CONFIG_DEFAULT;
-    cfg.max_actors = 10;
-
-    rt_status status = rt_init(&cfg);
+    rt_status status = rt_init();
     if (RT_FAILED(status)) {
         fprintf(stderr, "Failed to initialize runtime: %s\n",
                 status.msg ? status.msg : "unknown error");

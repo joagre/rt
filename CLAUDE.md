@@ -75,11 +75,11 @@ All runtime functions return `rt_status` with a code and optional string literal
 
 ## Important Implementation Details
 
-### Memory Allocation - Two-Tier Configuration
+### Memory Allocation - Compile-Time Configuration
 
-The runtime uses a **two-tier system** for deterministic memory allocation:
+The runtime uses **compile-time configuration** for deterministic memory allocation:
 
-**1. Compile-Time Limits (`rt_static_config.h`)** - Hard upper bounds that determine static allocation:
+**Compile-Time Limits (`rt_static_config.h`)** - All resource limits defined at compile time:
 - `RT_MAX_ACTORS`: Maximum concurrent actors (64)
 - `RT_MAX_BUSES`: Maximum concurrent buses (32)
 - `RT_MAILBOX_ENTRY_POOL_SIZE`: Mailbox entry pool (256)
@@ -91,10 +91,7 @@ The runtime uses a **two-tier system** for deterministic memory allocation:
 - `RT_MAX_MESSAGE_SIZE`: Maximum message size in bytes (256)
 - `RT_DEFAULT_STACK_SIZE`: Default actor stack size (65536)
 
-**2. Runtime Configuration (`rt_config`)** - Validates actual usage against compile-time limits:
-- Passed to `rt_init()` to specify requested resources
-- Each field must be ≤ corresponding compile-time limit
-- Allows running with fewer resources than maximum (e.g., compile with RT_MAX_ACTORS=64, run with max_actors=32)
+To change these limits, edit `rt_static_config.h` and recompile.
 
 **Memory characteristics:**
 - All runtime structures (except actor stacks) are **statically allocated** based on compile-time limits

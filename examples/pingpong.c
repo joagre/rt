@@ -105,11 +105,7 @@ int main(void) {
     printf("=== Actor Runtime Ping-Pong Example ===\n\n");
 
     // Initialize runtime
-    rt_config cfg = RT_CONFIG_DEFAULT;
-    cfg.max_actors = 10;
-    cfg.default_stack_size = 65536;
-
-    rt_status status = rt_init(&cfg);
+    rt_status status = rt_init();
     if (RT_FAILED(status)) {
         fprintf(stderr, "Failed to initialize runtime: %s\n",
                 status.msg ? status.msg : "unknown error");

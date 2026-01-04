@@ -24,27 +24,19 @@ The runtime is minimalistic by design: predictable behavior, no heap allocation 
 
 ## Memory Model
 
-The runtime uses a **two-tier configuration** for predictable memory allocation:
+The runtime uses **compile-time configuration** for predictable memory allocation.
 
-### 1. Compile-Time Limits (`include/rt_static_config.h`)
+### Compile-Time Configuration (`include/rt_static_config.h`)
 
-Hard limits that determine static allocation. Edit and recompile to change:
+All resource limits are defined at compile time. Edit and recompile to change:
 
 ```c
 #define RT_MAX_ACTORS 64                // Maximum concurrent actors
 #define RT_MAILBOX_ENTRY_POOL_SIZE 256  // Mailbox pool size
 #define RT_MESSAGE_DATA_POOL_SIZE 256   // Message pool size
+#define RT_COMPLETION_QUEUE_SIZE 64     // I/O completion queue size
+#define RT_MAX_BUSES 32                 // Maximum concurrent buses
 // ... and more (see rt_static_config.h for full list)
-```
-
-### 2. Runtime Configuration (`rt_config`)
-
-Actual usage validated against compile-time limits:
-
-```c
-rt_config cfg = RT_CONFIG_DEFAULT;
-cfg.max_actors = 32;  // Use fewer actors than RT_MAX_ACTORS
-rt_init(&cfg);
 ```
 
 **Memory characteristics:**
@@ -150,8 +142,7 @@ void my_actor(void *arg) {
 }
 
 int main(void) {
-    rt_config cfg = RT_CONFIG_DEFAULT;
-    rt_init(&cfg);
+    rt_init();
 
     rt_spawn(my_actor, NULL);
 
@@ -296,7 +287,7 @@ rt_unlink(other);
 
 ### Runtime Initialization
 
-- `rt_init(config)` - Initialize the runtime
+- `rt_init()` - Initialize the runtime
 - `rt_run()` - Run the scheduler (blocks until all actors exit)
 - `rt_cleanup()` - Cleanup and free resources
 - `rt_shutdown()` - Request graceful shutdown
