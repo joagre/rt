@@ -1,10 +1,13 @@
-# Actor Runtime - Minimalistic Implementation
+# Actor Runtime for Embedded Systems
 
-A minimalistic actor-based runtime for embedded systems with cooperative multitasking and message passing, inspired by Erlang's actor model.
+A complete actor-based runtime with a minimalistic design philosophy. Features cooperative multitasking and message passing inspired by Erlang's actor model.
 
-This is a minimal x86-64 Linux implementation demonstrating the core concepts. See `spec.md` for the full specification including STM32/ARM Cortex-M support.
+**Current platform:** x86-64 Linux (fully implemented)
+**Future platform:** STM32/ARM Cortex-M with FreeRTOS (see `spec.md`)
 
-## Features Implemented
+The runtime is minimalistic by design: predictable behavior, no heap allocation in hot paths, and fast context switching via manual assembly. Despite this simplicity, it provides a complete actor system with linking, monitoring, timers, networking, and file I/O.
+
+## Features
 
 - ✅ Cooperative multitasking with manual x86-64 context switching
 - ✅ Priority-based round-robin scheduler (4 priority levels)
@@ -354,13 +357,13 @@ All I/O operations (timers, file, network) are handled by dedicated worker threa
 
 **Network I/O subsystem**: Worker thread handles socket operations (accept, connect, send, recv) asynchronously.
 
-### Limitations
+### Current Limitations
 
-- Simple memory management (uses malloc/free)
-- No stack overflow detection
-- Linux-only (no FreeRTOS/ARM Cortex-M port yet)
+- Simple memory management (uses malloc/free, memory pools planned)
+- No stack overflow detection (guard patterns/MPU planned)
+- Linux-only (FreeRTOS/ARM Cortex-M port planned)
 
-See `spec.md` for the full feature set planned for production use.
+These limitations are intentional for the initial release. See `spec.md` for complete details and `Future Work` below for planned enhancements.
 
 ## Future Work
 
