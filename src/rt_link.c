@@ -1,4 +1,5 @@
 #include "rt_link.h"
+#include "rt_internal.h"
 #include "rt_static_config.h"
 #include "rt_pool.h"
 #include "rt_ipc.h"
@@ -8,12 +9,6 @@
 #include "rt_log.h"
 #include <stdlib.h>
 #include <string.h>
-#include <stddef.h>
-
-// Message data entry type (matches rt_ipc.c)
-typedef struct {
-    uint8_t data[RT_MAX_MESSAGE_SIZE];
-} message_data_entry;
 
 // External IPC pools (defined in rt_ipc.c)
 extern rt_pool g_mailbox_pool_mgr;
@@ -23,6 +18,7 @@ extern rt_pool g_message_pool_mgr;
 rt_status rt_link_init(void);
 void rt_link_cleanup(void);
 void rt_link_cleanup_actor(actor_id id);
+static bool send_exit_notification(actor *recipient, actor_id dying_id, rt_exit_reason reason);
 
 // External function to get actor table
 extern actor_table *rt_actor_get_table(void);
@@ -288,6 +284,51 @@ rt_status rt_decode_exit(const rt_message *msg, rt_exit_msg *out) {
     return RT_SUCCESS;
 }
 
+// Helper: Send exit notification to an actor
+static bool send_exit_notification(actor *recipient, actor_id dying_id, rt_exit_reason reason) {
+    mailbox_entry *entry = rt_pool_alloc(&g_mailbox_pool_mgr);
+    if (!entry) {
+        RT_LOG_ERROR("Failed to send exit notification (mailbox pool exhausted)");
+        return false;
+    }
+
+    entry->sender = RT_SENDER_SYSTEM;
+    entry->len = sizeof(rt_exit_msg);
+
+    message_data_entry *msg_data = rt_pool_alloc(&g_message_pool_mgr);
+    if (!msg_data) {
+        rt_pool_free(&g_mailbox_pool_mgr, entry);
+        RT_LOG_ERROR("Failed to allocate exit message data (message pool exhausted)");
+        return false;
+    }
+
+    entry->data = msg_data->data;
+
+    // Populate exit message
+    rt_exit_msg *exit_data = (rt_exit_msg *)entry->data;
+    exit_data->actor = dying_id;
+    exit_data->reason = reason;
+
+    entry->borrow_ptr = NULL;
+    entry->next = NULL;
+
+    // Inject into recipient's mailbox
+    if (recipient->mbox.tail) {
+        recipient->mbox.tail->next = entry;
+    } else {
+        recipient->mbox.head = entry;
+    }
+    recipient->mbox.tail = entry;
+    recipient->mbox.count++;
+
+    // Wake if blocked
+    if (recipient->state == ACTOR_STATE_BLOCKED) {
+        recipient->state = ACTOR_STATE_READY;
+    }
+
+    return true;
+}
+
 // Cleanup actor links/monitors and send death notifications
 void rt_link_cleanup_actor(actor_id dying_actor_id) {
     if (!g_link_state.initialized) {
@@ -326,50 +367,9 @@ void rt_link_cleanup_actor(actor_id dying_actor_id) {
         actor *linked_actor = rt_actor_get(link->target);
         if (linked_actor && linked_actor->state != ACTOR_STATE_DEAD) {
             // Send exit notification to linked actor
-            // Use IPC pools for consistent allocation
-            mailbox_entry *entry = rt_pool_alloc(&g_mailbox_pool_mgr);
-            if (!entry) {
-                RT_LOG_ERROR("Failed to send exit notification (mailbox pool exhausted)");
-                link = link->next;
-                continue;
+            if (send_exit_notification(linked_actor, dying_actor_id, dying->exit_reason)) {
+                RT_LOG_TRACE("Sent link exit notification to actor %u", link->target);
             }
-
-            entry->sender = RT_SENDER_SYSTEM;
-            entry->len = sizeof(rt_exit_msg);
-
-            message_data_entry *msg_data = rt_pool_alloc(&g_message_pool_mgr);
-            if (!msg_data) {
-                rt_pool_free(&g_mailbox_pool_mgr, entry);
-                RT_LOG_ERROR("Failed to allocate exit message data (message pool exhausted)");
-                link = link->next;
-                continue;
-            }
-
-            entry->data = msg_data->data;
-
-            // Populate exit message
-            rt_exit_msg *exit_data = (rt_exit_msg *)entry->data;
-            exit_data->actor = dying_actor_id;
-            exit_data->reason = dying->exit_reason;
-
-            entry->borrow_ptr = NULL;
-            entry->next = NULL;
-
-            // Inject into linked actor's mailbox
-            if (linked_actor->mbox.tail) {
-                linked_actor->mbox.tail->next = entry;
-            } else {
-                linked_actor->mbox.head = entry;
-            }
-            linked_actor->mbox.tail = entry;
-            linked_actor->mbox.count++;
-
-            // Wake if blocked
-            if (linked_actor->state == ACTOR_STATE_BLOCKED) {
-                linked_actor->state = ACTOR_STATE_READY;
-            }
-
-            RT_LOG_TRACE("Sent link exit notification to actor %u", link->target);
 
             // Remove reciprocal link from linked actor's list
             link_entry **prev = &linked_actor->links;
@@ -407,53 +407,11 @@ void rt_link_cleanup_actor(actor_id dying_actor_id) {
             monitor_entry *mon = a->monitors;
             while (mon) {
                 if (mon->target == dying_actor_id) {
-                    // Send exit notification using IPC pools
-                    mailbox_entry *entry = rt_pool_alloc(&g_mailbox_pool_mgr);
-                    if (!entry) {
-                        RT_LOG_ERROR("Failed to send monitor notification (mailbox pool exhausted)");
-                        prev = &mon->next;
-                        mon = mon->next;
-                        continue;
+                    // Send exit notification using helper
+                    if (send_exit_notification(a, dying_actor_id, dying->exit_reason)) {
+                        RT_LOG_TRACE("Sent monitor exit notification to actor %u (ref=%u)",
+                                     a->id, mon->ref);
                     }
-
-                    entry->sender = RT_SENDER_SYSTEM;
-                    entry->len = sizeof(rt_exit_msg);
-
-                    message_data_entry *msg_data = rt_pool_alloc(&g_message_pool_mgr);
-                    if (!msg_data) {
-                        rt_pool_free(&g_mailbox_pool_mgr, entry);
-                        RT_LOG_ERROR("Failed to allocate monitor exit data (message pool exhausted)");
-                        prev = &mon->next;
-                        mon = mon->next;
-                        continue;
-                    }
-
-                    entry->data = msg_data->data;
-
-                    // Populate exit message
-                    rt_exit_msg *exit_data = (rt_exit_msg *)entry->data;
-                    exit_data->actor = dying_actor_id;
-                    exit_data->reason = dying->exit_reason;
-
-                    entry->borrow_ptr = NULL;
-                    entry->next = NULL;
-
-                    // Inject into monitoring actor's mailbox
-                    if (a->mbox.tail) {
-                        a->mbox.tail->next = entry;
-                    } else {
-                        a->mbox.head = entry;
-                    }
-                    a->mbox.tail = entry;
-                    a->mbox.count++;
-
-                    // Wake if blocked
-                    if (a->state == ACTOR_STATE_BLOCKED) {
-                        a->state = ACTOR_STATE_READY;
-                    }
-
-                    RT_LOG_TRACE("Sent monitor exit notification to actor %u (ref=%u)",
-                                 a->id, mon->ref);
 
                     // Remove this monitor entry
                     monitor_entry *to_free = mon;

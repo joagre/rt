@@ -1,4 +1,5 @@
 #include "rt_timer.h"
+#include "rt_internal.h"
 #include "rt_static_config.h"
 #include "rt_pool.h"
 #include "rt_actor.h"
@@ -10,18 +11,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stddef.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <errno.h>
 #include <time.h>
 #include <sys/timerfd.h>
 #include <sys/epoll.h>
-
-// Message data entry type (matches rt_ipc.c)
-typedef struct {
-    uint8_t data[RT_MAX_MESSAGE_SIZE];
-} message_data_entry;
 
 // External IPC pools (defined in rt_ipc.c)
 extern rt_pool g_mailbox_pool_mgr;
