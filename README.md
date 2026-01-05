@@ -24,7 +24,6 @@ The runtime uses **static memory allocation** for deterministic behavior with ze
 - [Why Use This?](#why-use-this)
 - [Features](#features)
 - [Performance](#performance)
-- [Prerequisites](#prerequisites)
 - [Building](#building)
 - [Running Examples](#running-examples)
 - [Quick Start](#quick-start)
@@ -130,24 +129,6 @@ All resource limits are defined at compile time. Edit and recompile to change:
 - Memory footprint is **calculable at link time**
 - No heap fragmentation
 - Perfect for embedded/safety-critical systems
-
-## Prerequisites
-
-### Required
-
-- **Linux** (kernel 2.6.25+ for timerfd support)
-- **GCC** 4.7+ or **Clang** 3.1+ (C11 support required)
-- **GNU Make**
-- **pthread** library (typically included with glibc)
-
-### Platform-Specific Requirements
-
-**Current platform (x86-64 Linux):**
-- x86-64 architecture (uses manual assembly for context switching)
-- POSIX.1-2008 compliance (`timerfd_create`, `epoll`, pthreads)
-
-**Future platform (ARM Cortex-M):**
-- ARM Cortex-M4/M7 with FreeRTOS (planned)
 
 ## Building
 
