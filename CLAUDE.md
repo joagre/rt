@@ -15,7 +15,7 @@ This is an actor-based runtime for embedded systems, targeting STM32 (ARM Cortex
 ## Design Principles
 
 - Minimalistic and predictable behavior
-- Pool-based allocation: O(1) for all runtime operations, zero malloc after initialization
+- Pool-based allocation: O(1) for hot paths (IPC, scheduling, I/O); O(n) bounded arena for cold paths (spawn/exit)
 - Least surprise API design
 - Fast context switching via manual assembly (no setjmp/longjmp or ucontext)
 - Cooperative multitasking only (no preemption within actor runtime)
@@ -28,7 +28,7 @@ This is an actor-based runtime for embedded systems, targeting STM32 (ARM Cortex
 
 **Forbidden malloc** (exhaustive):
 - Scheduler, IPC, timers, bus, network I/O, file I/O, linking/monitoring, completion processing
-- All runtime operations use static pools with O(1) allocation
+- Hot path operations use static pools with O(1) allocation
 
 ## Architecture
 
@@ -36,7 +36,7 @@ The runtime consists of:
 
 1. **Actors**: Cooperative tasks with individual stacks and mailboxes
 2. **Scheduler**: Priority-based round-robin scheduler with 4 priority levels (0=CRITICAL to 3=LOW)
-3. **IPC**: Inter-process communication via mailboxes with COPY (async) and BORROW (zero-copy with backpressure) modes
+3. **IPC**: Inter-process communication via mailboxes with ASYNC (fire-and-forget) and SYNC (blocking with backpressure) modes
 4. **Bus**: Publish-subscribe system with configurable retention policies (max_readers, max_age_ms)
 5. **I/O Subsystems**: Network, file, and timer operations handled by separate threads/tasks with lock-free completion queues
 6. **Completion Queues**: Lock-free SPSC (Single Producer Single Consumer) queues for cross-thread communication
@@ -62,12 +62,14 @@ On FreeRTOS, the entire actor runtime runs as a single task. Blocking I/O is del
     - Automatic memory reclamation and reuse when actors exit (coalescing)
   - Optional: malloc via `actor_config.malloc_stack = true`
 - Actor table: Static array (RT_MAX_ACTORS), configured at compile time
-- All runtime structures: Static pools with O(1) allocation
-  - IPC: Mailbox entry pool (256) and message data pool (256)
+- Hot path structures: Static pools with O(1) allocation
+  - IPC: Mailbox entry pool (256), message data pool (256), sync buffer pool (64)
   - Links/Monitors: Dedicated pools (128 each)
   - Timers: Timer entry pool (64)
   - Bus: Uses message pool for entry data
-- Deterministic memory: ~231KB static + variable actor stacks
+- Cold path structures: Arena allocator with O(n) first-fit (bounded by free blocks)
+  - Actor stacks: RT_STACK_ARENA_SIZE (1 MB default)
+- Deterministic memory: ~1.2 MB static (incl. stack arena) + optional malloc'd stacks
 - Zero heap allocation in runtime operations (see Heap Usage Policy above)
 
 ### Error Handling

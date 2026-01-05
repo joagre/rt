@@ -12,7 +12,7 @@ A minimalistic actor-based runtime designed for **embedded and safety-critical s
 2. **Predictable**: Cooperative scheduling, no surprises
 3. **Modern C11**: Clean, safe, standards-compliant code
 4. **Static allocation**: Deterministic memory, zero fragmentation, compile-time footprint
-5. **Pool-based allocation**: O(1) allocation for all runtime operations
+5. **Pool-based allocation**: O(1) pools for hot paths; stack arena allocation is bounded and occurs only on spawn/exit
 6. **Explicit control**: Actors yield explicitly, no preemption
 
 ### Heap Usage Policy
@@ -34,7 +34,7 @@ A minimalistic actor-based runtime designed for **embedded and safety-critical s
 - Linking/monitoring (`rt_link()`, `rt_monitor()`, death notifications)
 - All I/O completion processing
 
-**Consequence**: All "hot path" operations use **static pools** with **O(1) allocation** and return `RT_ERR_NOMEM` on pool exhaustion. No malloc, no heap fragmentation, no allocation latency.
+**Consequence**: All "hot path" operations (scheduling, IPC, I/O) use **static pools** with **O(1) allocation** and return `RT_ERR_NOMEM` on pool exhaustion. Stack allocation (spawn/exit, cold path) uses arena allocator with O(n) first-fit search bounded by number of free blocks. No malloc in hot paths, no heap fragmentation, predictable allocation latency.
 
 **Linux verification**: Run with `LD_PRELOAD` malloc wrapper to assert no malloc calls after `rt_init()` (except explicit `malloc_stack = true` spawns).
 
@@ -331,7 +331,7 @@ The runtime uses static allocation for deterministic behavior and suitability fo
     - Automatic memory reclamation and reuse when actors exit (coalescing)
     - Supports different stack sizes for different actors
   - Optional: malloc via `actor_config.malloc_stack = true`
-- **IPC pools:** Static pools with O(1) allocation
+- **IPC pools:** Static pools with O(1) allocation (hot path)
   - Mailbox entry pool: `RT_MAILBOX_ENTRY_POOL_SIZE` (256)
   - Message data pool: `RT_MESSAGE_DATA_POOL_SIZE` (256), fixed-size entries of `RT_MAX_MESSAGE_SIZE` (256 bytes)
 - **Link/Monitor pools:** Static pools for actor relationships
@@ -365,7 +365,7 @@ The runtime uses static allocation for deterministic behavior and suitability fo
 - Zero heap fragmentation: No malloc after initialization (except explicit `malloc_stack` flag)
 - Predictable allocation: Pool exhaustion returns clear errors (`RT_ERR_NOMEM`)
 - Suitable for safety-critical certification
-- Predictable timing: O(1) pool allocation, no malloc latency in runtime operations
+- Predictable timing: O(1) pool allocation for hot paths, bounded arena allocation for cold paths (spawn/exit)
 
 ## Error Handling
 
@@ -1367,7 +1367,7 @@ All resource limits are defined at compile-time and require recompilation to cha
 All runtime structures are **statically allocated** based on these limits. Actor stacks use a static arena allocator by default (configurable via `actor_config.malloc_stack` for malloc). This ensures:
 - Deterministic memory footprint (calculable at link time)
 - Zero heap allocation in runtime operations (see Heap Usage Policy)
-- O(1) pool allocation for all operations (scheduling, IPC, I/O completions)
+- O(1) pool allocation for hot paths (scheduling, IPC, I/O completions); O(n) bounded arena allocation for cold paths (spawn/exit)
 - Suitable for embedded/MCU deployment
 
 ### Runtime API
