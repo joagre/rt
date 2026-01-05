@@ -112,7 +112,9 @@ The runtime uses static allocation for deterministic behavior and suitability fo
 **Allocation Strategy:**
 
 - **Actor table:** Static array of `RT_MAX_ACTORS` (64), configured at compile time
-- **Actor stacks:** Fixed-size per actor, allocated at spawn time via malloc (~64KB each, only malloc in system)
+- **Actor stacks:** Hybrid allocation (configurable per actor)
+  - Default: Static arena allocator with `RT_STACK_ARENA_SIZE` (1 MB), first-fit with coalescing
+  - Optional: malloc via `actor_config.malloc_stack = true`
 - **IPC pools:** Static pools with O(1) allocation
   - Mailbox entry pool: `RT_MAILBOX_ENTRY_POOL_SIZE` (256)
   - Message data pool: `RT_MESSAGE_DATA_POOL_SIZE` (256), fixed-size entries of `RT_MAX_MESSAGE_SIZE` (256 bytes)
@@ -203,6 +205,7 @@ typedef struct {
     size_t      stack_size;   // bytes, 0 = default
     rt_priority priority;
     const char *name;         // for debugging, may be NULL
+    bool        malloc_stack; // false = use static arena (default), true = malloc
 } actor_config;
 ```
 
@@ -441,6 +444,7 @@ All resource limits are defined at compile-time and require recompilation to cha
 
 ```c
 #define RT_MAX_ACTORS 64                    // Maximum concurrent actors
+#define RT_STACK_ARENA_SIZE (1*1024*1024)   // Stack arena size (1 MB)
 #define RT_MAX_BUSES 32                     // Maximum concurrent buses
 #define RT_MAILBOX_ENTRY_POOL_SIZE 256      // Mailbox entry pool
 #define RT_MESSAGE_DATA_POOL_SIZE 256       // Message data pool
@@ -452,7 +456,7 @@ All resource limits are defined at compile-time and require recompilation to cha
 #define RT_DEFAULT_STACK_SIZE 65536         // Default actor stack size
 ```
 
-All runtime structures (except actor stacks) are **statically allocated** based on these limits. This ensures:
+All runtime structures are **statically allocated** based on these limits. Actor stacks use a static arena allocator by default (configurable via `actor_config.malloc_stack` for malloc). This ensures:
 - Deterministic memory footprint (calculable at link time)
 - No heap fragmentation in message passing
 - No malloc in hot paths (scheduling, IPC, I/O completions)

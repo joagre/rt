@@ -59,6 +59,7 @@ All resource limits are defined at compile time. Edit and recompile to change:
 
 ```c
 #define RT_MAX_ACTORS 64                // Maximum concurrent actors
+#define RT_STACK_ARENA_SIZE (1*1024*1024) // Stack arena size (1 MB default)
 #define RT_MAILBOX_ENTRY_POOL_SIZE 256  // Mailbox pool size
 #define RT_MESSAGE_DATA_POOL_SIZE 256   // Message pool size
 #define RT_COMPLETION_QUEUE_SIZE 64     // I/O completion queue size
@@ -66,7 +67,7 @@ All resource limits are defined at compile time. Edit and recompile to change:
 // ... see rt_static_config.h for full list
 ```
 
-All structures (except actor stacks) are statically allocated. No malloc in hot paths. Memory footprint calculable at link time.
+All structures are statically allocated. Actor stacks use a static arena allocator by default (configurable size), with optional malloc via `actor_config.malloc_stack = true`. No malloc in hot paths. Memory footprint calculable at link time.
 
 ## Running Examples
 
@@ -126,6 +127,7 @@ int main(void) {
 actor_config cfg = RT_ACTOR_CONFIG_DEFAULT;
 cfg.priority = 0;             // 0-3, lower is higher
 cfg.stack_size = 128 * 1024;
+cfg.malloc_stack = false;     // false=arena (default), true=malloc
 actor_id worker = rt_spawn_ex(worker_actor, &args, &cfg);
 
 // Send messages
