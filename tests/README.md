@@ -107,23 +107,25 @@ Coordinator: Distribution complete
 
 ---
 
-### `borrow_crash_test.c`
-Tests IPC_BORROW behavior when receiver crashes without releasing.
+### `sync_sender_death_test.c`
+Tests IPC_SYNC behavior when sender dies before receiver processes message.
 
 **Tests:**
-- Sender sends IPC_BORROW message
-- Receiver crashes immediately without calling `rt_ipc_release()`
-- Sender is automatically unblocked (principle of least surprise)
+- Sender sends IPC_SYNC message (copied to pinned runtime buffer)
+- Sender exits immediately (stack would be freed)
+- Receiver accesses message data after sender has died
+- Verifies data integrity (pinned buffer prevents use-after-free)
 
 **Key validations:**
-- PASS: Sender unblocked when receiver crashes
-- PASS: rt_ipc_send() returns normally after receiver death
-- PASS: Runtime handles receiver crash gracefully
+- PASS: Receiver can safely access data after sender dies
+- PASS: Data remains valid in pinned runtime buffer
+- PASS: No use-after-free or data corruption
+- PASS: Pinned buffer prevents UAF even though sender died
 
 **Results:**
 ```
-Sender: PASS - Send returned normally after receiver crash
-Sender: Sender was automatically unblocked (principle of least surprise)
+Receiver: ✓ PASS - Data still valid! magic=0xdeadbeef
+Receiver: ✓ PASS - Pinned buffer prevents UAF even though sender died
 ```
 
 ---

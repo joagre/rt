@@ -10,7 +10,7 @@ A: Actor runtime is single-threaded (cooperative). I/O subsystems use worker thr
 A: FreeRTOS: preemptive tasks/queues. This: cooperative actors/message-passing with higher-level abstractions (linking, monitoring, pub-sub). Runs on top of FreeRTOS.
 
 **Q: Can actors share memory?**
-A: Should not. Violates actor model, creates race conditions, unclear ownership. Use IPC_COPY (copied), IPC_BORROW (zero-copy, sender blocks), or Bus (pub-sub).
+A: Should not. Violates actor model, creates race conditions, unclear ownership. Use IPC_ASYNC (fire-and-forget), IPC_SYNC (blocking with backpressure), or Bus (pub-sub).
 
 **Q: Pool exhausted?**
 A: Returns `RT_ERR_NOMEM`. Critical operations may drop messages with logging. Increase pool sizes in `rt_static_config.h`.
@@ -21,8 +21,8 @@ A: Simpler, more predictable, no preemption bugs. Critical actors get priority 0
 **Q: Context switch overhead?**
 A: ~1.1 µs/switch on x86-64.
 
-**Q: COPY or BORROW?**
-A: COPY for small messages (<256 bytes), fire-and-forget. BORROW for large messages, backpressure, zero-copy.
+**Q: ASYNC or SYNC?**
+A: ASYNC for small messages (<256 bytes), fire-and-forget. SYNC for flow control, backpressure, trusted cooperating actors.
 
 **Q: Max actors?**
 A: `RT_MAX_ACTORS` in `rt_static_config.h` (default: 64). Each actor needs stack (~64KB default).
