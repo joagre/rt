@@ -4,6 +4,7 @@
 #include "rt_pool.h"
 #include "rt_actor.h"
 #include "rt_scheduler.h"
+#include "rt_scheduler_wakeup.h"
 #include "rt_runtime.h"
 #include "rt_spsc.h"
 #include "rt_ipc.h"
@@ -218,6 +219,9 @@ static void *timer_worker_thread(void *arg) {
                 struct timespec ts = {.tv_sec = 0, .tv_nsec = RT_COMPLETION_RETRY_SLEEP_NS};
                 nanosleep(&ts, NULL);
             }
+
+            // Wake up scheduler to process completion
+            rt_scheduler_wakeup_signal();
         }
 
         // Wait for timer events (with timeout to check for new requests)
@@ -243,6 +247,9 @@ static void *timer_worker_thread(void *arg) {
                 struct timespec ts = {.tv_sec = 0, .tv_nsec = RT_COMPLETION_RETRY_SLEEP_NS};
                 nanosleep(&ts, NULL);
             }
+
+            // Wake up scheduler to process completion
+            rt_scheduler_wakeup_signal();
 
             // If one-shot, remove timer
             if (!entry->periodic) {

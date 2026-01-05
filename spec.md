@@ -718,6 +718,63 @@ procedure rt_run():
             wait_for_completions()
 ```
 
+## Scheduler Wakeup Mechanism
+
+When all actors are blocked on I/O, the scheduler must efficiently wait for I/O completions rather than busy-polling. The runtime uses a **single shared wakeup primitive** that all I/O threads signal when posting completions.
+
+### Implementation
+
+**Linux (eventfd):**
+```c
+// Single eventfd shared by all I/O threads
+int wakeup_fd = eventfd(0, EFD_SEMAPHORE);
+
+// I/O thread posts completion
+rt_spsc_push(&completion_queue, &completion);
+eventfd_write(wakeup_fd, 1);  // Wake scheduler
+
+// Scheduler waits when idle
+if (no_runnable_actors) {
+    eventfd_read(wakeup_fd, &val);  // Block until I/O completion
+}
+```
+
+**FreeRTOS (binary semaphore):**
+```c
+// Single semaphore shared by all I/O threads
+SemaphoreHandle_t wakeup_sem = xSemaphoreCreateBinary();
+
+// I/O task posts completion
+rt_spsc_push(&completion_queue, &completion);
+xSemaphoreGiveFromISR(wakeup_sem, &higher_prio_woken);  // Wake scheduler
+
+// Scheduler waits when idle
+if (no_runnable_actors) {
+    xSemaphoreTake(wakeup_sem, portMAX_DELAY);  // Block until I/O completion
+}
+```
+
+### Semantics
+
+- **Blocks the entire runtime task**: When no actors are runnable, the scheduler blocks on the wakeup primitive
+- **Multiple producers**: File, network, and timer threads all signal the same primitive
+- **Simple SPSC queues**: Each I/O subsystem has its own completion queue (no queue sets needed)
+- **Signal after push**: I/O threads always signal after pushing completion (at most one extra wakeup per I/O operation)
+- **Check all queues**: When woken, scheduler checks all three completion queues (file, net, timer)
+
+### Advantages
+
+- **Simple**: Single primitive, ~10 lines of code, no epoll/queue-set complexity
+- **Efficient**: No CPU waste, blocks efficiently until I/O
+- **Portable**: Maps cleanly to eventfd (Linux) and semaphore (FreeRTOS)
+- **Low overhead**: One syscall per I/O completion (eventfd write)
+
+### Alternative Approaches Considered
+
+- **Polling with sleep**: Wastes CPU, adds latency (original implementation)
+- **epoll + multiple eventfds**: More complex, no benefit for this use case
+- **Queue sets (FreeRTOS)**: Unnecessary complexity, single semaphore works fine
+
 ## Platform Abstraction
 
 The runtime abstracts platform-specific functionality:
@@ -727,6 +784,7 @@ The runtime abstracts platform-specific functionality:
 | Context switch | x86-64 asm | ARM Cortex-M asm |
 | I/O threads | pthreads | FreeRTOS tasks |
 | Completion queue | SPSC with atomics | SPSC with atomics |
+| Scheduler wakeup | eventfd | Binary semaphore |
 | Timer | timerfd | FreeRTOS timer or hardware timer |
 | Network | BSD sockets | lwIP |
 | File | POSIX | FATFS or littlefs |
