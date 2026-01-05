@@ -1619,17 +1619,53 @@ The runtime abstracts platform-specific functionality:
 
 ## Stack Overflow
 
-### Semantic Contract (Defined Behavior)
+### Behavior Contract
 
-**Stack overflow is NOT undefined behavior.** The runtime provides defined semantics even when detection is imperfect:
+**Detection-dependent behavior:** Stack overflow semantics depend on whether the overflow is detected by guard pattern checks.
 
-**Guaranteed semantics:**
-1. **Actor crashes** with exit reason `RT_EXIT_CRASH_STACK`
+---
+
+#### **When Overflow IS Detected (Guard Check Succeeds)**
+
+**Guaranteed behavior:**
+1. **Actor terminates** with exit reason `RT_EXIT_CRASH_STACK`
 2. **Links/monitors are notified** (receive exit message with `RT_EXIT_CRASH_STACK`)
 3. **Runtime remains stable** (other actors continue running)
 4. **Actor resources cleaned up** (stack freed, mailbox cleared, timers cancelled)
+5. **Error logged:** "Actor N stack overflow detected"
 
-**Rationale:** Even if detection fails (severe corruption before guard check), the semantic CONTRACT is that stack overflow results in actor crash with notification, not undefined behavior. This enables recovery logic and supervisor patterns.
+**Why this is safe:**
+- Guard patterns are stored **outside** the actor's usable stack region
+- Actor metadata (struct actor, links, monitors, mailbox) is stored in **static global arrays**, not on the actor's stack
+- Overflow corrupts the actor's stack data, not the runtime's bookkeeping structures
+- Therefore: Cleanup and notification can proceed safely after detection
+
+**Implementation:** Guard patterns checked on every context switch (rt_scheduler.c)
+
+---
+
+#### **When Overflow is NOT Detected (Guard Check Fails to Trigger)**
+
+**Actual behavior: UNDEFINED**
+
+If stack overflow is severe enough to corrupt guard patterns before the next context switch, or if corruption propagates beyond stack boundaries:
+
+- **May segfault** (most likely on Linux with default stack allocation)
+- **May corrupt other actors' stacks** (if stacks are adjacent in memory)
+- **May corrupt runtime state** (if overflow is extreme)
+- **May go undetected indefinitely** (if guards are overwritten with valid-looking data)
+
+**Links/monitors are NOT guaranteed to be notified.** Runtime stability is NOT guaranteed.
+
+**System-level mitigation required:**
+- **Watchdog timer:** Detect hung system, trigger reboot/failsafe
+- **Stack sizing discipline:** Size stacks with 2-3x safety margin based on profiling
+- **Production hardware:** Use MPU guard pages (ARM Cortex-M) for hardware-guaranteed traps
+- **Supervisor architecture:** Critical subsystems monitor less-trusted actors, reboot on anomaly
+
+**This is NOT a runtime bug** - it is the inherent limitation of best-effort guard pattern detection. Safety-critical systems must not rely solely on overflow detection; they must architect for graceful degradation or system reset on memory corruption.
+
+---
 
 ### Detection Mechanism (Best-Effort)
 
@@ -1646,20 +1682,6 @@ The runtime abstracts platform-specific functionality:
 - **Post-facto:** Detection occurs on next context switch after overflow
 - **Not guaranteed:** Severe overflows may corrupt guards before check
 - **Timing:** Overflow → corruption → next context switch → detection
-
-**When detection succeeds:**
-1. Guard check fails during context switch
-2. Actor immediately marked DEAD with `RT_EXIT_CRASH_STACK`
-3. Links/monitors receive exit notification
-4. Mailbox cleared, stack freed, timers cancelled
-5. Error logged: "Actor N stack overflow detected"
-6. Runtime continues normally
-
-**When detection fails (severe corruption):**
-- Guard patterns themselves corrupted before check
-- Actor may crash with segfault or corrupt other memory
-- **Semantic contract still applies:** Intended behavior is actor crash with notification
-- **Mitigation:** Size stacks appropriately, use MPU on production hardware
 
 **Comparison with alternatives:**
 
