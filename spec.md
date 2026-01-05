@@ -748,8 +748,7 @@ void actor_with_timer(void *arg) {
 1. **Actor context only**: SYNC can ONLY be used from actor context
    - OK: From actor's main function
    - FORBIDDEN: From I/O worker threads
-   - FORBIDDEN: From completion handlers
-   - FORBIDDEN: From interrupt contexts
+   - FORBIDDEN: From interrupt contexts (signal handlers, ISRs)
 
 2. **Sender blocks until release**: Sender cannot process other messages while waiting
    - Sender's state = ACTOR_STATE_BLOCKED
