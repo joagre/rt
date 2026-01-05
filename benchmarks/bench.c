@@ -238,6 +238,9 @@ static void bench_pool_allocation(void) {
     printf("Pool Allocation Performance\n");
     printf("---------------------------\n");
 
+    // Use more iterations for this micro-benchmark
+    const int POOL_ITERATIONS = ITERATIONS * 100;  // 1,000,000 iterations
+
     // Create a test pool
     #define POOL_SIZE 1024
     static uint8_t pool_buffer[POOL_SIZE * 64];
@@ -256,32 +259,46 @@ static void bench_pool_allocation(void) {
     }
 
     // Benchmark allocation
+    // Write to the allocated memory to prevent compiler from optimizing away the calls
     uint64_t start = get_nanos();
-    for (int i = 0; i < ITERATIONS; i++) {
+    volatile uint64_t pool_sum = 0;
+    for (int i = 0; i < POOL_ITERATIONS; i++) {
         void *p = rt_pool_alloc(&pool_mgr);
-        rt_pool_free(&pool_mgr, p);
+        if (p) {
+            *(uint64_t *)p = i;  // Write to force actual allocation
+            pool_sum += *(uint64_t *)p;  // Read to prevent dead code elimination
+            rt_pool_free(&pool_mgr, p);
+        }
     }
     uint64_t elapsed = get_nanos() - start;
+    (void)pool_sum;  // Prevent sum from being optimized away
 
-    uint64_t ns_per_op = elapsed / ITERATIONS;
-    double ops_per_sec = (double)ITERATIONS / ((double)elapsed / BILLION);
+    uint64_t ns_per_op = elapsed / POOL_ITERATIONS;
+    double ops_per_sec = (double)POOL_ITERATIONS / ((double)elapsed / BILLION);
 
-    printf("  Pool alloc+free:      %lu ns/op  (%.2f M ops/sec)\n",
-           ns_per_op, ops_per_sec / 1000000.0);
+    printf("  Pool alloc+free:      %lu ns/op  (%.2f M ops/sec)  [elapsed: %lu ns]\n",
+           ns_per_op, ops_per_sec / 1000000.0, elapsed);
 
     // Compare to malloc/free
+    // Write to the allocated memory to prevent compiler from optimizing away the calls
     start = get_nanos();
-    for (int i = 0; i < ITERATIONS; i++) {
+    volatile uint64_t sum = 0;
+    for (int i = 0; i < POOL_ITERATIONS; i++) {
         void *p = malloc(64);
-        free(p);
+        if (p) {
+            *(uint64_t *)p = i;  // Write to force actual allocation
+            sum += *(uint64_t *)p;  // Read to prevent dead code elimination
+            free(p);
+        }
     }
     elapsed = get_nanos() - start;
+    (void)sum;  // Prevent sum from being optimized away
 
-    uint64_t malloc_ns_per_op = elapsed / ITERATIONS;
-    double malloc_ops_per_sec = (double)ITERATIONS / ((double)elapsed / BILLION);
+    uint64_t malloc_ns_per_op = elapsed / POOL_ITERATIONS;
+    double malloc_ops_per_sec = (double)POOL_ITERATIONS / ((double)elapsed / BILLION);
 
-    printf("  malloc+free (64B):    %lu ns/op  (%.2f M ops/sec)\n",
-           malloc_ns_per_op, malloc_ops_per_sec / 1000000.0);
+    printf("  malloc+free (64B):    %lu ns/op  (%.2f M ops/sec)  [elapsed: %lu ns]\n",
+           malloc_ns_per_op, malloc_ops_per_sec / 1000000.0, elapsed);
     printf("  Speedup:              %.1fx faster than malloc\n",
            (double)malloc_ns_per_op / ns_per_op);
 
@@ -343,11 +360,26 @@ static void bus_publisher(void *arg) {
     uint8_t data[64];
     memset(data, 0xBB, sizeof(data));
 
+    printf("DEBUG: Publisher starting, will publish %lu messages\n", ctx->max_count);
+    fflush(stdout);
+
     ctx->start_time = get_nanos();
 
     for (uint64_t i = 0; i < ctx->max_count; i++) {
-        rt_bus_publish(ctx->bus, data, sizeof(data));
+        rt_status status = rt_bus_publish(ctx->bus, data, sizeof(data));
+        if (RT_FAILED(status)) {
+            printf("DEBUG: Publish failed at i=%lu: %s\n", i, status.msg);
+            fflush(stdout);
+            break;
+        }
+        if (i % 100 == 0) {
+            printf("DEBUG: Published %lu messages\n", i);
+            fflush(stdout);
+        }
     }
+
+    printf("DEBUG: Publisher done, published %lu messages\n", ctx->max_count);
+    fflush(stdout);
 
     ctx->end_time = get_nanos();
     rt_exit();
@@ -356,16 +388,39 @@ static void bus_publisher(void *arg) {
 static void bus_subscriber(void *arg) {
     bus_ctx *ctx = (bus_ctx *)arg;
 
-    rt_bus_subscribe(ctx->bus);
+    printf("DEBUG: Subscriber starting, will read %lu messages\n", ctx->max_count);
+    fflush(stdout);
+
+    rt_status status = rt_bus_subscribe(ctx->bus);
+    if (RT_FAILED(status)) {
+        printf("DEBUG: Subscribe failed: %s\n", status.msg);
+        fflush(stdout);
+        rt_exit();
+        return;
+    }
 
     uint8_t buffer[256];
     for (uint64_t i = 0; i < ctx->max_count; i++) {
         size_t len;
-        rt_status status;
-        while (RT_FAILED(status = rt_bus_read(ctx->bus, buffer, sizeof(buffer), &len))) {
+        rt_status read_status;
+        int yield_count = 0;
+        while (RT_FAILED(read_status = rt_bus_read(ctx->bus, buffer, sizeof(buffer), &len))) {
             rt_yield();
+            yield_count++;
+            if (yield_count > 100000) {
+                printf("DEBUG: Subscriber stuck at i=%lu, yielded %d times\n", i, yield_count);
+                fflush(stdout);
+                yield_count = 0;
+            }
+        }
+        if (i % 100 == 0) {
+            printf("DEBUG: Read %lu messages\n", i);
+            fflush(stdout);
         }
     }
+
+    printf("DEBUG: Subscriber done, read %lu messages\n", ctx->max_count);
+    fflush(stdout);
 
     rt_exit();
 }
@@ -375,15 +430,22 @@ static void bench_bus(void) {
     printf("Bus Performance\n");
     printf("---------------\n");
 
-    // Create bus
+    // Create bus with enough capacity for benchmark messages
     rt_bus_config cfg = {
-        .max_entries = 64,
+        .max_entries = 64,  // Max allowed by RT_MAX_BUS_ENTRIES
+        .max_entry_size = 256,  // Max size of each message
         .max_subscribers = 8,
-        .max_readers = 0,
+        .max_readers = 1,  // Remove entries after 1 reader (the subscriber) reads them
         .max_age_ms = 0
     };
     bus_id bus;
-    rt_bus_create(&cfg, &bus);
+    rt_status status = rt_bus_create(&cfg, &bus);
+    if (RT_FAILED(status)) {
+        printf("ERROR: Failed to create bus: %s\n", status.msg);
+        return;
+    }
+    printf("DEBUG: Created bus with ID %u\n", bus);
+    fflush(stdout);
 
     // Warmup
     bus_ctx *ctx_pub_warmup = calloc(1, sizeof(bus_ctx));
@@ -402,21 +464,24 @@ static void bench_bus(void) {
     free(ctx_sub_warmup);
 
     // Benchmark publish latency
+    // Use fewer iterations for bus benchmark (limited by buffer size)
+    const uint64_t BUS_ITERATIONS = 50;  // Small enough to fit in 64-entry buffer
+
     bus_ctx *ctx_pub = calloc(1, sizeof(bus_ctx));
     bus_ctx *ctx_sub = calloc(1, sizeof(bus_ctx));
 
     ctx_pub->bus = bus;
-    ctx_pub->max_count = ITERATIONS;
+    ctx_pub->max_count = BUS_ITERATIONS;
     ctx_sub->bus = bus;
-    ctx_sub->max_count = ITERATIONS;
+    ctx_sub->max_count = BUS_ITERATIONS;
 
     rt_spawn(bus_subscriber, ctx_sub);
     rt_spawn(bus_publisher, ctx_pub);
     rt_run();
 
     uint64_t elapsed = ctx_pub->end_time - ctx_pub->start_time;
-    uint64_t ns_per_pub = elapsed / ITERATIONS;
-    double pubs_per_sec = (double)ITERATIONS / ((double)elapsed / BILLION);
+    uint64_t ns_per_pub = elapsed / BUS_ITERATIONS;
+    double pubs_per_sec = (double)BUS_ITERATIONS / ((double)elapsed / BILLION);
 
     printf("  Publish latency:      %lu ns/msg\n", ns_per_pub);
     printf("  Throughput:           %.2f M msgs/sec\n", pubs_per_sec / 1000000.0);
@@ -466,7 +531,6 @@ int main(void) {
     fflush(stdout);
     bench_ipc();
 
-    /* TODO: Debug these benchmarks
     printf("Starting pool allocation benchmark...\n");
     fflush(stdout);
     bench_pool_allocation();
@@ -475,10 +539,17 @@ int main(void) {
     fflush(stdout);
     bench_actor_spawn();
 
-    printf("Starting bus benchmark...\n");
-    fflush(stdout);
-    bench_bus();
-    */
+    /* TODO: Fix bus benchmark - has issues with cooperative scheduling
+     * The publisher runs to completion before subscriber gets to read,
+     * causing buffer overflow and message loss.
+     * Need to either:
+     * - Add yields in publisher loop
+     * - Use larger buffer (increase RT_MAX_BUS_ENTRIES)
+     * - Redesign benchmark to handle cooperative scheduling
+     */
+    //printf("Starting bus benchmark...\n");
+    //fflush(stdout);
+    //bench_bus();
 
     rt_cleanup();
 
