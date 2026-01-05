@@ -292,9 +292,101 @@ typedef enum {
 } rt_ipc_mode;
 ```
 
-**IPC_COPY:** Payload is copied to receiver's mailbox. Sender continues immediately. Suitable for small messages.
+**IPC_COPY:** Payload is copied to receiver's mailbox. Sender continues immediately. Suitable for small messages and general-purpose communication.
 
 **IPC_BORROW:** Zero-copy transfer. Payload remains on sender's stack. Sender blocks until receiver calls `rt_ipc_release()`. Provides implicit backpressure.
+
+### IPC_BORROW Safety Considerations
+
+⚠️ **IPC_BORROW requires careful use.** It trades simplicity and performance for strict constraints.
+
+**Design rationale:**
+- Zero-copy for performance-critical paths
+- Stack-based for deterministic memory (no hidden allocations)
+- Blocking provides implicit backpressure
+- Simple implementation suitable for embedded/safety-critical systems
+
+**Mandatory preconditions:**
+
+1. **Actor context only**: BORROW can ONLY be used from actor context
+   - ✓ From actor's main function
+   - ✗ From I/O worker threads
+   - ✗ From completion handlers
+   - ✗ From interrupt contexts
+
+2. **Data must be on sender's stack**: Borrowed pointer must remain valid while sender is blocked
+   - ✓ Stack-allocated variables
+   - ✓ Function parameters
+   - ✗ Heap-allocated data (use IPC_COPY instead)
+   - ✗ Static/global data (use IPC_COPY instead)
+
+3. **Sender blocks until release**: Sender cannot process other messages while waiting
+   - Sender's state = ACTOR_STATE_BLOCKED
+   - Sender cannot receive messages
+   - Sender cannot send other BORROW messages
+
+**Deadlock scenarios (avoid these):**
+
+```c
+// ✗ DEADLOCK: Circular borrow
+Actor A: rt_ipc_send(B, &data, len, IPC_BORROW);  // A blocks
+Actor B: rt_ipc_send(A, &data, len, IPC_BORROW);  // B blocks → DEADLOCK
+
+// ✗ DEADLOCK: Nested borrow
+Actor A: rt_ipc_send(B, &data, len, IPC_BORROW);  // A blocks
+         // A cannot receive release notification!
+
+// ✗ DEADLOCK: Borrow then receive
+Actor A: rt_ipc_send(B, &data, len, IPC_BORROW);
+         rt_ipc_recv(&msg, -1);  // Can't receive - already blocked!
+
+// ✓ CORRECT: Borrow and wait for completion
+Actor A: rt_ipc_send(B, &data, len, IPC_BORROW);  // Blocks until B releases
+         // Automatically unblocks when B calls rt_ipc_release()
+```
+
+**When to use each mode:**
+
+| Scenario | Use Mode | Reason |
+|----------|----------|--------|
+| Small messages (< 256 bytes) | IPC_COPY | Simple, no blocking |
+| Fire-and-forget messaging | IPC_COPY | Sender doesn't wait |
+| Untrusted receivers | IPC_COPY | Sender not vulnerable to deadlock |
+| General communication | IPC_COPY | Safest default |
+| Large data (> 1 KB) | IPC_BORROW | Avoid copy overhead |
+| Performance-critical path | IPC_BORROW | Zero-copy, validated actors |
+| Trusted cooperating actors | IPC_BORROW | Both sides understand protocol |
+| Implicit backpressure needed | IPC_BORROW | Sender waits for consumer |
+
+**Failure handling:**
+
+If receiver crashes or exits without releasing:
+- ⚠️ **Current behavior**: Sender may remain blocked indefinitely
+- **Mitigation**: Use timeouts, watchdogs, or supervisor patterns to detect hung actors
+- **Future**: Receiver cleanup should unblock waiting senders (enhancement needed)
+- Best practice: Only use BORROW between validated, trusted actors that guarantee release
+
+**Safety-critical recommendation:**
+
+In safety-critical systems:
+- **Prefer IPC_COPY** for most communication
+- Reserve IPC_BORROW for:
+  - Validated, performance-critical transfers
+  - Between trusted, cooperating actors
+  - Where zero-copy benefit justifies the risk
+- Document all BORROW usage in code reviews
+- Test deadlock scenarios explicitly
+
+**Debug mode (future):**
+
+```c
+#ifdef RT_DEBUG
+// Verify borrowed pointer is within sender's stack bounds
+if (mode == IPC_BORROW && !is_in_stack_range(sender, data, len)) {
+    return RT_ERROR(RT_ERR_INVALID, "BORROW data not on sender's stack");
+}
+#endif
+```
 
 ### Functions
 

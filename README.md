@@ -143,7 +143,10 @@ if (RT_FAILED(status)) {
     // Retry send...
 }
 
-rt_ipc_send(target, &data, sizeof(data), IPC_BORROW);  // Zero-copy, blocks until released
+// IPC_BORROW: Zero-copy, sender blocks until receiver releases
+// ⚠️  Use with care: data must be on stack, sender blocks, risk of deadlock
+// ⚠️  See spec.md for safety considerations and deadlock scenarios
+rt_ipc_send(target, &data, sizeof(data), IPC_BORROW);
 
 // Receive messages
 rt_message msg;
