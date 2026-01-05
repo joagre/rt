@@ -410,6 +410,78 @@ Global pool limits: **Yes** - all actors share:
 
 See "Pool Exhaustion Behavior" section below for mitigation strategies and examples.
 
+### Message Ordering
+
+**Mailbox implementation:** FIFO linked list (enqueue at tail, dequeue from head)
+
+**Ordering guarantees:**
+
+**Single sender to single receiver:**
+- Messages are received in the order they were sent
+- **FIFO guaranteed**
+- Example: If actor A sends M1, M2, M3 to actor B, B receives them in order M1 → M2 → M3
+
+**Multiple senders to single receiver:**
+- Message order depends on scheduling (which sender runs first)
+- **Arrival order is scheduling-dependent**
+- No fairness guarantee (one sender can monopolize if scheduled more often)
+- Example: If actor A sends M1 and actor B sends M2, receiver may get M1→M2 or M2→M1 depending on scheduler
+
+**Timer messages interleaving with IPC:**
+- Timer messages use the **same mailbox** as regular IPC messages
+- Timer messages are enqueued to tail when scheduler processes timer completions
+- **No bypass, no special priority** - timers follow FIFO with other messages
+- Interleave based on when `rt_timer_process_completions()` runs relative to other sends
+- Example: If actor receives IPC message M1, then timer fires, then IPC message M2, mailbox order is M1 → timer_tick → M2
+
+**System messages (actor death notifications):**
+- Exit messages (sender == RT_SENDER_SYSTEM) also use the same mailbox
+- Follow FIFO ordering like all other messages
+- No special delivery priority
+
+**Consequences:**
+
+```c
+// Single sender - FIFO guaranteed
+void sender_actor(void *arg) {
+    rt_ipc_send(receiver, &msg1, sizeof(msg1), IPC_COPY);  // Sent first
+    rt_ipc_send(receiver, &msg2, sizeof(msg2), IPC_COPY);  // Sent second
+    // Receiver will see: msg1, then msg2 (guaranteed)
+}
+
+// Multiple senders - order depends on scheduling
+void sender_A(void *arg) {
+    rt_ipc_send(receiver, &msgA, sizeof(msgA), IPC_COPY);
+}
+void sender_B(void *arg) {
+    rt_ipc_send(receiver, &msgB, sizeof(msgB), IPC_COPY);
+}
+// Receiver may see: msgA then msgB, OR msgB then msgA (depends on scheduler)
+
+// Timer + IPC interleaving
+void actor_with_timer(void *arg) {
+    timer_id timer;
+    rt_timer_every(100000, &timer);  // 100ms periodic
+
+    rt_message msg;
+    while (1) {
+        rt_ipc_recv(&msg, -1);
+
+        if (rt_timer_is_tick(&msg)) {
+            // Timer tick received in FIFO order with other messages
+        } else {
+            // Regular IPC message
+        }
+        // No guarantee which arrives first - depends on timing
+    }
+}
+```
+
+**Design rationale:**
+- Single FIFO mailbox = simple, predictable within single sender
+- Scheduling-dependent ordering across senders = unavoidable in cooperative scheduler
+- No message priorities = simpler implementation, deterministic behavior
+
 ### IPC_BORROW Safety Considerations
 
 **WARNING: IPC_BORROW requires careful use.** It trades simplicity and performance for strict constraints.
