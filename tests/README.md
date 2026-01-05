@@ -20,9 +20,9 @@ Tests the `rt_ipc_recv()` timeout functionality.
 - Backoff-retry pattern with timeout
 
 **Key validations:**
-- ✓ Timeout fires after specified duration
-- ✓ Messages take precedence over timeout
-- ✓ Developer can distinguish timeout vs message
+- PASS: Timeout fires after specified duration
+- PASS: Messages take precedence over timeout
+- PASS: Developer can distinguish timeout vs message
 
 ---
 
@@ -35,14 +35,14 @@ Demonstrates IPC pool exhaustion and backoff-retry behavior.
 - Demonstrate backoff-retry pattern
 
 **Key validations:**
-- ✓ Pool exhausts after exactly `RT_MAILBOX_ENTRY_POOL_SIZE` messages
-- ✓ `rt_ipc_send()` returns `RT_ERR_NOMEM` when pool full
-- ✓ Timeout backoff executes correctly
-- ✓ Developer has explicit control over retry logic
+- PASS: Pool exhausts after exactly `RT_MAILBOX_ENTRY_POOL_SIZE` messages
+- PASS: `rt_ipc_send()` returns `RT_ERR_NOMEM` when pool full
+- PASS: Timeout backoff executes correctly
+- PASS: Developer has explicit control over retry logic
 
 **Results:**
 ```
-Sender: ✓ Pool exhausted after 256 messages!
+Sender: PASS: Pool exhausted after 256 messages!
 Sender: Got RT_ERR_NOMEM as expected
 ```
 
@@ -57,9 +57,9 @@ More complex test showing pool exhaustion with coordinated recovery.
 - Sender retries after backoff
 
 **Key validations:**
-- ✓ Pool fills predictably
-- ✓ Multiple send failures handled
-- ✓ Backoff-retry pattern structure
+- PASS: Pool fills predictably
+- PASS: Multiple send failures handled
+- PASS: Backoff-retry pattern structure
 
 **Note:** Due to cooperative scheduling, receiver may process messages before
 sender's retry attempts. This demonstrates efficient runtime behavior.
@@ -75,13 +75,13 @@ Simplified backoff-retry test with aggressive sender and slow processor.
 - Backoff-retry handles transient exhaustion
 
 **Key validations:**
-- ✓ Pool exhaustion detected
-- ✓ Backoff pattern executes
-- ✓ Cooperative multitasking prevents sustained exhaustion
+- PASS: Pool exhaustion detected
+- PASS: Backoff pattern executes
+- PASS: Cooperative multitasking prevents sustained exhaustion
 
 **Results:**
 ```
-Sender: ✓ Pool exhausted after 269 successful sends
+Sender: PASS: Pool exhausted after 269 successful sends
 ```
 
 ---
@@ -95,9 +95,9 @@ Realistic scenario demonstrating congestion handling.
 - Backoff-retry pattern ready for real congestion
 
 **Key validations:**
-- ✓ Multi-worker coordination
-- ✓ Burst handling
-- ✓ Production-ready pattern
+- PASS: Multi-worker coordination
+- PASS: Burst handling
+- PASS: Production-ready pattern
 
 **Results:**
 ```
