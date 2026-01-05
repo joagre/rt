@@ -7,7 +7,7 @@ A complete actor-based runtime designed for **embedded and safety-critical syste
 **Current platform:** x86-64 Linux (fully implemented)
 **Future platform:** STM32/ARM Cortex-M with FreeRTOS (see `spec.md`)
 
-The runtime uses **static memory allocation** for deterministic behavior with zero heap fragmentation. It features **priority-based scheduling** (4 levels: CRITICAL, HIGH, NORMAL, LOW) with fast context switching. Provides message passing (IPC with COPY/BORROW modes), linking, monitoring, timers, pub-sub messaging (bus), async networking, and async file I/O.
+The runtime uses **static memory allocation** for deterministic behavior with zero heap fragmentation. It features **priority-based scheduling** (4 levels: CRITICAL, HIGH, NORMAL, LOW) with fast context switching. Provides message passing (IPC with COPY/BORROW modes), linking, monitoring, timers, pub-sub messaging (bus), network I/O, and file I/O.
 
 ## Quick Links
 
