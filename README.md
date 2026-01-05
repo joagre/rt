@@ -1,11 +1,11 @@
 # Actor Runtime for Embedded Systems
 
-A complete actor-based runtime with a minimalistic design philosophy. Features cooperative multitasking and message passing inspired by Erlang's actor model.
+A complete actor-based runtime designed for **embedded and safety-critical systems**. Features cooperative multitasking with priority-based scheduling and message passing inspired by Erlang's actor model.
 
 **Current platform:** x86-64 Linux (fully implemented)
 **Future platform:** STM32/ARM Cortex-M with FreeRTOS (see `spec.md`)
 
-The runtime is minimalistic by design: predictable behavior, no heap allocation in hot paths, and fast context switching via manual assembly. Despite this simplicity, it provides a complete actor system with message passing (IPC), linking, monitoring, timers, pub-sub messaging (bus), networking, and file I/O.
+The runtime uses **static memory allocation** for deterministic behavior with zero heap fragmentation—perfect for embedded systems and safety-critical applications. It features **priority-based scheduling** (4 levels: CRITICAL, HIGH, NORMAL, LOW) with fast context switching via manual assembly. Despite this minimalistic design, it provides a complete actor system with message passing (IPC with COPY/BORROW modes), linking, monitoring, timers, pub-sub messaging (bus), async networking, and async file I/O.
 
 ## Features
 
