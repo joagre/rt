@@ -1002,7 +1002,15 @@ A: The actor runtime itself is single-threaded (cooperative). I/O subsystems (fi
 A: FreeRTOS provides preemptive multitasking with tasks and queues. This runtime provides cooperative multitasking with actors and message passing. FreeRTOS is lower-level; this runtime provides higher-level abstractions (linking, monitoring, pub-sub). You can run this runtime ON TOP of FreeRTOS (planned).
 
 **Q: Can actors share memory?**
-A: No. Actors communicate exclusively via message passing. This eliminates data races and shared-state bugs. Use IPC (COPY/BORROW modes) for direct messaging or Bus for pub-sub.
+A: Actors **should not** share memory. While technically possible to pass pointers to heap-allocated memory between actors, this is **strongly discouraged** as it:
+- Violates the actor model (introduces race conditions and shared-state bugs)
+- Creates unclear ownership (who frees the memory?)
+- Requires manual synchronization (mutexes), defeating the purpose of actors
+
+**Instead, use:**
+- `IPC_COPY` - Data is safely copied to receiver's mailbox (no sharing)
+- `IPC_BORROW` - Zero-copy with proper ownership semantics (sender blocks until receiver releases)
+- `Bus` - Pub-sub with controlled data retention policies
 
 **Q: What happens when a pool is exhausted?**
 A: Operations return `RT_ERR_NOMEM`. For critical operations (like exit notifications), messages may be dropped with error logging. Increase pool sizes in `rt_static_config.h`.
