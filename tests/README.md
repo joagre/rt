@@ -124,8 +124,8 @@ Tests IPC_SYNC behavior when sender dies before receiver processes message.
 
 **Results:**
 ```
-Receiver: ✓ PASS - Data still valid! magic=0xdeadbeef
-Receiver: ✓ PASS - Pinned buffer prevents UAF even though sender died
+Receiver: PASS - Data still valid! magic=0xdeadbeef
+Receiver: PASS - Pinned buffer prevents UAF even though sender died
 ```
 
 ---
