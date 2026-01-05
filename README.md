@@ -324,6 +324,12 @@ All I/O operations (timers, file, network) are handled by dedicated worker threa
 
 **Network I/O subsystem**: Worker thread handles socket operations (accept, connect, send, recv) asynchronously.
 
+### Thread Safety
+
+The runtime uses a **single-threaded model**: all runtime APIs (`rt_ipc_send`, `rt_spawn`, `rt_bus_publish`, etc.) must be called from within actors (scheduler thread). I/O threads communicate only via lock-free completion queues. External threads cannot call runtime APIs - use platform-specific mechanisms (sockets, pipes) with dedicated reader actors instead.
+
+This design eliminates locks in hot paths (message passing, scheduling, actor management) for deterministic, predictable behavior. No lock contention, no priority inversion, no deadlock. See `spec.md` "Thread Safety" section for complete details.
+
 ## Future Work
 
 - Port to ARM Cortex-M with FreeRTOS integration
