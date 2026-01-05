@@ -441,7 +441,7 @@ Global pool limits: **Yes** - all actors share:
 **IPC_BORROW blocking semantics:**
 - Blocks **after** message is in mailbox, waiting for receiver to call `rt_ipc_release()`
 - Does **not** block waiting for pool availability (fails immediately if pool exhausted)
-- Blocking happens at line 117 in implementation (after mailbox insertion)
+- Sender blocks after successful mailbox insertion (not during pool allocation)
 
 **Design rationale:**
 - Explicit failure (`RT_ERR_NOMEM`) enables testable, predictable behavior
@@ -727,10 +727,10 @@ size_t rt_bus_entry_count(bus_id bus);
 The bus implements **per-subscriber read cursors** with the following behavior:
 
 **1. Subscription starts at "next publish":**
-- When `rt_bus_subscribe()` is called, the subscriber's read cursor is set to `bus->head` (next write position)
+- When `rt_bus_subscribe()` is called, the subscriber's read cursor is set to the next write position
 - **Subscriber CANNOT read retained entries** that were published before subscription
 - Only sees entries published **after** subscription
-- Implementation: `src/rt_bus.c:369` - `sub->next_read_idx = bus->head;`
+- Read cursor initialized to current head position (next entry to be written)
 
 **2. Each subscriber tracks own read index:**
 - Storage per subscriber: `bus_subscriber` struct with `next_read_idx` field
@@ -878,7 +878,7 @@ Platform | Clock Source | API Precision | Actual Precision | Notes
 **Linux (x86-64)** | `CLOCK_MONOTONIC` via `timerfd` | Nanosecond (`itimerspec`) | ~1 ms typical | Kernel-limited, non-realtime scheduler
 **FreeRTOS (ARM)** | Hardware timer + tick interrupt | Tick-based | 1-10 ms typical | Depends on `configTICK_RATE_HZ` (e.g., 1000 Hz = 1 ms)
 
-- Implementation: `src/rt_timer.c:123` - `timerfd_create(CLOCK_MONOTONIC, ...)`
+- On Linux, timers use `CLOCK_MONOTONIC` clock source via `timerfd_create()`
 - On Linux, requests < 1ms may still fire with ~1ms precision due to kernel scheduling
 - On FreeRTOS, timers round up to next tick boundary
 
@@ -1237,7 +1237,7 @@ The runtime abstracts platform-specific functionality:
 
 The runtime implements stack overflow detection using guard patterns:
 
-**Implementation:**
+**Mechanism:**
 - 8-byte guard patterns placed at both ends of each actor stack
 - Guards checked on every context switch
 - Pattern: `0xDEADBEEFCAFEBABE` (uint64_t)
