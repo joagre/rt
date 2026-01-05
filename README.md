@@ -14,7 +14,7 @@ The runtime uses **static memory allocation** for deterministic behavior with ze
 - **[Full Specification](spec.md)** - Complete design and implementation details
 - **[Examples Directory](examples/)** - Working examples (pingpong, bus, echo server, etc.)
 - **[Static Configuration](include/rt_static_config.h)** - Compile-time memory limits and pool sizes
-- **[Benchmarks](#performance)** - Performance measurements
+- **[Troubleshooting](TROUBLESHOOTING.md)** - Common issues and solutions
 - **[FAQ](FAQ.md)** - Frequently asked questions
 
 ## Features
