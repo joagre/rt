@@ -722,6 +722,83 @@ rt_status rt_bus_read_wait(bus_id bus, void *buf, size_t max_len,
 size_t rt_bus_entry_count(bus_id bus);
 ```
 
+### Bus Cursor Semantics
+
+The bus implements **per-subscriber read cursors** with the following behavior:
+
+**1. Subscription starts at "next publish":**
+- When `rt_bus_subscribe()` is called, the subscriber's read cursor is set to `bus->head` (next write position)
+- **Subscriber CANNOT read retained entries** that were published before subscription
+- Only sees entries published **after** subscription
+- Implementation: `src/rt_bus.c:369` - `sub->next_read_idx = bus->head;`
+
+**2. Each subscriber tracks own read index:**
+- Storage per subscriber: `bus_subscriber` struct with `next_read_idx` field
+- Storage per entry: 32-bit `readers_mask` bitmask (max 32 subscribers per bus)
+- Storage cost: **O(max_subscribers)** for subscriber array + **O(1)** per entry for readers_mask
+- Each subscriber can read at their own pace independently
+
+**3. max_readers counts UNIQUE subscribers:**
+- Each entry has a `readers_mask` bitmask tracking which subscribers have read it
+- When a subscriber reads, their bit is set in `readers_mask` and `read_count` increments
+- If the same subscriber tries to read again, it's skipped (bit already set)
+- Entry is removed when `read_count >= max_readers` (i.e., N unique subscribers have read)
+- **Not total reads** - duplicate reads by same subscriber don't count
+
+**4. Slow subscribers experience SILENT DATA LOSS:**
+- When ring buffer is full, oldest entry at `bus->tail` is evicted to make room for new publish
+- If a slow subscriber's `next_read_idx` pointed to an evicted entry, that entry is gone
+- On next `rt_bus_read()`, the search starts from current `bus->tail` and finds next available entry
+- **No overflow signal** - subscriber just skips ahead to next entry
+- **No error returned** - appears as normal read operation
+- This is by design for real-time systems (prefer fresh data over old data)
+
+**Example: Slow subscriber with data loss**
+
+```c
+// Bus: max_entries=3 (small for demo)
+// Entries: [E1, E2, E3] (buffer full)
+// Fast subscriber: next_read_idx=3 (read all)
+// Slow subscriber: next_read_idx=0 (still at E1)
+
+// Publisher publishes E4
+// Buffer wraps: [E4, E2, E3] (E1 evicted, tail advanced to E2)
+
+// Slow subscriber calls rt_bus_read():
+//   - Searches from tail (E2) forward
+//   - Skips E2, E3 (already read via readers_mask)
+//   - Finds E4 and returns it
+//   - Slow subscriber LOST E1 (no error, silent skip)
+```
+
+**Example: New subscriber doesn't see retained entries**
+
+```c
+// Bus has retained entries [E1, E2, E3]
+// Subscriber A calls rt_bus_subscribe()
+//   - next_read_idx = bus->head (points to index 3, next write position)
+
+// Subscriber A calls rt_bus_read()
+//   - Returns RT_ERR_WOULDBLOCK (no data)
+//   - Cannot read E1, E2, E3 (they're behind the cursor)
+
+// Publisher publishes E4
+// Subscriber A calls rt_bus_read()
+//   - Returns E4 (first entry after subscription)
+```
+
+**Design rationale:**
+- **Next-publish subscription**: Prevents subscribers from reading stale data on startup
+- **Per-subscriber cursors**: Allows heterogeneous readers (fast sensors, slow loggers)
+- **Silent data loss**: Real-time systems prefer fresh data; missing old data is acceptable
+- **Unique reader counting**: Ensures each subscriber sees each message once (deduplication)
+
+**Implications for users:**
+- If you need to read retained history, subscribe BEFORE publishing starts
+- If you have slow subscribers, size `max_entries` large enough to prevent buffer wraparound
+- Monitor `rt_bus_entry_count()` to detect if buffer is staying full
+- Use `max_readers` carefully - it counts unique subscribers, not total reads
+
 ### Retention Semantics
 
 - **max_readers:** Entry is removed after N actors have read it. If 0, entry persists until aged out or buffer wraps.
