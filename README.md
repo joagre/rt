@@ -54,25 +54,6 @@ This runtime is designed for:
 - ✅ **Predictable scheduling** - Priority-based cooperative multitasking, no preemption surprises
 - ✅ **Async I/O without complexity** - File/network operations handled by worker threads
 
-### When NOT to Use This
-
-- ❌ **General-purpose servers** - Use Erlang/BEAM, Akka, or Go instead
-- ❌ **UI applications** - Event loops (Qt, GTK) are better suited
-- ❌ **Preemptive actor scheduling** - Actors use cooperative multitasking; use native OS threads for preemption
-- ❌ **Dynamic workloads** - Requires compile-time configuration of pool sizes
-
-### Comparison with Alternatives
-
-| Feature | This Runtime | Erlang/BEAM | FreeRTOS | Akka | Plain C |
-|---------|--------------|-------------|----------|------|---------|
-| **Actor model** | ✅ | ✅ | ❌ | ✅ | ❌ |
-| **Embedded-friendly** | ✅ | ❌ | ✅ | ❌ | ✅ |
-| **Static memory** | ✅ | ❌ | ⚠️ | ❌ | ⚠️ |
-| **Deterministic** | ✅ | ❌ | ✅ | ❌ | ✅ |
-| **Priority scheduling** | ✅ | ❌ | ✅ | ❌ | ❌ |
-| **Message passing** | ✅ | ✅ | ⚠️ | ✅ | ❌ |
-| **MCU-ready** | ✅ (planned) | ❌ | ✅ | ❌ | ✅ |
-
 ### Real-World Use Cases
 
 **Drone Autopilot (STM32F7)**
