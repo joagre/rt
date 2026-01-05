@@ -360,26 +360,17 @@ static void bus_publisher(void *arg) {
     uint8_t data[64];
     memset(data, 0xBB, sizeof(data));
 
-    printf("DEBUG: Publisher starting, will publish %lu messages\n", ctx->max_count);
-    fflush(stdout);
-
     ctx->start_time = get_nanos();
 
     for (uint64_t i = 0; i < ctx->max_count; i++) {
-        rt_status status = rt_bus_publish(ctx->bus, data, sizeof(data));
-        if (RT_FAILED(status)) {
-            printf("DEBUG: Publish failed at i=%lu: %s\n", i, status.msg);
-            fflush(stdout);
-            break;
-        }
-        if (i % 100 == 0) {
-            printf("DEBUG: Published %lu messages\n", i);
-            fflush(stdout);
+        rt_bus_publish(ctx->bus, data, sizeof(data));
+
+        // Yield periodically to let subscriber consume messages
+        // This is realistic cooperative behavior
+        if (i % 10 == 0) {
+            rt_yield();
         }
     }
-
-    printf("DEBUG: Publisher done, published %lu messages\n", ctx->max_count);
-    fflush(stdout);
 
     ctx->end_time = get_nanos();
     rt_exit();
@@ -388,39 +379,17 @@ static void bus_publisher(void *arg) {
 static void bus_subscriber(void *arg) {
     bus_ctx *ctx = (bus_ctx *)arg;
 
-    printf("DEBUG: Subscriber starting, will read %lu messages\n", ctx->max_count);
-    fflush(stdout);
-
-    rt_status status = rt_bus_subscribe(ctx->bus);
-    if (RT_FAILED(status)) {
-        printf("DEBUG: Subscribe failed: %s\n", status.msg);
-        fflush(stdout);
-        rt_exit();
-        return;
-    }
+    rt_bus_subscribe(ctx->bus);
 
     uint8_t buffer[256];
     for (uint64_t i = 0; i < ctx->max_count; i++) {
         size_t len;
-        rt_status read_status;
-        int yield_count = 0;
-        while (RT_FAILED(read_status = rt_bus_read(ctx->bus, buffer, sizeof(buffer), &len))) {
+        rt_status status;
+        // Wait for message to be available
+        while (RT_FAILED(status = rt_bus_read(ctx->bus, buffer, sizeof(buffer), &len))) {
             rt_yield();
-            yield_count++;
-            if (yield_count > 100000) {
-                printf("DEBUG: Subscriber stuck at i=%lu, yielded %d times\n", i, yield_count);
-                fflush(stdout);
-                yield_count = 0;
-            }
-        }
-        if (i % 100 == 0) {
-            printf("DEBUG: Read %lu messages\n", i);
-            fflush(stdout);
         }
     }
-
-    printf("DEBUG: Subscriber done, read %lu messages\n", ctx->max_count);
-    fflush(stdout);
 
     rt_exit();
 }
@@ -435,17 +404,11 @@ static void bench_bus(void) {
         .max_entries = 64,  // Max allowed by RT_MAX_BUS_ENTRIES
         .max_entry_size = 256,  // Max size of each message
         .max_subscribers = 8,
-        .max_readers = 1,  // Remove entries after 1 reader (the subscriber) reads them
+        .max_readers = 1,  // Remove entries after 1 reader reads them
         .max_age_ms = 0
     };
     bus_id bus;
-    rt_status status = rt_bus_create(&cfg, &bus);
-    if (RT_FAILED(status)) {
-        printf("ERROR: Failed to create bus: %s\n", status.msg);
-        return;
-    }
-    printf("DEBUG: Created bus with ID %u\n", bus);
-    fflush(stdout);
+    rt_bus_create(&cfg, &bus);
 
     // Warmup
     bus_ctx *ctx_pub_warmup = calloc(1, sizeof(bus_ctx));
@@ -464,8 +427,8 @@ static void bench_bus(void) {
     free(ctx_sub_warmup);
 
     // Benchmark publish latency
-    // Use fewer iterations for bus benchmark (limited by buffer size)
-    const uint64_t BUS_ITERATIONS = 50;  // Small enough to fit in 64-entry buffer
+    // Use moderate iterations - publisher yields every 10 messages to cooperate
+    const uint64_t BUS_ITERATIONS = 1000;
 
     bus_ctx *ctx_pub = calloc(1, sizeof(bus_ctx));
     bus_ctx *ctx_sub = calloc(1, sizeof(bus_ctx));
@@ -539,17 +502,9 @@ int main(void) {
     fflush(stdout);
     bench_actor_spawn();
 
-    /* TODO: Fix bus benchmark - has issues with cooperative scheduling
-     * The publisher runs to completion before subscriber gets to read,
-     * causing buffer overflow and message loss.
-     * Need to either:
-     * - Add yields in publisher loop
-     * - Use larger buffer (increase RT_MAX_BUS_ENTRIES)
-     * - Redesign benchmark to handle cooperative scheduling
-     */
-    //printf("Starting bus benchmark...\n");
-    //fflush(stdout);
-    //bench_bus();
+    printf("Starting bus benchmark...\n");
+    fflush(stdout);
+    bench_bus();
 
     rt_cleanup();
 
