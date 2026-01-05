@@ -101,7 +101,7 @@ No use of setjmp/longjmp or ucontext for performance reasons.
 
 Each actor has a fixed-size stack allocated at spawn time. Stack size is configurable per actor via `actor_config.stack_size`, with a system-wide default (`RT_DEFAULT_STACK_SIZE`). Different actors can use different stack sizes to optimize memory usage.
 
-Stack growth/reallocation is not supported. If an actor overflows its stack, behavior is undefined (on debug builds, a guard pattern may detect overflow).
+Stack growth/reallocation is not supported. Stack overflow is detected via guard patterns (see "Stack Overflow Detection" section below) with defined, safe behavior.
 
 ### Memory Allocation
 
