@@ -75,9 +75,9 @@ All runtime functions return `rt_status` with a code and optional string literal
 
 - **IPC_BORROW**: Zero-copy, payload on sender's stack, sender blocks until receiver calls `rt_ipc_release()`
   - Use for: Large data (>1KB), performance-critical paths, trusted cooperating actors
-  - ⚠️ **Requires careful use**: Actor-only, stack-based, blocking, deadlock risk
-  - ⚠️ **Preconditions**: Data on sender's stack, sender cannot process other messages while blocked
-  - ⚠️ **Avoid**: Circular borrows, nested borrows, untrusted receivers
+  - WARNING: Requires careful use - actor-only, stack-based, blocking, deadlock risk
+  - Preconditions: Data on sender's stack, sender cannot process other messages while blocked
+  - Avoid: Circular borrows, nested borrows, untrusted receivers
   - See spec.md "IPC_BORROW Safety Considerations" for full details
 
 ### IPC Pool Exhaustion

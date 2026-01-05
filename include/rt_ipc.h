@@ -11,11 +11,11 @@
 //   - Suitable for small messages and general communication
 //
 // IPC_BORROW: Zero-copy, payload on sender's stack, sender blocks until receiver releases
-//   - ⚠️  REQUIRES CAREFUL USE - see spec.md "IPC_BORROW Safety Considerations"
-//   - ⚠️  Actor context only (not I/O threads or completion handlers)
-//   - ⚠️  Data must be on sender's stack
-//   - ⚠️  Sender blocks and cannot process other messages
-//   - ⚠️  Risk of deadlock with circular/nested borrows
+//   - WARNING: REQUIRES CAREFUL USE - see spec.md "IPC_BORROW Safety Considerations"
+//   - Actor context only (not I/O threads or completion handlers)
+//   - Data must be on sender's stack
+//   - Sender blocks and cannot process other messages
+//   - Risk of deadlock with circular/nested borrows
 //   - Use for: Large data (>1KB), performance-critical, trusted actors only
 //
 // Returns RT_ERR_NOMEM if IPC pools exhausted (see spec.md for handling)

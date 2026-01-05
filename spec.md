@@ -298,7 +298,7 @@ typedef enum {
 
 ### IPC_BORROW Safety Considerations
 
-⚠️ **IPC_BORROW requires careful use.** It trades simplicity and performance for strict constraints.
+**WARNING: IPC_BORROW requires careful use.** It trades simplicity and performance for strict constraints.
 
 **Design rationale:**
 - Zero-copy for performance-critical paths
@@ -309,16 +309,16 @@ typedef enum {
 **Mandatory preconditions:**
 
 1. **Actor context only**: BORROW can ONLY be used from actor context
-   - ✓ From actor's main function
-   - ✗ From I/O worker threads
-   - ✗ From completion handlers
-   - ✗ From interrupt contexts
+   - OK: From actor's main function
+   - FORBIDDEN: From I/O worker threads
+   - FORBIDDEN: From completion handlers
+   - FORBIDDEN: From interrupt contexts
 
 2. **Data must be on sender's stack**: Borrowed pointer must remain valid while sender is blocked
-   - ✓ Stack-allocated variables
-   - ✓ Function parameters
-   - ✗ Heap-allocated data (use IPC_COPY instead)
-   - ✗ Static/global data (use IPC_COPY instead)
+   - OK: Stack-allocated variables
+   - OK: Function parameters
+   - FORBIDDEN: Heap-allocated data (use IPC_COPY instead)
+   - FORBIDDEN: Static/global data (use IPC_COPY instead)
 
 3. **Sender blocks until release**: Sender cannot process other messages while waiting
    - Sender's state = ACTOR_STATE_BLOCKED
@@ -328,19 +328,19 @@ typedef enum {
 **Deadlock scenarios (avoid these):**
 
 ```c
-// ✗ DEADLOCK: Circular borrow
+// DEADLOCK: Circular borrow
 Actor A: rt_ipc_send(B, &data, len, IPC_BORROW);  // A blocks
-Actor B: rt_ipc_send(A, &data, len, IPC_BORROW);  // B blocks → DEADLOCK
+Actor B: rt_ipc_send(A, &data, len, IPC_BORROW);  // B blocks -> DEADLOCK
 
-// ✗ DEADLOCK: Nested borrow
+// DEADLOCK: Nested borrow
 Actor A: rt_ipc_send(B, &data, len, IPC_BORROW);  // A blocks
          // A cannot receive release notification!
 
-// ✗ DEADLOCK: Borrow then receive
+// DEADLOCK: Borrow then receive
 Actor A: rt_ipc_send(B, &data, len, IPC_BORROW);
          rt_ipc_recv(&msg, -1);  // Can't receive - already blocked!
 
-// ✓ CORRECT: Borrow and wait for completion
+// CORRECT: Borrow and wait for completion
 Actor A: rt_ipc_send(B, &data, len, IPC_BORROW);  // Blocks until B releases
          // Automatically unblocks when B calls rt_ipc_release()
 ```
@@ -361,7 +361,7 @@ Actor A: rt_ipc_send(B, &data, len, IPC_BORROW);  // Blocks until B releases
 **Failure handling:**
 
 If receiver crashes or exits without releasing:
-- ⚠️ **Current behavior**: Sender may remain blocked indefinitely
+- **Current behavior**: Sender may remain blocked indefinitely
 - **Mitigation**: Use timeouts, watchdogs, or supervisor patterns to detect hung actors
 - **Future**: Receiver cleanup should unblock waiting senders (enhancement needed)
 - Best practice: Only use BORROW between validated, trusted actors that guarantee release
