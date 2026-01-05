@@ -3,16 +3,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// Receiver that crashes immediately after receiving BORROW message
+// Receiver that crashes immediately after receiving SYNC message
 void crash_receiver_actor(void *arg) {
     (void)arg;
 
-    printf("Receiver: Waiting for BORROW message...\n");
+    printf("Receiver: Waiting for SYNC message...\n");
 
     rt_message msg;
     rt_ipc_recv(&msg, -1);
 
-    printf("Receiver: Got BORROW message, crashing WITHOUT releasing!\n");
+    printf("Receiver: Got SYNC message, crashing WITHOUT releasing!\n");
     // Simulate crash - exit without calling rt_ipc_release()
     rt_exit();
 }
@@ -20,10 +20,10 @@ void crash_receiver_actor(void *arg) {
 void sender_actor(void *arg) {
     actor_id receiver = *(actor_id *)arg;
 
-    printf("Sender: Sending BORROW message to receiver...\n");
+    printf("Sender: Sending SYNC message to receiver...\n");
 
     char data[100] = "Test data on sender's stack";
-    rt_status status = rt_ipc_send(receiver, data, sizeof(data), IPC_BORROW);
+    rt_status status = rt_ipc_send(receiver, data, sizeof(data), IPC_SYNC);
 
     // If we reach here, we were unblocked
     if (!RT_FAILED(status)) {
@@ -38,7 +38,7 @@ void sender_actor(void *arg) {
 }
 
 int main(void) {
-    printf("=== BORROW Receiver Crash Test ===\n");
+    printf("=== SYNC Receiver Crash Test ===\n");
     printf("Tests that sender is unblocked when receiver crashes without releasing\n\n");
 
     rt_init();

@@ -16,8 +16,8 @@ typedef enum {
 typedef struct mailbox_entry {
     actor_id                sender;
     size_t                  len;
-    void                   *data;       // NULL for borrowed messages
-    const void             *borrow_ptr; // Non-NULL for borrowed messages
+    void                   *data;       // NULL for synchronous messages
+    const void             *sync_ptr;   // Non-NULL for synchronous messages
     struct mailbox_entry   *next;
 } mailbox_entry;
 

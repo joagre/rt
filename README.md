@@ -7,7 +7,7 @@ A complete actor-based runtime designed for **embedded and safety-critical syste
 **Current platform:** x86-64 Linux (fully implemented)
 **Future platform:** STM32/ARM Cortex-M with FreeRTOS (see `spec.md`)
 
-The runtime uses **static memory allocation** for deterministic behavior with zero heap fragmentation. It features **priority-based scheduling** (4 levels: CRITICAL, HIGH, NORMAL, LOW) with fast context switching. Provides message passing (IPC with COPY/BORROW modes), linking, monitoring, timers, pub-sub messaging (bus), network I/O, and file I/O.
+The runtime uses **static memory allocation** for deterministic behavior with zero heap fragmentation. It features **priority-based scheduling** (4 levels: CRITICAL, HIGH, NORMAL, LOW) with fast context switching. Provides message passing (IPC with COPY/SYNC modes), linking, monitoring, timers, pub-sub messaging (bus), network I/O, and file I/O.
 
 ## Quick Links
 
@@ -24,7 +24,7 @@ The runtime uses **static memory allocation** for deterministic behavior with ze
 - Priority-based round-robin scheduler (4 priority levels)
 - Stack overflow detection with guard patterns (16-byte overhead per actor)
 - Actor lifecycle management (spawn, exit)
-- IPC with COPY and BORROW modes
+- IPC with COPY and SYNC modes
 - Blocking and non-blocking message receive
 - Actor linking and monitoring (bidirectional links, unidirectional monitors)
 - Exit notifications with exit reasons (normal, crash, stack overflow, killed)
@@ -40,7 +40,7 @@ Benchmarks measured on a vanilla Dell XPS 13 (Intel Core i7, x86-64 Linux):
 | Operation | Latency | Throughput | Notes |
 |-----------|---------|------------|-------|
 | **Context switch** | ~1.1 µs/switch | 0.88 M switches/sec | Manual assembly, cooperative, +2.9% overhead for stack guards |
-| **IPC (COPY mode)** | ~2.2-2.3 µs/msg | 0.43-0.45 M msgs/sec | 8-256 byte messages |
+| **IPC (ASYNC mode)** | ~2.2-2.3 µs/msg | 0.43-0.45 M msgs/sec | 8-256 byte messages |
 | **Pool allocation** | ~9 ns/op | 104 M ops/sec | 1.2x faster than malloc |
 | **Actor spawn** | ~383 ns/actor | 2.60 M actors/sec | Includes stack allocation (arena) |
 | **Bus pub/sub** | ~276 ns/msg | 3.61 M msgs/sec | With cooperative yields |
@@ -62,7 +62,8 @@ All resource limits are defined at compile time. Edit and recompile to change:
 #define RT_MAX_ACTORS 64                // Maximum concurrent actors
 #define RT_STACK_ARENA_SIZE (1*1024*1024) // Stack arena size (1 MB default)
 #define RT_MAILBOX_ENTRY_POOL_SIZE 256  // Mailbox pool size
-#define RT_MESSAGE_DATA_POOL_SIZE 256   // Message pool size
+#define RT_MESSAGE_DATA_POOL_SIZE 256   // Message pool size (IPC_ASYNC)
+#define RT_SYNC_BUFFER_POOL_SIZE 64   // Sync buffer pool (IPC_SYNC)
 #define RT_COMPLETION_QUEUE_SIZE 64     // I/O completion queue size
 #define RT_MAX_BUSES 32                 // Maximum concurrent buses
 // ... see rt_static_config.h for full list
@@ -133,7 +134,7 @@ actor_id worker = rt_spawn_ex(worker_actor, &args, &cfg);
 
 // Send messages
 int data = 42;
-rt_status status = rt_ipc_send(target, &data, sizeof(data), IPC_COPY);
+rt_status status = rt_ipc_send(target, &data, sizeof(data), IPC_ASYNC);
 if (RT_FAILED(status)) {
     // Pool exhausted: RT_MAILBOX_ENTRY_POOL_SIZE or RT_MESSAGE_DATA_POOL_SIZE
     // Send does NOT block or drop - caller must handle RT_ERR_NOMEM
@@ -144,10 +145,10 @@ if (RT_FAILED(status)) {
     // Retry send...
 }
 
-// IPC_BORROW: Zero-copy, sender blocks until receiver releases
-// WARNING: Use with care - data must be on stack, sender blocks, risk of deadlock
+// IPC_SYNC: One-copy to pinned buffer, sender blocks until receiver releases
+// WARNING: Use with care - sender blocks, risk of deadlock
 // See spec.md for safety considerations and deadlock scenarios
-rt_ipc_send(target, &data, sizeof(data), IPC_BORROW);
+rt_ipc_send(target, &data, sizeof(data), IPC_SYNC);
 
 // Receive messages
 rt_message msg;
@@ -158,7 +159,7 @@ rt_ipc_recv(&msg, 100);  // 100=timeout after 100ms (returns RT_ERR_TIMEOUT if n
 // Process message data
 process(&msg);
 
-// Release message (required for BORROW, no-op for COPY)
+// Release message (required for SYNC, no-op for COPY)
 rt_ipc_release(&msg);
 ```
 
@@ -259,7 +260,7 @@ if (rt_is_exit_msg(&msg)) {
 
 - `rt_ipc_send(to, data, len, mode)` - Send message
 - `rt_ipc_recv(msg, timeout)` - Receive message
-- `rt_ipc_release(msg)` - Release borrowed message
+- `rt_ipc_release(msg)` - Release synced message
 - `rt_ipc_pending()` - Check if messages are available
 - `rt_ipc_count()` - Get number of pending messages
 

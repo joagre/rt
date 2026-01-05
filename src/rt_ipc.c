@@ -20,6 +20,12 @@ static message_data_entry g_message_pool[RT_MESSAGE_DATA_POOL_SIZE];
 static bool g_message_used[RT_MESSAGE_DATA_POOL_SIZE];
 rt_pool g_message_pool_mgr;  // Non-static so rt_link.c can access
 
+// Borrow buffer pool - for IPC_SYNC to avoid UAF when sender dies
+// Using pinned runtime buffers instead of sender's stack eliminates use-after-free
+static message_data_entry g_sync_pool[RT_SYNC_BUFFER_POOL_SIZE];
+static bool g_sync_used[RT_SYNC_BUFFER_POOL_SIZE];
+static rt_pool g_sync_pool_mgr;
+
 // Forward declaration for init function
 rt_status rt_ipc_init(void);
 
@@ -30,6 +36,9 @@ rt_status rt_ipc_init(void) {
 
     rt_pool_init(&g_message_pool_mgr, g_message_pool, g_message_used,
                  sizeof(message_data_entry), RT_MESSAGE_DATA_POOL_SIZE);
+
+    rt_pool_init(&g_sync_pool_mgr, g_sync_pool, g_sync_used,
+                 sizeof(message_data_entry), RT_SYNC_BUFFER_POOL_SIZE);
 
     return RT_SUCCESS;
 }
@@ -50,9 +59,9 @@ rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mod
         return RT_ERROR(RT_ERR_INVALID, "Message exceeds RT_MAX_MESSAGE_SIZE");
     }
 
-    // Prevent self-send with BORROW (guaranteed deadlock)
-    if (mode == IPC_BORROW && to == sender->id) {
-        return RT_ERROR(RT_ERR_INVALID, "Self-send with IPC_BORROW is forbidden (deadlock)");
+    // Prevent self-send with SYNC (guaranteed deadlock)
+    if (mode == IPC_SYNC && to == sender->id) {
+        return RT_ERROR(RT_ERR_INVALID, "Self-send with IPC_SYNC is forbidden (deadlock)");
     }
 
     // Allocate mailbox entry from pool
@@ -65,7 +74,7 @@ rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mod
     entry->len = len;
     entry->next = NULL;
 
-    if (mode == IPC_COPY) {
+    if (mode == IPC_ASYNC) {
         // Copy mode: allocate and copy data from pool
         message_data_entry *msg_data = rt_pool_alloc(&g_message_pool_mgr);
         if (!msg_data) {
@@ -74,7 +83,7 @@ rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mod
         }
         memcpy(msg_data->data, data, len);
         entry->data = msg_data->data;
-        entry->borrow_ptr = NULL;
+        entry->sync_ptr = NULL;
 
         // Add to receiver's mailbox
         if (receiver->mbox.tail) {
@@ -91,13 +100,20 @@ rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mod
             receiver->state = ACTOR_STATE_READY;
         }
 
-        RT_LOG_TRACE("IPC: Message sent from %u to %u (COPY mode)", sender->id, to);
+        RT_LOG_TRACE("IPC: Message sent from %u to %u (ASYNC mode)", sender->id, to);
         return RT_SUCCESS;
 
-    } else { // IPC_BORROW
-        // Borrow mode: reference sender's data
+    } else { // IPC_SYNC
+        // Borrow mode: Copy to pinned runtime buffer (not sender's stack)
+        // This prevents use-after-free if sender dies while receiver holds message
+        message_data_entry *sync_buf = rt_pool_alloc(&g_sync_pool_mgr);
+        if (!sync_buf) {
+            rt_pool_free(&g_mailbox_pool_mgr, entry);
+            return RT_ERROR(RT_ERR_NOMEM, "Borrow buffer pool exhausted");
+        }
+        memcpy(sync_buf->data, data, len);
         entry->data = NULL;
-        entry->borrow_ptr = data;
+        entry->sync_ptr = sync_buf->data;
 
         // Add to receiver's mailbox
         if (receiver->mbox.tail) {
@@ -207,16 +223,19 @@ rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms) {
         }
     }
 
-    // Free previous active message if any (auto-release for BORROW)
+    // Free previous active message if any (auto-release for SYNC)
     if (current->active_msg) {
-        // If previous message was BORROW, unblock sender
-        if (current->active_msg->borrow_ptr) {
+        // If previous message was SYNC, unblock sender and free sync buffer
+        if (current->active_msg->sync_ptr) {
             actor *sender = rt_actor_get(current->active_msg->sender);
             if (sender && sender->waiting_for_release && sender->blocked_on_actor == current->id) {
                 sender->waiting_for_release = false;
                 sender->blocked_on_actor = ACTOR_ID_INVALID;
                 sender->state = ACTOR_STATE_READY;
             }
+            // Free sync buffer from sync pool
+            message_data_entry *sync_data = DATA_TO_MSG_ENTRY(current->active_msg->sync_ptr);
+            rt_pool_free(&g_sync_pool_mgr, sync_data);
         }
 
         // Free COPY message data from pool
@@ -239,7 +258,7 @@ rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms) {
     // Fill in message structure
     msg->sender = entry->sender;
     msg->len = entry->len;
-    msg->data = entry->borrow_ptr ? entry->borrow_ptr : entry->data;
+    msg->data = entry->sync_ptr ? entry->sync_ptr : entry->data;
 
     // Store entry as active message for later cleanup
     current->active_msg = entry;
@@ -257,7 +276,7 @@ void rt_ipc_release(const rt_message *msg) {
         return;
     }
 
-    // Find the sender if this was a borrowed message
+    // Find the sender if this was a synced message
     actor *sender = rt_actor_get(msg->sender);
     if (sender && sender->waiting_for_release && sender->blocked_on_actor == current->id) {
         // Unblock sender
@@ -268,8 +287,13 @@ void rt_ipc_release(const rt_message *msg) {
 
     // Free the active message
     if (current->active_msg) {
+        // Free sync buffer if SYNC mode
+        if (current->active_msg->sync_ptr) {
+            message_data_entry *sync_data = DATA_TO_MSG_ENTRY(current->active_msg->sync_ptr);
+            rt_pool_free(&g_sync_pool_mgr, sync_data);
+        }
+        // Free ASYNC buffer if ASYNC mode
         if (current->active_msg->data) {
-            // Calculate message_data_entry pointer from data pointer
             message_data_entry *msg_data = DATA_TO_MSG_ENTRY(current->active_msg->data);
             rt_pool_free(&g_message_pool_mgr, msg_data);
         }
@@ -303,8 +327,13 @@ void rt_ipc_mailbox_clear(mailbox *mbox) {
     mailbox_entry *entry = mbox->head;
     while (entry) {
         mailbox_entry *next = entry->next;
+        // Free sync buffer if SYNC mode
+        if (entry->sync_ptr) {
+            message_data_entry *sync_data = DATA_TO_MSG_ENTRY(entry->sync_ptr);
+            rt_pool_free(&g_sync_pool_mgr, sync_data);
+        }
+        // Free ASYNC buffer if ASYNC mode
         if (entry->data) {
-            // Calculate message_data_entry pointer from data pointer
             message_data_entry *msg_data = DATA_TO_MSG_ENTRY(entry->data);
             rt_pool_free(&g_message_pool_mgr, msg_data);
         }
@@ -322,8 +351,13 @@ void rt_ipc_free_active_msg(mailbox_entry *entry) {
         return;
     }
 
+    // Free sync buffer if SYNC mode
+    if (entry->sync_ptr) {
+        message_data_entry *sync_data = DATA_TO_MSG_ENTRY(entry->sync_ptr);
+        rt_pool_free(&g_sync_pool_mgr, sync_data);
+    }
+    // Free ASYNC buffer if ASYNC mode
     if (entry->data) {
-        // Calculate message_data_entry pointer from data pointer
         message_data_entry *msg_data = DATA_TO_MSG_ENTRY(entry->data);
         rt_pool_free(&g_message_pool_mgr, msg_data);
     }
