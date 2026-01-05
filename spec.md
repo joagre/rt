@@ -786,6 +786,9 @@ If receiver crashes or exits without releasing:
 - Sender's `rt_ipc_send()` returns normally (no error)
 - Message data is no longer referenced by receiver
 - Principle of least surprise: sender is not stuck forever
+- **Important:** Sender does NOT receive notification of receiver death (unless explicitly linked/monitoring)
+
+**Semantic note:** IPC_SYNC unblocking due to receiver death does NOT imply successful processing. The sender has no way to know if the receiver crashed. If the sender requires confirmation that the message was processed, it must use an explicit acknowledgment message (e.g., receiver sends reply after processing).
 
 Best practice: Design actors to always release sync messages, but receiver crashes are handled gracefully.
 
@@ -810,7 +813,9 @@ Best practice: Design actors to always release sync messages, but receiver crash
    - Sender's `rt_ipc_send()` returns `RT_SUCCESS` (no error, unblocked normally)
    - Message data no longer referenced by dead receiver
    - Sender does NOT receive error or notification (already returned from send)
+   - **Sender cannot distinguish** receiver crash from normal processing completion
    - Rationale: Principle of least surprise - sender not stuck forever
+   - **If sender requires confirmation:** Use explicit ack message or link/monitor the receiver
    - Tested: `tests/borrow_crash_test.c`
 
 3. **Sender death while blocked in BORROW:**
