@@ -12,7 +12,6 @@ rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mod
 // timeout_ms == 0:  non-blocking, returns RT_ERR_WOULDBLOCK if empty
 // timeout_ms < 0:   block forever
 // timeout_ms > 0:   block up to timeout, returns RT_ERR_TIMEOUT if exceeded
-// Note: For this minimal version, we only support blocking (timeout_ms < 0) and non-blocking (timeout_ms == 0)
 rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms);
 
 // Release borrowed message (must call after consuming IPC_BORROW message)

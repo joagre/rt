@@ -339,6 +339,25 @@ IPC uses global pools shared by all actors:
 - Use IPC_BORROW for large messages to avoid data pool exhaustion
 - Ensure receivers process messages promptly
 
+**Backoff-retry example:**
+```c
+rt_status status = rt_ipc_send(target, data, len, IPC_COPY);
+if (status.code == RT_ERR_NOMEM) {
+    // Pool exhausted - backoff before retry
+    rt_message msg;
+    status = rt_ipc_recv(&msg, 10);  // Backoff 10ms
+
+    if (status.code == RT_ERR_TIMEOUT) {
+        // No messages during backoff, retry send
+        rt_ipc_send(target, data, len, IPC_COPY);
+    } else if (!RT_FAILED(status)) {
+        // Got message during backoff, handle it first
+        handle_message(&msg);
+        // Then retry send
+    }
+}
+```
+
 ## Bus API
 
 Publish-subscribe communication with configurable retention policy.
