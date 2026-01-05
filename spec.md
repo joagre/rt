@@ -1416,7 +1416,7 @@ bool rt_spsc_peek(rt_spsc_queue *q, void *entry_out);
 
 When an actor dies (via `rt_exit()`, crash, or external kill):
 
-**Exception:** When death reason is `RT_EXIT_CRASH_STACK` (stack overflow), steps 1-5 below are **skipped** (only step 6 is performed) to prevent cascading crashes from accessing corrupted memory. Links and monitors are **not notified** of stack overflow deaths.
+**Exception:** The exception in this section applies **only when stack corruption prevents safe cleanup** (e.g., guard pattern so corrupted that detection itself is unsafe, or runtime metadata is damaged). When overflow **is detected** via guard checks (see Stack Overflow section), the **normal cleanup path below is used** — links/monitors are notified, mailbox cleared, timers cancelled, resources cleaned up. The guard pattern detection isolates the overflow to the stack area, leaving actor metadata intact for safe cleanup.
 
 **Normal death cleanup:**
 
