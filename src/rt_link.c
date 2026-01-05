@@ -309,7 +309,7 @@ static bool send_exit_notification(actor *recipient, actor_id dying_id, rt_exit_
     exit_data->actor = dying_id;
     exit_data->reason = reason;
 
-    entry->borrow_ptr = NULL;
+    entry->sync_ptr = NULL;
     entry->next = NULL;
 
     // Inject into recipient's mailbox

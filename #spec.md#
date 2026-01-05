@@ -36,7 +36,7 @@ A minimalistic actor-based runtime designed for **embedded and safety-critical s
 
 **Consequence**: All "hot path" operations use **static pools** with **O(1) allocation** and return `RT_ERR_NOMEM` on pool exhaustion. No malloc, no heap fragmentation, no allocation latency.
 
-**Linux verification**: Run with `LD_PRELOAD` malloc wrapper to assert no malloc calls after `rt_init()` (except explicit `malloc_stack = true` spawns).
+**Verification**: Run with `LD_PRELOAD` malloc wrapper to assert no malloc calls after `rt_init()` (except explicit `malloc_stack = true` spawns).
 
 ## Target Platforms
 
@@ -252,7 +252,7 @@ The cooperative scheduling model ensures actors yield explicitly, so there are n
 ```c
 // ✓ VALID: Actor calling runtime APIs (BOUNDARY 1: scheduler thread)
 void my_actor(void *arg) {
-    rt_ipc_send(other_actor, &data, sizeof(data), IPC_ASYNC);  // ✓ OK
+    rt_ipc_send(other_actor, &data, sizeof(data), IPC_COPY);  // ✓ OK
     actor_id new_actor = rt_spawn(worker, NULL);               // ✓ OK
     rt_bus_publish(bus, &event, sizeof(event));               // ✓ OK
 }
@@ -277,7 +277,7 @@ void socket_reader_actor(void *arg) {
     int sock = listen_and_accept();
     while (1) {
         rt_net_recv(sock, buf, len, &received, -1);  // ✓ OK (scheduler thread)
-        rt_ipc_send(worker, buf, received, IPC_ASYNC); // ✓ OK (scheduler thread)
+        rt_ipc_send(worker, buf, received, IPC_COPY); // ✓ OK (scheduler thread)
     }
 }
 ```
@@ -287,7 +287,7 @@ void socket_reader_actor(void *arg) {
 ```c
 // ✗ INVALID: External thread calling runtime API (violates BOUNDARY 3)
 void external_thread(void) {
-    rt_ipc_send(actor, &data, sizeof(data), IPC_ASYNC);  // ✗ FORBIDDEN
+    rt_ipc_send(actor, &data, sizeof(data), IPC_COPY);  // ✗ FORBIDDEN
     // ERROR: No locking/atomics, NOT THREAD-SAFE, will corrupt mailbox!
 }
 
@@ -502,14 +502,14 @@ typedef struct {
 
 ```c
 typedef enum {
-    IPC_ASYNC,    // memcpy payload to receiver's mailbox
-    IPC_SYNC,  // one-copy to pinned buffer, sender blocks until receiver consumes
+    IPC_COPY,    // memcpy payload to receiver's mailbox
+    IPC_BORROW,  // zero-copy, sender blocks until receiver consumes
 } rt_ipc_mode;
 ```
 
-**IPC_ASYNC:** Payload is copied to receiver's mailbox. Sender continues immediately. Suitable for small messages and general-purpose communication.
+**IPC_COPY:** Payload is copied to receiver's mailbox. Sender continues immediately. Suitable for small messages and general-purpose communication.
 
-**IPC_SYNC:** One-copy transfer to pinned runtime buffer (not sender's stack). Sender blocks until receiver calls `rt_ipc_release()`. Provides implicit backpressure and memory safety (no UAF if sender dies).
+**IPC_BORROW:** Zero-copy transfer. Payload remains on sender's stack. Sender blocks until receiver calls `rt_ipc_release()`. Provides implicit backpressure.
 
 ### API Contract: rt_ipc_send()
 
@@ -522,7 +522,7 @@ rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mod
 
 `rt_ipc_send()` uses two global pools:
 1. **Mailbox entry pool** (`RT_MAILBOX_ENTRY_POOL_SIZE` = 256) - for all IPC modes
-2. **Message data pool** (`RT_MESSAGE_DATA_POOL_SIZE` = 256) - for IPC_ASYNC only
+2. **Message data pool** (`RT_MESSAGE_DATA_POOL_SIZE` = 256) - for IPC_COPY only
 
 **Fail-fast semantics** (chosen for deterministic embedded behavior):
 
@@ -535,8 +535,8 @@ rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mod
 
 | Mode | Mailbox Pool Full | Message Pool Full | Result |
 |------|-------------------|-------------------|--------|
-| **IPC_ASYNC** | Returns `RT_ERR_NOMEM` | Returns `RT_ERR_NOMEM` | Fail immediately |
-| **IPC_SYNC** | Returns `RT_ERR_NOMEM` | Returns `RT_ERR_NOMEM` (sync buffer pool) | Fail immediately |
+| **IPC_COPY** | Returns `RT_ERR_NOMEM` | Returns `RT_ERR_NOMEM` | Fail immediately |
+| **IPC_BORROW** | Returns `RT_ERR_NOMEM` | N/A (no message pool used) | Fail immediately |
 
 **Caller responsibilities:**
 - **MUST** check return value and handle `RT_ERR_NOMEM`
@@ -554,10 +554,10 @@ rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mod
 
 ```c
 // Bad: Ignoring RT_ERR_NOMEM (message lost, caller unaware)
-rt_ipc_send(target, &data, sizeof(data), IPC_ASYNC);  // WRONG
+rt_ipc_send(target, &data, sizeof(data), IPC_COPY);  // WRONG
 
 // Good: Check and handle pool exhaustion
-rt_status status = rt_ipc_send(target, &data, sizeof(data), IPC_ASYNC);
+rt_status status = rt_ipc_send(target, &data, sizeof(data), IPC_COPY);
 if (status.code == RT_ERR_NOMEM) {
     // Pool exhausted - implement backpressure
     // Option 1: Drop with telemetry
@@ -578,15 +578,15 @@ if (status.code == RT_ERR_NOMEM) {
 
 The lifetime of `rt_message.data` depends on the send mode:
 
-**IPC_ASYNC:**
+**IPC_COPY:**
 - Data is **valid until next `rt_ipc_recv()`**
 - Data lives in a pool-allocated buffer
 - Next recv frees the previous message's buffer and reuses the pool entry
 - Calling `rt_ipc_release()` is optional (no-op for COPY)
 
-**IPC_SYNC:**
+**IPC_BORROW:**
 - Data is **valid until `rt_ipc_release()`** is called
-- Data lives in pinned runtime buffer (persists even if sender dies)
+- Data lives on sender's stack
 - Sender is blocked until `rt_ipc_release()` is called
 - **Auto-release:** If `rt_ipc_recv()` is called without releasing the previous BORROW message, the sender is automatically unblocked (prevents deadlock)
 
@@ -622,7 +622,7 @@ Per-actor mailbox limits: **None** - each actor's mailbox is unbounded (linked l
 
 Global pool limits: **Yes** - all actors share:
 - `RT_MAILBOX_ENTRY_POOL_SIZE` (256 default) - mailbox entries
-- `RT_MESSAGE_DATA_POOL_SIZE` (256 default) - message data (ASYNC mode only)
+- `RT_MESSAGE_DATA_POOL_SIZE` (256 default) - message data (COPY mode only)
 
 **Important:** One slow receiver can consume all mailbox entries, starving other actors.
 
@@ -630,10 +630,10 @@ Global pool limits: **Yes** - all actors share:
 
 | Mode        | Pool Exhausted Behavior | Blocks Waiting for Pool? | Drops Messages? |
 |-------------|-------------------------|--------------------------|-----------------|
-| **IPC_ASYNC**    | Returns `RT_ERR_NOMEM` immediately | No | No |
-| **IPC_SYNC**  | Returns `RT_ERR_NOMEM` immediately | No | No |
+| **IPC_COPY**    | Returns `RT_ERR_NOMEM` immediately | No | No |
+| **IPC_BORROW**  | Returns `RT_ERR_NOMEM` immediately | No | No |
 
-**IPC_SYNC blocking semantics:**
+**IPC_BORROW blocking semantics:**
 - Blocks **after** message is in mailbox, waiting for receiver to call `rt_ipc_release()`
 - Does **not** block waiting for pool availability (fails immediately if pool exhausted)
 - Sender blocks after successful mailbox insertion (not during pool allocation)
@@ -680,17 +680,17 @@ See "Pool Exhaustion Behavior" section below for mitigation strategies and examp
 ```c
 // Single sender - FIFO guaranteed
 void sender_actor(void *arg) {
-    rt_ipc_send(receiver, &msg1, sizeof(msg1), IPC_ASYNC);  // Sent first
-    rt_ipc_send(receiver, &msg2, sizeof(msg2), IPC_ASYNC);  // Sent second
+    rt_ipc_send(receiver, &msg1, sizeof(msg1), IPC_COPY);  // Sent first
+    rt_ipc_send(receiver, &msg2, sizeof(msg2), IPC_COPY);  // Sent second
     // Receiver will see: msg1, then msg2 (guaranteed)
 }
 
 // Multiple senders - order depends on scheduling
 void sender_A(void *arg) {
-    rt_ipc_send(receiver, &msgA, sizeof(msgA), IPC_ASYNC);
+    rt_ipc_send(receiver, &msgA, sizeof(msgA), IPC_COPY);
 }
 void sender_B(void *arg) {
-    rt_ipc_send(receiver, &msgB, sizeof(msgB), IPC_ASYNC);
+    rt_ipc_send(receiver, &msgB, sizeof(msgB), IPC_COPY);
 }
 // Receiver may see: msgA then msgB, OR msgB then msgA (depends on scheduler)
 
@@ -718,15 +718,14 @@ void actor_with_timer(void *arg) {
 - Scheduling-dependent ordering across senders = unavoidable in cooperative scheduler
 - No message priorities = simpler implementation, deterministic behavior
 
-### IPC_SYNC Safety Considerations
+### IPC_BORROW Safety Considerations
 
-**WARNING: IPC_SYNC requires careful use.** It trades simplicity and performance for strict constraints.
+**WARNING: IPC_BORROW requires careful use.** It trades simplicity and performance for strict constraints.
 
 **Design rationale:**
-- One-copy to pinned buffer (vs two-copy for IPC_ASYNC: pool → receiver local)
-- Pinned runtime buffers for memory safety (prevents UAF if sender dies)
+- Zero-copy for performance-critical paths
+- Stack-based for deterministic memory (no hidden allocations)
 - Blocking provides implicit backpressure
-- Static pool allocation for deterministic memory (RT_SYNC_BUFFER_POOL_SIZE)
 - Simple implementation suitable for embedded/safety-critical systems
 
 **Mandatory preconditions:**
@@ -737,33 +736,34 @@ void actor_with_timer(void *arg) {
    - FORBIDDEN: From completion handlers
    - FORBIDDEN: From interrupt contexts
 
-2. **Sender blocks until release**: Sender cannot process other messages while waiting
+2. **Data must be on sender's stack**: Borrowed pointer must remain valid while sender is blocked
+   - OK: Stack-allocated variables
+   - OK: Function parameters
+   - FORBIDDEN: Heap-allocated data (use IPC_COPY instead)
+   - FORBIDDEN: Static/global data (use IPC_COPY instead)
+
+3. **Sender blocks until release**: Sender cannot process other messages while waiting
    - Sender's state = ACTOR_STATE_BLOCKED
    - Sender cannot receive messages
    - Sender cannot send other BORROW messages
 
-3. **Data copied to pinned buffer**: Sender's data is copied once to a runtime buffer
-   - Buffer persists even if sender dies (memory safe)
-   - Pool size: RT_SYNC_BUFFER_POOL_SIZE (64 default)
-   - Exhaustion: Returns RT_ERR_NOMEM (caller must retry or use IPC_ASYNC)
-
 **Deadlock scenarios (avoid these):**
 
 ```c
-// DEADLOCK: Circular synchronous send
-Actor A: rt_ipc_send(B, &data, len, IPC_SYNC);  // A blocks
-Actor B: rt_ipc_send(A, &data, len, IPC_SYNC);  // B blocks -> DEADLOCK
+// DEADLOCK: Circular borrow
+Actor A: rt_ipc_send(B, &data, len, IPC_BORROW);  // A blocks
+Actor B: rt_ipc_send(A, &data, len, IPC_BORROW);  // B blocks -> DEADLOCK
 
-// DEADLOCK: Nested synchronous send
-Actor A: rt_ipc_send(B, &data, len, IPC_SYNC);  // A blocks
+// DEADLOCK: Nested borrow
+Actor A: rt_ipc_send(B, &data, len, IPC_BORROW);  // A blocks
          // A cannot receive release notification!
 
-// DEADLOCK: Sync send then receive
-Actor A: rt_ipc_send(B, &data, len, IPC_SYNC);
+// DEADLOCK: Borrow then receive
+Actor A: rt_ipc_send(B, &data, len, IPC_BORROW);
          rt_ipc_recv(&msg, -1);  // Can't receive - already blocked!
 
-// CORRECT: Sync send and wait for completion
-Actor A: rt_ipc_send(B, &data, len, IPC_SYNC);  // Blocks until B releases
+// CORRECT: Borrow and wait for completion
+Actor A: rt_ipc_send(B, &data, len, IPC_BORROW);  // Blocks until B releases
          // Automatically unblocks when B calls rt_ipc_release()
 ```
 
@@ -771,23 +771,24 @@ Actor A: rt_ipc_send(B, &data, len, IPC_SYNC);  // Blocks until B releases
 
 | Scenario | Use Mode | Reason |
 |----------|----------|--------|
-| Small messages (< 256 bytes) | IPC_ASYNC | Simple, no blocking |
-| Fire-and-forget messaging | IPC_ASYNC | Sender doesn't wait |
-| Untrusted receivers | IPC_ASYNC | Sender not vulnerable to deadlock |
-| General communication | IPC_ASYNC | Safest default |
-| Implicit backpressure needed | IPC_SYNC | Sender blocks until consumed |
-| Trusted cooperating actors | IPC_SYNC | Both sides understand protocol |
-| Flow control required | IPC_SYNC | Natural rate limiting via blocking |
+| Small messages (< 256 bytes) | IPC_COPY | Simple, no blocking |
+| Fire-and-forget messaging | IPC_COPY | Sender doesn't wait |
+| Untrusted receivers | IPC_COPY | Sender not vulnerable to deadlock |
+| General communication | IPC_COPY | Safest default |
+| Large data (> 1 KB) | IPC_BORROW | Avoid copy overhead |
+| Performance-critical path | IPC_BORROW | Zero-copy, validated actors |
+| Trusted cooperating actors | IPC_BORROW | Both sides understand protocol |
+| Implicit backpressure needed | IPC_BORROW | Sender waits for consumer |
 
 **Failure handling:**
 
 If receiver crashes or exits without releasing:
 - Sender is automatically unblocked during receiver's actor cleanup
 - Sender's `rt_ipc_send()` returns normally (no error)
-- Message data is no longer referenced by receiver
+- Borrowed data is no longer referenced by receiver
 - Principle of least surprise: sender is not stuck forever
 
-Best practice: Design actors to always release sync messages, but receiver crashes are handled gracefully.
+Best practice: Design actors to always release borrowed messages, but receiver crashes are handled gracefully.
 
 **Edge cases (explicit semantics):**
 
@@ -805,69 +806,96 @@ Best practice: Design actors to always release sync messages, but receiver crash
    // msg1.data now invalid, msg2.data valid
    ```
 
-2. **Receiver death while holding sync message:**
+2. **Receiver death while holding borrowed message:**
    - **Auto-release:** Sender is automatically unblocked during receiver's actor cleanup
    - Sender's `rt_ipc_send()` returns `RT_SUCCESS` (no error, unblocked normally)
-   - Message data no longer referenced by dead receiver
+   - Borrowed data no longer referenced by dead receiver
    - Sender does NOT receive error or notification (already returned from send)
    - Rationale: Principle of least surprise - sender not stuck forever
    - Tested: `tests/borrow_crash_test.c`
 
 3. **Sender death while blocked in BORROW:**
-   - **Memory safety:** Data in pinned runtime buffer, NOT sender's stack
-   - **Receiver sees:** Normal message with `msg.data` pointing to valid runtime buffer
-   - **Data validity:** VALID - buffer persists even after sender dies
-   - **Receiver behavior:** Can safely read `msg.data` as normal
-   - **Cleanup:** Buffer freed when receiver calls `rt_ipc_release()` or dies
-   - **Rationale:** Eliminates use-after-free vulnerability for safety-critical systems
-   - **Note:** This is a key difference from stack-based approach (no UAF possible)
+   - **Receiver sees:** Normal message with `msg.data` pointing to dead sender's stack
+   - **Data validity:** UNDEFINED - stack memory reclaimed on sender death
+   - **Receiver behavior:**
+     - If receiver reads before sender stack reused: May see valid data (lucky)
+     - If receiver reads after sender stack reused: CORRUPTED DATA (use-after-free)
+   - **Consequence:** Receiver MUST NOT use `msg.data` after sender dies
+   - **Detection:** Check `msg.sender` with `rt_actor_get()` before use (returns NULL if dead)
+   - **Mitigation:** Use IPC_COPY for untrusted senders, or validate sender liveness
+   - Example:
+   ```c
+   rt_message msg;
+   rt_ipc_recv(&msg, -1);
 
-4. **Self-send with SYNC (`rt_ipc_send(rt_self(), ..., IPC_SYNC)`):**
+   // UNSAFE: Sender may have died
+   process(msg.data);  // WRONG - could be corrupted
+
+   // SAFE: Check sender still alive
+   if (rt_actor_get(msg.sender) == NULL) {
+       // Sender dead, data invalid
+       rt_ipc_release(&msg);  // No-op, but harmless
+       return;
+   }
+   process(msg.data);  // OK - sender still alive
+   rt_ipc_release(&msg);
+   ```
+
+4. **Self-send with BORROW (`rt_ipc_send(rt_self(), ..., IPC_BORROW)`):**
    - **Forbidden:** Immediate deadlock
    - **Behavior:** Sender enqueues message to own mailbox, then blocks waiting for self to release
    - **Result:** Actor blocks forever (cannot receive while blocked)
    - **Detection:** Implementation returns `RT_ERR_INVALID` for self-send with BORROW
-   - **Enforcement:** `src/rt_ipc.c` checks `to == sender->id` for SYNC mode
+   - **Enforcement:** `src/rt_ipc.c` checks `to == sender->id` for BORROW mode
    - **Rationale:** Prevent guaranteed deadlock
    - Example:
    ```c
-   // DEADLOCK: Self-send with SYNC
-   rt_status status = rt_ipc_send(rt_self(), &data, len, IPC_SYNC);
+   // DEADLOCK: Self-send with BORROW
+   rt_status status = rt_ipc_send(rt_self(), &data, len, IPC_BORROW);
    // Returns RT_ERR_INVALID, prevents deadlock
    assert(status.code == RT_ERR_INVALID);
 
    // OK: Self-send with COPY
-   rt_ipc_send(rt_self(), &data, len, IPC_ASYNC);  // Works fine
+   rt_ipc_send(rt_self(), &data, len, IPC_COPY);  // Works fine
    ```
 
 **Lifetime rule (strict definition):**
 
-For `IPC_SYNC`, `rt_message.data` is valid:
+For `IPC_BORROW`, `rt_message.data` is valid:
 - **From:** When `rt_ipc_recv()` returns the message
 - **Until:** EARLIEST of:
   1. `rt_ipc_release(&msg)` called explicitly, OR
   2. Next `rt_ipc_recv()` called (auto-release), OR
-  3. Receiver actor dies (cleanup frees buffer)
+  3. Sender dies (data becomes UNDEFINED)
 - **After:** Data pointer is INVALID, use triggers undefined behavior
-- **Note:** Sender death does NOT invalidate data (pinned buffer persists)
 
 **Safety-critical recommendation:**
 
 In safety-critical systems:
-- **IPC_ASYNC** remains the safest default (no blocking, simpler semantics)
-- **IPC_SYNC** is now memory-safe (pinned buffers eliminate UAF)
-- Use SYNC when:
-  - Implicit backpressure is desired (flow control)
-  - Between trusted, cooperating actors (deadlock awareness)
-  - Validated communication patterns
-- Document all SYNC usage in code reviews (deadlock risk remains)
+- **Prefer IPC_COPY** for most communication
+- Reserve IPC_BORROW for:
+  - Validated, performance-critical transfers
+  - Between trusted, cooperating actors
+  - Where zero-copy benefit justifies the risk
+- Document all BORROW usage in code reviews
 - Test deadlock scenarios explicitly
+
+**Debug mode (future):**
+
+```c
+#ifdef RT_DEBUG
+// Verify borrowed pointer is within sender's stack bounds
+if (mode == IPC_BORROW && !is_in_stack_range(sender, data, len)) {
+    return RT_ERROR(RT_ERR_INVALID, "BORROW data not on sender's stack");
+}
+#endif
+```
 
 ### Functions
 
 ```c
 // Send message to actor
-// Blocks if mode == IPC_SYNC (until receiver consumes)
+// Blocks if mode == IPC_BORROW (until receiver consumes)
 rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mode);
 
 // Receive message
@@ -876,7 +904,7 @@ rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mod
 // timeout_ms > 0:   block up to timeout, returns RT_ERR_TIMEOUT if exceeded
 rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms);
 
-// Release sync message (must call after consuming IPC_SYNC message)
+// Release borrowed message (must call after consuming IPC_BORROW message)
 void rt_ipc_release(const rt_message *msg);
 
 // Query mailbox state
@@ -887,29 +915,28 @@ size_t rt_ipc_count(void);
 ### Pool Exhaustion Behavior
 
 IPC uses global pools shared by all actors:
-- **Mailbox entry pool**: `RT_MAILBOX_ENTRY_POOL_SIZE` (256 default, shared by COPY and BORROW)
-- **Message data pool**: `RT_MESSAGE_DATA_POOL_SIZE` (256 default, ASYNC mode only)
-- **Borrow buffer pool**: `RT_SYNC_BUFFER_POOL_SIZE` (64 default, SYNC mode only)
+- **Mailbox entry pool**: `RT_MAILBOX_ENTRY_POOL_SIZE` (256 default)
+- **Message data pool**: `RT_MESSAGE_DATA_POOL_SIZE` (256 default, COPY mode only)
 
 **When pools are exhausted:**
 - `rt_ipc_send()` returns `RT_ERR_NOMEM` immediately
 - Send operation **does NOT block** waiting for space
 - Send operation **does NOT drop** messages automatically
 - Caller **must check** return value and handle failure
-- Both IPC_ASYNC and IPC_SYNC share the mailbox entry pool
-- IPC_ASYNC additionally requires message data pool space
+- Both IPC_COPY and IPC_BORROW share the mailbox entry pool
+- IPC_COPY additionally requires message data pool space
 
 **No per-actor mailbox limit**: All actors share the global pools. A single actor can consume all available mailbox entries if receivers don't process messages.
 
 **Mitigation strategies:**
 - Size pools appropriately: `1.5× peak concurrent messages`
 - Check return values and implement retry logic or backpressure
-- Use IPC_SYNC for large messages to avoid data pool exhaustion
+- Use IPC_BORROW for large messages to avoid data pool exhaustion
 - Ensure receivers process messages promptly
 
 **Backoff-retry example:**
 ```c
-rt_status status = rt_ipc_send(target, data, len, IPC_ASYNC);
+rt_status status = rt_ipc_send(target, data, len, IPC_COPY);
 if (status.code == RT_ERR_NOMEM) {
     // Pool exhausted - backoff before retry
     rt_message msg;
@@ -917,7 +944,7 @@ if (status.code == RT_ERR_NOMEM) {
 
     if (status.code == RT_ERR_TIMEOUT) {
         // No messages during backoff, retry send
-        rt_ipc_send(target, data, len, IPC_ASYNC);
+        rt_ipc_send(target, data, len, IPC_COPY);
     } else if (!RT_FAILED(status)) {
         // Got message during backoff, handle it first
         handle_message(&msg);
@@ -1036,7 +1063,7 @@ rt_bus_read(bus, buf, len, &actual);
 **Implications:**
 - Slow subscribers lose data without notification
 - Fast subscribers never lose data (assuming buffer sized for publish rate)
-- No backpressure mechanism (unlike IPC_SYNC)
+- No backpressure mechanism (unlike IPC_BORROW)
 - Real-time principle: Prefer fresh data over old data
 
 **Example (data loss):**
@@ -1420,7 +1447,7 @@ When an actor dies (via `rt_exit()`, crash, or external kill):
 
 **Normal death cleanup:**
 
-1. **Mailbox cleared:** All pending messages are discarded. Actors blocked on `IPC_SYNC` send receive `RT_ERR_CLOSED`.
+1. **Mailbox cleared:** All pending messages are discarded. Actors blocked on `IPC_BORROW` send receive `RT_ERR_CLOSED`.
 
 2. **Links notified:** All linked actors receive an exit message with `sender == RT_SENDER_SYSTEM`.
 
@@ -1454,7 +1481,7 @@ Exit notifications (steps 2-3 above) are enqueued in recipient mailboxes **durin
    - Dying actor's mailbox is **cleared** (step 1)
    - All pending messages are **discarded**
    - Senders are **not** notified of message loss
-   - Exception: IPC_SYNC senders are unblocked (see IPC_SYNC safety section)
+   - Exception: IPC_BORROW senders are unblocked (see IPC_BORROW safety section)
 
 4. **Multiple recipients:**
    - Each recipient's exit notification is enqueued independently
@@ -1466,8 +1493,8 @@ Exit notifications (steps 2-3 above) are enqueued in recipient mailboxes **durin
 ```c
 // Dying actor sends messages before death
 void actor_A(void *arg) {
-    rt_ipc_send(B, &msg1, sizeof(msg1), IPC_ASYNC);  // Enqueued in B's mailbox
-    rt_ipc_send(C, &msg2, sizeof(msg2), IPC_ASYNC);  // Enqueued in C's mailbox
+    rt_ipc_send(B, &msg1, sizeof(msg1), IPC_COPY);  // Enqueued in B's mailbox
+    rt_ipc_send(C, &msg2, sizeof(msg2), IPC_COPY);  // Enqueued in C's mailbox
     rt_exit();  // Exit notifications sent to links/monitors
 }
 // Linked actor B will receive: msg1, then EXIT(A)
@@ -1475,7 +1502,7 @@ void actor_A(void *arg) {
 
 // Messages sent TO dying actor are lost
 void actor_B(void *arg) {
-    rt_ipc_send(A, &msg, sizeof(msg), IPC_ASYNC);  // Enqueued in A's mailbox
+    rt_ipc_send(A, &msg, sizeof(msg), IPC_COPY);  // Enqueued in A's mailbox
 }
 void actor_A(void *arg) {
     // ... does some work ...
@@ -1592,53 +1619,17 @@ The runtime abstracts platform-specific functionality:
 
 ## Stack Overflow
 
-### Behavior Contract
+### Semantic Contract (Defined Behavior)
 
-**Detection-dependent behavior:** Stack overflow semantics depend on whether the overflow is detected by guard pattern checks.
+**Stack overflow is NOT undefined behavior.** The runtime provides defined semantics even when detection is imperfect:
 
----
-
-#### **When Overflow IS Detected (Guard Check Succeeds)**
-
-**Guaranteed behavior:**
-1. **Actor terminates** with exit reason `RT_EXIT_CRASH_STACK`
+**Guaranteed semantics:**
+1. **Actor crashes** with exit reason `RT_EXIT_CRASH_STACK`
 2. **Links/monitors are notified** (receive exit message with `RT_EXIT_CRASH_STACK`)
 3. **Runtime remains stable** (other actors continue running)
 4. **Actor resources cleaned up** (stack freed, mailbox cleared, timers cancelled)
-5. **Error logged:** "Actor N stack overflow detected"
 
-**Why this is safe:**
-- Guard patterns are stored **outside** the actor's usable stack region
-- Actor metadata (struct actor, links, monitors, mailbox) is stored in **static global arrays**, not on the actor's stack
-- Overflow corrupts the actor's stack data, not the runtime's bookkeeping structures
-- Therefore: Cleanup and notification can proceed safely after detection
-
-**Implementation:** Guard patterns checked on every context switch (rt_scheduler.c)
-
----
-
-#### **When Overflow is NOT Detected (Guard Check Fails to Trigger)**
-
-**Actual behavior: UNDEFINED**
-
-If stack overflow is severe enough to corrupt guard patterns before the next context switch, or if corruption propagates beyond stack boundaries:
-
-- **May segfault** (most likely on Linux with default stack allocation)
-- **May corrupt other actors' stacks** (if stacks are adjacent in memory)
-- **May corrupt runtime state** (if overflow is extreme)
-- **May go undetected indefinitely** (if guards are overwritten with valid-looking data)
-
-**Links/monitors are NOT guaranteed to be notified.** Runtime stability is NOT guaranteed.
-
-**System-level mitigation required:**
-- **Watchdog timer:** Detect hung system, trigger reboot/failsafe
-- **Stack sizing discipline:** Size stacks with 2-3x safety margin based on profiling
-- **Production hardware:** Use MPU guard pages (ARM Cortex-M) for hardware-guaranteed traps
-- **Supervisor architecture:** Critical subsystems monitor less-trusted actors, reboot on anomaly
-
-**This is NOT a runtime bug** - it is the inherent limitation of best-effort guard pattern detection. Safety-critical systems must not rely solely on overflow detection; they must architect for graceful degradation or system reset on memory corruption.
-
----
+**Rationale:** Even if detection fails (severe corruption before guard check), the semantic CONTRACT is that stack overflow results in actor crash with notification, not undefined behavior. This enables recovery logic and supervisor patterns.
 
 ### Detection Mechanism (Best-Effort)
 
@@ -1655,6 +1646,20 @@ If stack overflow is severe enough to corrupt guard patterns before the next con
 - **Post-facto:** Detection occurs on next context switch after overflow
 - **Not guaranteed:** Severe overflows may corrupt guards before check
 - **Timing:** Overflow → corruption → next context switch → detection
+
+**When detection succeeds:**
+1. Guard check fails during context switch
+2. Actor immediately marked DEAD with `RT_EXIT_CRASH_STACK`
+3. Links/monitors receive exit notification
+4. Mailbox cleared, stack freed, timers cancelled
+5. Error logged: "Actor N stack overflow detected"
+6. Runtime continues normally
+
+**When detection fails (severe corruption):**
+- Guard patterns themselves corrupted before check
+- Actor may crash with segfault or corrupt other memory
+- **Semantic contract still applies:** Intended behavior is actor crash with notification
+- **Mitigation:** Size stacks appropriately, use MPU on production hardware
 
 **Comparison with alternatives:**
 

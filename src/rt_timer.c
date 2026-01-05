@@ -395,7 +395,7 @@ void rt_timer_process_completions(void) {
 
                     entry->data = msg_data->data;
                     *(timer_id *)entry->data = comp.id;
-                    entry->borrow_ptr = NULL;
+                    entry->sync_ptr = NULL;
                     entry->next = NULL;
 
                     // Add to actor's mailbox

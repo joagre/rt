@@ -6,17 +6,17 @@
 
 // Send message to actor
 //
-// IPC_COPY: Payload copied to receiver's mailbox, sender continues immediately
+// IPC_ASYNC: Payload copied to receiver's mailbox, sender continues immediately
 //   - Safe default for most use cases
 //   - Suitable for small messages and general communication
 //
-// IPC_BORROW: Zero-copy, payload on sender's stack, sender blocks until receiver releases
-//   - WARNING: REQUIRES CAREFUL USE - see spec.md "IPC_BORROW Safety Considerations"
+// IPC_SYNC: One-copy to pinned runtime buffer, sender blocks until receiver releases
+//   - WARNING: REQUIRES CAREFUL USE - see spec.md "IPC_SYNC Safety Considerations"
 //   - Actor context only (not I/O threads or completion handlers)
-//   - Data must be on sender's stack
+//   - Data copied to pinned buffer (NOT sender's stack, eliminates UAF)
 //   - Sender blocks and cannot process other messages
-//   - Risk of deadlock with circular/nested borrows
-//   - Use for: Large data (>1KB), performance-critical, trusted actors only
+//   - Risk of deadlock with circular/nested synchronous sends
+//   - Use for: Flow control, backpressure, trusted cooperating actors
 //
 // Returns RT_ERR_NOMEM if IPC pools exhausted (see spec.md for handling)
 rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mode);
@@ -27,7 +27,7 @@ rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mod
 // timeout_ms > 0:   block up to timeout, returns RT_ERR_TIMEOUT if exceeded
 rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms);
 
-// Release borrowed message (must call after consuming IPC_BORROW message)
+// Release sync message (must call after consuming IPC_SYNC message)
 void rt_ipc_release(const rt_message *msg);
 
 // Query mailbox state

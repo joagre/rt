@@ -37,7 +37,7 @@ static void pong_actor(void *arg) {
 
         // Send pong back
         pm->count++;
-        status = rt_ipc_send(ping_id, pm, sizeof(ping_msg), IPC_COPY);
+        status = rt_ipc_send(ping_id, pm, sizeof(ping_msg), IPC_ASYNC);
 
         if (RT_FAILED(status)) {
             printf("Pong: Failed to send message: %s\n",
@@ -60,7 +60,7 @@ static void ping_actor(void *arg) {
 
     // Send first ping
     ping_msg pm = { .count = 0 };
-    rt_status status = rt_ipc_send(pong_id, &pm, sizeof(ping_msg), IPC_COPY);
+    rt_status status = rt_ipc_send(pong_id, &pm, sizeof(ping_msg), IPC_ASYNC);
 
     if (RT_FAILED(status)) {
         printf("Ping: Failed to send initial message: %s\n",
@@ -86,7 +86,7 @@ static void ping_actor(void *arg) {
 
         // Send ping back
         recv_pm->count++;
-        status = rt_ipc_send(pong_id, recv_pm, sizeof(ping_msg), IPC_COPY);
+        status = rt_ipc_send(pong_id, recv_pm, sizeof(ping_msg), IPC_ASYNC);
 
         if (RT_FAILED(status)) {
             printf("Ping: Failed to send message: %s\n",

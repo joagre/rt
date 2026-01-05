@@ -68,14 +68,14 @@ typedef struct {
 typedef struct {
     actor_id    sender;
     size_t      len;
-    const void *data;   // COPY: valid until next rt_ipc_recv()
-                        // BORROW: valid until rt_ipc_release() (next recv auto-releases)
+    const void *data;   // ASYNC: valid until next rt_ipc_recv()
+                        // SYNC: valid until rt_ipc_release() (next recv auto-releases)
 } rt_message;
 
 // IPC send mode
 typedef enum {
-    IPC_COPY,    // memcpy payload to receiver's mailbox
-    IPC_BORROW,  // zero-copy, sender blocks until receiver consumes
+    IPC_ASYNC,   // asynchronous send, sender continues immediately
+    IPC_SYNC,    // synchronous send, sender blocks until receiver consumes
 } rt_ipc_mode;
 
 // Exit reason codes
