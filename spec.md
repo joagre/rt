@@ -96,6 +96,12 @@ Actors run until they explicitly yield control. The scheduler reschedules an act
 
 There is no preemptive scheduling or time slicing within the actor runtime.
 
+**Reentrancy constraint:**
+- Runtime APIs are **not reentrant**
+- Actors **must not** call runtime APIs from signal handlers or interrupt service routines (ISRs)
+- All runtime API calls must occur from actor context (the scheduler thread)
+- Violating this constraint results in undefined behavior (data corruption, crashes)
+
 ### Priority Levels
 
 Four priority levels, lower value means higher priority:
@@ -108,6 +114,12 @@ Four priority levels, lower value means higher priority:
 | 3 | `RT_PRIO_LOW` | Logging |
 
 The scheduler always picks the highest-priority runnable actor. Within the same priority level, actors are scheduled round-robin.
+
+**Fairness guarantees:**
+- Round-robin scheduling within a priority level ensures fairness among actors of equal priority
+- The scheduler does **not** guarantee starvation freedom across priority levels
+- A continuously runnable high-priority actor can starve lower-priority actors indefinitely
+- Applications must design priority hierarchies to avoid starvation scenarios
 
 ### Context Switching
 
@@ -1016,7 +1028,7 @@ rt_bus_read(bus, buf, len, &actual);
 
 #### **RULE 2: Per-Subscriber Cursor Storage and Eviction Behavior**
 
-**Contract:** Each subscriber has an independent read cursor; slow subscribers experience **SILENT DATA LOSS** on buffer wraparound.
+**Contract:** Each subscriber has an independent read cursor. Slow subscribers may miss entries due to buffer wraparound; no error or notification is generated.
 
 **Guaranteed semantics:**
 1. **Storage per subscriber:**
@@ -1135,7 +1147,7 @@ rt_bus_read(bus, ...);
 | Rule | Contract |
 |------|----------|
 | **1. Subscription start position** | New subscribers start at "next publish" (cannot read history) |
-| **2. Cursor storage & eviction** | Per-subscriber cursors; slow readers experience SILENT DATA LOSS on wraparound |
+| **2. Cursor storage & eviction** | Per-subscriber cursors; slow readers may miss entries on wraparound (no notification) |
 | **3. max_readers counting** | Counts UNIQUE subscribers (deduplication), not total reads |
 
 ---
@@ -1256,6 +1268,11 @@ Platform | Clock Source | API Precision | Actual Precision | Notes
   - Never go backwards
   - Count elapsed time accurately (subject to clock drift, typically <100 ppm)
 - **Use case**: Timers measure **elapsed time**, not wall-clock time
+
+**Delivery guarantee:**
+- Timer callbacks are delivered **at or after** the requested time; early delivery never occurs
+- Delays may occur due to scheduling (higher priority actors, blocked scheduler)
+- In safety-critical systems, timers provide lower bounds on timing, not exact timing
 
 **Wraparound behavior:**
 
