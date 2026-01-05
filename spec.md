@@ -505,8 +505,8 @@ Inter-process communication via mailboxes. Each actor has one mailbox.
 typedef struct {
     actor_id    sender;
     size_t      len;
-    const void *data;   // COPY: valid until next rt_ipc_recv()
-                        // BORROW: valid until rt_ipc_release() (next recv auto-releases)
+    const void *data;   // ASYNC: valid until next rt_ipc_recv()
+                        // SYNC: valid until rt_ipc_release() (next recv auto-releases)
 } rt_message;
 ```
 
@@ -594,13 +594,13 @@ The lifetime of `rt_message.data` depends on the send mode:
 - Data is **valid until next `rt_ipc_recv()`**
 - Data lives in a pool-allocated buffer
 - Next recv frees the previous message's buffer and reuses the pool entry
-- Calling `rt_ipc_release()` is optional (no-op for COPY)
+- Calling `rt_ipc_release()` is optional (no-op for ASYNC)
 
 **IPC_SYNC:**
 - Data is **valid until `rt_ipc_release()`** is called
 - Data lives in pinned runtime buffer (persists even if sender dies)
 - Sender is blocked until `rt_ipc_release()` is called
-- **Auto-release:** If `rt_ipc_recv()` is called without releasing the previous BORROW message, the sender is automatically unblocked (prevents deadlock)
+- **Auto-release:** If `rt_ipc_recv()` is called without releasing the previous SYNC message, the sender is automatically unblocked (prevents deadlock)
 
 **Auto-release behavior:**
 
@@ -611,11 +611,11 @@ rt_ipc_recv(&msg, -1);
 if (msg.data) {
     process(msg.data);
 }
-rt_ipc_release(&msg);  // Unblocks sender (if BORROW)
+rt_ipc_release(&msg);  // Unblocks sender (if SYNC)
 
 // Also safe: auto-release on next recv (forgiving)
 rt_message msg1, msg2;
-rt_ipc_recv(&msg1, -1);  // msg1 is BORROW
+rt_ipc_recv(&msg1, -1);  // msg1 is SYNC
 process(msg1.data);
 rt_ipc_recv(&msg2, -1);  // msg1 auto-released, sender unblocked
 // No explicit release needed, but calling it is harmless
@@ -623,7 +623,7 @@ rt_ipc_recv(&msg2, -1);  // msg1 auto-released, sender unblocked
 
 **Design rationale:**
 - Auto-release prevents deadlock if receiver forgets to call `rt_ipc_release()`
-- Forgiving API reduces cognitive load (one code path handles both COPY and BORROW)
+- Forgiving API reduces cognitive load (one code path handles both ASYNC and SYNC)
 - Explicit release is still recommended for clarity and to minimize sender blocking time
 
 ### Mailbox Semantics
@@ -745,7 +745,7 @@ void actor_with_timer(void *arg) {
 
 **Mandatory preconditions:**
 
-1. **Actor context only**: BORROW can ONLY be used from actor context
+1. **Actor context only**: SYNC can ONLY be used from actor context
    - OK: From actor's main function
    - FORBIDDEN: From I/O worker threads
    - FORBIDDEN: From completion handlers
@@ -754,7 +754,7 @@ void actor_with_timer(void *arg) {
 2. **Sender blocks until release**: Sender cannot process other messages while waiting
    - Sender's state = ACTOR_STATE_BLOCKED
    - Sender cannot receive messages
-   - Sender cannot send other BORROW messages
+   - Sender cannot send other SYNC messages
 
 3. **Data copied to pinned buffer**: Sender's data is copied once to a runtime buffer
    - Buffer persists even if sender dies (memory safe)
@@ -808,15 +808,15 @@ Best practice: Design actors to always release sync messages, but receiver crash
 
 **Edge cases (explicit semantics):**
 
-1. **Calling `rt_ipc_recv()` again without releasing previous BORROW:**
+1. **Calling `rt_ipc_recv()` again without releasing previous SYNC:**
    - **Legal:** Auto-release semantics apply
-   - Behavior: Previous BORROW sender is automatically unblocked
+   - Behavior: Previous SYNC sender is automatically unblocked
    - Implementation: `src/rt_ipc.c` lines 205-224 (auto-release in rt_ipc_recv)
    - Rationale: Prevents deadlock if receiver forgets to release
    - Example:
    ```c
    rt_message msg1, msg2;
-   rt_ipc_recv(&msg1, -1);  // msg1 is BORROW from actor A
+   rt_ipc_recv(&msg1, -1);  // msg1 is SYNC from actor A
    // ... process msg1.data ...
    rt_ipc_recv(&msg2, -1);  // msg1 AUTO-RELEASED, actor A unblocked
    // msg1.data now invalid, msg2.data valid
@@ -832,7 +832,7 @@ Best practice: Design actors to always release sync messages, but receiver crash
    - **If sender requires confirmation:** Use explicit ack message or link/monitor the receiver
    - Tested: `tests/borrow_crash_test.c`
 
-3. **Sender death while blocked in BORROW:**
+3. **Sender death while blocked in SYNC:**
    - **Memory safety:** Data in pinned runtime buffer, NOT sender's stack
    - **Receiver sees:** Normal message with `msg.data` pointing to valid runtime buffer
    - **Data validity:** VALID - buffer persists even after sender dies
@@ -845,7 +845,7 @@ Best practice: Design actors to always release sync messages, but receiver crash
    - **Forbidden:** Immediate deadlock
    - **Behavior:** Sender enqueues message to own mailbox, then blocks waiting for self to release
    - **Result:** Actor blocks forever (cannot receive while blocked)
-   - **Detection:** Implementation returns `RT_ERR_INVALID` for self-send with BORROW
+   - **Detection:** Implementation returns `RT_ERR_INVALID` for self-send with SYNC
    - **Enforcement:** `src/rt_ipc.c` checks `to == sender->id` for SYNC mode
    - **Rationale:** Prevent guaranteed deadlock
    - Example:
@@ -855,7 +855,7 @@ Best practice: Design actors to always release sync messages, but receiver crash
    // Returns RT_ERR_INVALID, prevents deadlock
    assert(status.code == RT_ERR_INVALID);
 
-   // OK: Self-send with COPY
+   // OK: Self-send with ASYNC
    rt_ipc_send(rt_self(), &data, len, IPC_ASYNC);  // Works fine
    ```
 
@@ -906,9 +906,9 @@ size_t rt_ipc_count(void);
 ### Pool Exhaustion Behavior
 
 IPC uses global pools shared by all actors:
-- **Mailbox entry pool**: `RT_MAILBOX_ENTRY_POOL_SIZE` (256 default, shared by COPY and BORROW)
+- **Mailbox entry pool**: `RT_MAILBOX_ENTRY_POOL_SIZE` (256 default, shared by ASYNC and SYNC)
 - **Message data pool**: `RT_MESSAGE_DATA_POOL_SIZE` (256 default, ASYNC mode only)
-- **Borrow buffer pool**: `RT_SYNC_BUFFER_POOL_SIZE` (64 default, SYNC mode only)
+- **Sync buffer pool**: `RT_SYNC_BUFFER_POOL_SIZE` (64 default, SYNC mode only)
 
 **When pools are exhausted:**
 - `rt_ipc_send()` returns `RT_ERR_NOMEM` immediately
