@@ -626,6 +626,8 @@ Global pool limits: **Yes** - all actors share:
 
 **Important:** One slow receiver can consume all mailbox entries, starving other actors.
 
+**Fairness guarantees:** The runtime does not provide per-actor fairness guarantees; resource exhaustion caused by a misbehaving actor is considered an application-level fault. Applications requiring protection against resource starvation should implement supervisor actors or application-level quotas.
+
 **Behavior when pools are exhausted:**
 
 | Mode        | Pool Exhausted Behavior | Blocks Waiting for Pool? | Drops Messages? |
