@@ -276,6 +276,52 @@ rt_net_send(client_fd, buffer, received, &sent, -1);
 rt_net_close(client_fd);
 ```
 
+### Bus (Pub-Sub)
+
+```c
+#include "rt_bus.h"
+
+// Create a bus with retention policy
+rt_bus_config cfg = RT_BUS_CONFIG_DEFAULT;
+cfg.max_entries = 16;          // Ring buffer size
+cfg.max_entry_size = 256;      // Max payload size
+cfg.max_subscribers = 32;      // Max concurrent subscribers
+cfg.max_readers = 0;           // 0 = data persists (not removed after read)
+cfg.max_age_ms = 0;            // 0 = no time-based expiry
+
+bus_id sensor_bus;
+rt_bus_create(&cfg, &sensor_bus);
+
+// Publisher actor - publish sensor data
+typedef struct {
+    uint32_t timestamp;
+    float temperature;
+} sensor_data;
+
+sensor_data data = {.timestamp = 123, .temperature = 25.5f};
+rt_bus_publish(sensor_bus, &data, sizeof(data));
+
+// Subscriber actor - subscribe and read data
+rt_bus_subscribe(sensor_bus);
+
+// Blocking read - wait for next message
+size_t actual_len;
+sensor_data received;
+rt_bus_read_wait(sensor_bus, &received, sizeof(received), &actual_len, -1);
+
+// Non-blocking read - check if data available
+rt_status status = rt_bus_read(sensor_bus, &received, sizeof(received), &actual_len);
+if (!RT_FAILED(status)) {
+    printf("Temperature: %.1f\n", received.temperature);
+}
+
+// Unsubscribe when done
+rt_bus_unsubscribe(sensor_bus);
+
+// Destroy bus
+rt_bus_destroy(sensor_bus);
+```
+
 ### Actor Linking and Monitoring
 
 ```c
@@ -362,6 +408,16 @@ rt_unlink(other);
 - `rt_net_send(fd, buf, len, out_sent, timeout_ms)` - Send data
 - `rt_net_recv(fd, buf, len, out_recv, timeout_ms)` - Receive data
 - `rt_net_close(fd)` - Close socket
+
+### Bus (Pub-Sub)
+
+- `rt_bus_create(config, out_id)` - Create a new bus with retention policy
+- `rt_bus_destroy(bus)` - Destroy a bus
+- `rt_bus_subscribe(bus)` - Subscribe current actor to bus
+- `rt_bus_unsubscribe(bus)` - Unsubscribe current actor from bus
+- `rt_bus_publish(bus, data, len)` - Publish data to bus (non-blocking)
+- `rt_bus_read(bus, buf, len, out_len)` - Read next message (non-blocking)
+- `rt_bus_read_wait(bus, buf, len, out_len, timeout_ms)` - Read next message (blocking)
 
 ## Design Principles
 
