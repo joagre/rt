@@ -630,7 +630,7 @@ rt_ipc_recv(&msg2, -1);  // msg1 auto-released, sender unblocked
 
 **Capacity model:**
 
-Per-actor mailbox limits: **None** - each actor's mailbox is unbounded (linked list)
+Per-actor mailbox limits: **No per-actor quota** - capacity is constrained by global pools
 
 Global pool limits: **Yes** - all actors share:
 - `RT_MAILBOX_ENTRY_POOL_SIZE` (256 default) - mailbox entries
