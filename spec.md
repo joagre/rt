@@ -317,6 +317,28 @@ bool rt_ipc_pending(void);
 size_t rt_ipc_count(void);
 ```
 
+### Pool Exhaustion Behavior
+
+IPC uses global pools shared by all actors:
+- **Mailbox entry pool**: `RT_MAILBOX_ENTRY_POOL_SIZE` (256 default)
+- **Message data pool**: `RT_MESSAGE_DATA_POOL_SIZE` (256 default, COPY mode only)
+
+**When pools are exhausted:**
+- `rt_ipc_send()` returns `RT_ERR_NOMEM` immediately
+- Send operation **does NOT block** waiting for space
+- Send operation **does NOT drop** messages automatically
+- Caller **must check** return value and handle failure
+- Both IPC_COPY and IPC_BORROW share the mailbox entry pool
+- IPC_COPY additionally requires message data pool space
+
+**No per-actor mailbox limit**: All actors share the global pools. A single actor can consume all available mailbox entries if receivers don't process messages.
+
+**Mitigation strategies:**
+- Size pools appropriately: `1.5× peak concurrent messages`
+- Check return values and implement retry logic or backpressure
+- Use IPC_BORROW for large messages to avoid data pool exhaustion
+- Ensure receivers process messages promptly
+
 ## Bus API
 
 Publish-subscribe communication with configurable retention policy.
