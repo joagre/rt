@@ -1624,6 +1624,37 @@ if (no_runnable_actors) {
 - **Signal after push**: I/O threads always signal after pushing completion (at most one extra wakeup per I/O operation)
 - **Check all queues**: When woken, scheduler checks all three completion queues (file, net, timer)
 
+### Wakeup Guarantees
+
+The scheduler provides the following guarantees to prevent lost wakeups and ensure correctness:
+
+**Queue draining:**
+- Scheduler **always drains all completion queues until empty** after wakeup
+- Processes all pending completions before re-entering wait state
+- No completions are lost even if multiple arrive before wakeup
+
+**Spurious wakeup handling:**
+- Scheduler handles spurious wakeups correctly (wakes with no actual completions)
+- Checks all queues, finds them empty, returns to wait state
+- No correctness impact, minimal performance cost
+
+**Coalesced wakeup handling:**
+- Multiple signals may be coalesced into single wakeup (eventfd/semaphore behavior)
+- Example: 3 I/O completions → 3 signals → 1 wakeup → scheduler drains all 3
+- Signal coalescing is correct because scheduler drains until empty
+- No lost work: all completions processed regardless of signal count
+
+**Lost wakeup prevention:**
+- I/O threads: Push to queue **then** signal (ordering critical)
+- Scheduler: Check queues **before** wait (race prevention)
+- Atomic queue operations prevent ABA problems
+- Pattern guarantees: if completion exists, scheduler will process it
+
+**Determinism:**
+- Wakeup order is deterministic (FIFO queue processing)
+- Completion processing order matches I/O thread posting order
+- No non-deterministic races between wakeup and completion visibility
+
 ### Advantages
 
 - **Simple**: Single primitive, ~10 lines of code, no epoll/queue-set complexity
