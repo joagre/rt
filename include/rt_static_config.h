@@ -23,6 +23,13 @@
 #define RT_DEFAULT_STACK_SIZE 65536
 #endif
 
+// Stack arena size for actor stacks (when malloc_stack = false)
+// Should be sized for peak actor count × average stack size
+// Example: 20 actors × 64KB = 1.3 MB (with overhead)
+#ifndef RT_STACK_ARENA_SIZE
+#define RT_STACK_ARENA_SIZE (1 * 1024 * 1024)  // 1 MB default
+#endif
+
 // -----------------------------------------------------------------------------
 // Mailbox and Message Configuration
 // -----------------------------------------------------------------------------

@@ -53,13 +53,15 @@ typedef struct {
     size_t      stack_size;   // bytes, 0 = default
     rt_priority priority;
     const char *name;         // for debugging, may be NULL
+    bool        malloc_stack; // false = use static pool (default), true = malloc
 } actor_config;
 
 // Default configuration
 #define RT_ACTOR_CONFIG_DEFAULT { \
     .stack_size = 0, \
     .priority = RT_PRIO_NORMAL, \
-    .name = NULL \
+    .name = NULL, \
+    .malloc_stack = false \
 }
 
 // Message structure
