@@ -811,7 +811,7 @@ Best practice: Design actors to always release sync messages, but receiver crash
 1. **Calling `rt_ipc_recv()` again without releasing previous SYNC:**
    - **Legal:** Auto-release semantics apply
    - Behavior: Previous SYNC sender is automatically unblocked
-   - Implementation: `src/rt_ipc.c` lines 205-224 (auto-release in rt_ipc_recv)
+   - Implementation: Auto-release logic in `rt_ipc_recv()`
    - Rationale: Prevents deadlock if receiver forgets to release
    - Example:
    ```c
@@ -846,7 +846,7 @@ Best practice: Design actors to always release sync messages, but receiver crash
    - **Behavior:** Sender enqueues message to own mailbox, then blocks waiting for self to release
    - **Result:** Actor blocks forever (cannot receive while blocked)
    - **Detection:** Implementation returns `RT_ERR_INVALID` for self-send with SYNC
-   - **Enforcement:** `src/rt_ipc.c` checks `to == sender->id` for SYNC mode
+   - **Enforcement:** Self-send detection in `rt_ipc_send()` for SYNC mode
    - **Rationale:** Prevent guaranteed deadlock
    - Example:
    ```c
