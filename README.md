@@ -11,13 +11,13 @@ The runtime uses **static memory allocation** for deterministic behavior with ze
 
 ## Quick Links
 
-- 📖 **[Full Specification](spec.md)** - Complete design and implementation details
-- 💻 **[Examples Directory](examples/)** - Working examples (pingpong, bus, echo server, etc.)
-- 🔧 **[Static Configuration](include/rt_static_config.h)** - Compile-time memory limits and pool sizes
-- ⚡ **[Benchmarks](#performance)** - Performance measurements and comparison
-- 🐛 **[Troubleshooting](TROUBLESHOOTING.md)** - Common issues and solutions
-- ❓ **[FAQ](FAQ.md)** - Frequently asked questions
-- 🤖 **[Development Guide](CLAUDE.md)** - Instructions for Claude Code when working with this codebase
+- **[Full Specification](spec.md)** - Complete design and implementation details
+- **[Examples Directory](examples/)** - Working examples (pingpong, bus, echo server, etc.)
+- **[Static Configuration](include/rt_static_config.h)** - Compile-time memory limits and pool sizes
+- **[Benchmarks](#performance)** - Performance measurements and comparison
+- **[Troubleshooting](TROUBLESHOOTING.md)** - Common issues and solutions
+- **[FAQ](FAQ.md)** - Frequently asked questions
+- **[Development Guide](CLAUDE.md)** - Instructions for Claude Code when working with this codebase
 
 ## Table of Contents
 
@@ -48,11 +48,11 @@ This runtime is designed for:
 
 ### What Problems It Solves
 
-- ✅ **Structured concurrency** - Actor model eliminates shared-state bugs and race conditions
-- ✅ **Deterministic memory** - Static allocation means no heap fragmentation or OOM surprises
-- ✅ **Type-safe IPC** - Message passing with backpressure (BORROW mode)
-- ✅ **Predictable scheduling** - Priority-based cooperative multitasking, no preemption surprises
-- ✅ **Async I/O without complexity** - File/network operations handled by worker threads
+- **Structured concurrency** - Actor model eliminates shared-state bugs and race conditions
+- **Deterministic memory** - Static allocation means no heap fragmentation or OOM surprises
+- **Type-safe IPC** - Message passing with backpressure (BORROW mode)
+- **Predictable scheduling** - Priority-based cooperative multitasking, no preemption surprises
+- **Async I/O without complexity** - File/network operations handled by worker threads
 
 ### Real-World Use Cases
 
@@ -97,18 +97,18 @@ Memory: ~231 KB static pools + 12 actors × 64KB stacks = ~1 MB total
 
 ## Features
 
-- ✅ **Static memory allocation** - Deterministic footprint, zero fragmentation, safety-critical ready
-- ✅ Cooperative multitasking with manual x86-64 context switching
-- ✅ Priority-based round-robin scheduler (4 priority levels)
-- ✅ Actor lifecycle management (spawn, exit)
-- ✅ IPC with COPY and BORROW modes
-- ✅ Blocking and non-blocking message receive
-- ✅ Actor linking and monitoring (bidirectional links, unidirectional monitors)
-- ✅ Exit notifications with exit reasons (normal, crash, killed)
-- ✅ Timers (one-shot and periodic with timerfd/epoll)
-- ✅ Network I/O (async TCP with worker thread)
-- ✅ File I/O (async read/write with worker thread)
-- ✅ Bus (pub-sub with retention policies)
+- **Static memory allocation** - Deterministic footprint, zero fragmentation, safety-critical ready
+- Cooperative multitasking with manual x86-64 context switching
+- Priority-based round-robin scheduler (4 priority levels)
+- Actor lifecycle management (spawn, exit)
+- IPC with COPY and BORROW modes
+- Blocking and non-blocking message receive
+- Actor linking and monitoring (bidirectional links, unidirectional monitors)
+- Exit notifications with exit reasons (normal, crash, killed)
+- Timers (one-shot and periodic with timerfd/epoll)
+- Network I/O (async TCP with worker thread)
+- File I/O (async read/write with worker thread)
+- Bus (pub-sub with retention policies)
 
 ## Performance
 
