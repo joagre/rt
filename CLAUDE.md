@@ -50,6 +50,12 @@ On FreeRTOS, the entire actor runtime runs as a single task. Blocking I/O is del
 - No preemption or time slicing
 - Priority levels: 0 (CRITICAL) to 3 (LOW), with round-robin within each level
 
+### Reentrancy Constraint
+- **Runtime APIs are NOT reentrant**
+- **Actors MUST NOT call runtime APIs from signal handlers or interrupt service routines (ISRs)**
+- All runtime API calls must occur from actor context (the scheduler thread)
+- Violating this constraint results in undefined behavior (data corruption, crashes)
+
 ### Context Switching
 - **x86-64**: Save/restore rbx, rbp, r12-r15, and stack pointer
 - **ARM Cortex-M**: Save/restore r4-r11 and stack pointer
@@ -81,21 +87,24 @@ All runtime functions return `rt_status` with a code and optional string literal
 - When an actor dies: mailbox cleared, links/monitors notified, bus subscriptions removed, timers cancelled, resources freed
 
 ### IPC Modes
-- **IPC_COPY**: Payload copied to receiver's mailbox, sender continues immediately
+- **IPC_ASYNC**: Payload copied to receiver's mailbox, sender continues immediately
   - Use for: Small messages, general communication, fire-and-forget
   - Safe default for most use cases
+  - Suitable for untrusted actors and general communication
 
-- **IPC_BORROW**: Zero-copy, payload on sender's stack, sender blocks until receiver calls `rt_ipc_release()`
-  - Use for: Large data (>1KB), performance-critical paths, trusted cooperating actors
-  - WARNING: Requires careful use - actor-only, stack-based, blocking, deadlock risk
-  - Preconditions: Data on sender's stack, sender cannot process other messages while blocked
-  - Avoid: Circular borrows, nested borrows, untrusted receivers
-  - See spec.md "IPC_BORROW Safety Considerations" for full details
+- **IPC_SYNC**: One-copy to pinned runtime buffer, sender blocks until receiver calls `rt_ipc_release()`
+  - Use for: Flow control, backpressure, trusted cooperating actors
+  - WARNING: Requires careful use - actor context only, sender blocks until release
+  - Data copied to pinned buffer (NOT sender's stack, eliminates use-after-free)
+  - Risk of deadlock with circular/nested synchronous sends
+  - Preconditions: Actor context only (not I/O threads), sender cannot process other messages while blocked
+  - See spec.md "IPC_SYNC Safety Considerations" for full details
 
 ### IPC Pool Exhaustion
 IPC uses global pools shared by all actors:
 - **Mailbox entry pool**: `RT_MAILBOX_ENTRY_POOL_SIZE` (256 default)
-- **Message data pool**: `RT_MESSAGE_DATA_POOL_SIZE` (256 default, COPY mode only)
+- **Message data pool**: `RT_MESSAGE_DATA_POOL_SIZE` (256 default, ASYNC mode only)
+- **Sync buffer pool**: `RT_SYNC_BUFFER_POOL_SIZE` (64 default, SYNC mode only)
 
 **When pools are exhausted:**
 - `rt_ipc_send()` returns `RT_ERR_NOMEM` immediately
@@ -105,7 +114,8 @@ IPC uses global pools shared by all actors:
 
 **Notes:**
 - No per-actor mailbox limit - pools are shared globally
-- BORROW mode does NOT use message data pool (zero-copy)
+- ASYNC mode uses message data pool (copied to receiver's mailbox)
+- SYNC mode uses separate sync buffer pool (pinned until release)
 - Pool exhaustion indicates system overload - increase pool sizes or add backpressure
 
 ### Bus Retention
@@ -149,7 +159,8 @@ The runtime uses **compile-time configuration** for deterministic memory allocat
 - `RT_MAX_ACTORS`: Maximum concurrent actors (64)
 - `RT_MAX_BUSES`: Maximum concurrent buses (32)
 - `RT_MAILBOX_ENTRY_POOL_SIZE`: Mailbox entry pool (256)
-- `RT_MESSAGE_DATA_POOL_SIZE`: Message data pool (256)
+- `RT_MESSAGE_DATA_POOL_SIZE`: Message data pool for ASYNC (256)
+- `RT_SYNC_BUFFER_POOL_SIZE`: Sync buffer pool for SYNC (64)
 - `RT_LINK_ENTRY_POOL_SIZE`: Link entry pool (128)
 - `RT_MONITOR_ENTRY_POOL_SIZE`: Monitor entry pool (128)
 - `RT_TIMER_ENTRY_POOL_SIZE`: Timer entry pool (64)

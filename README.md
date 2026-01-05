@@ -333,6 +333,8 @@ The runtime enforces **strict thread boundaries** with three contractual rules:
 2. **I/O threads**: May ONLY push SPSC completions and signal wakeup (CANNOT call APIs)
 3. **External threads**: FORBIDDEN from calling runtime APIs (`rt_ipc_send` is NOT THREAD-SAFE)
 
+**Reentrancy constraint:** Runtime APIs are **not reentrant**. Actors **must not** call runtime APIs from signal handlers or interrupt service routines (ISRs). All runtime API calls must occur from actor context (the scheduler thread). Violating this results in undefined behavior.
+
 **Why external threads can't call `rt_ipc_send()`:** Adding thread-safe message passing would require locks/atomics on mailbox enqueue and pool allocation, causing lock contention in hot paths. This violates deterministic behavior requirements for safety-critical systems. Instead, use platform IPC (sockets/pipes) with dedicated reader actors.
 
 This single-threaded ownership model eliminates locks in hot paths (message passing, scheduling, actor management), ensuring deterministic, predictable behavior. No lock contention, no priority inversion, no deadlock. See `spec.md` "Thread Safety" section for complete details.
