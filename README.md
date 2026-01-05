@@ -9,13 +9,13 @@ The runtime uses **static memory allocation** for deterministic behavior with ze
 
 ## Quick Links
 
-📖 **[Full Specification](spec.md)** - Complete design and implementation details
-💻 **[Examples Directory](examples/)** - Working examples (pingpong, bus, echo server, etc.)
-🔧 **[Static Configuration](include/rt_static_config.h)** - Compile-time memory limits and pool sizes
-⚡ **[Benchmarks](#performance)** - Performance measurements and comparison
-🐛 **[Troubleshooting](TROUBLESHOOTING.md)** - Common issues and solutions
-❓ **[FAQ](FAQ.md)** - Frequently asked questions
-🤖 **[Development Guide](CLAUDE.md)** - Instructions for Claude Code when working with this codebase
+- 📖 **[Full Specification](spec.md)** - Complete design and implementation details
+- 💻 **[Examples Directory](examples/)** - Working examples (pingpong, bus, echo server, etc.)
+- 🔧 **[Static Configuration](include/rt_static_config.h)** - Compile-time memory limits and pool sizes
+- ⚡ **[Benchmarks](#performance)** - Performance measurements and comparison
+- 🐛 **[Troubleshooting](TROUBLESHOOTING.md)** - Common issues and solutions
+- ❓ **[FAQ](FAQ.md)** - Frequently asked questions
+- 🤖 **[Development Guide](CLAUDE.md)** - Instructions for Claude Code when working with this codebase
 
 ## Table of Contents
 
