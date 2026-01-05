@@ -175,7 +175,3 @@ Different implementations for Linux (dev) vs FreeRTOS (prod):
 ### Special Sender IDs
 - `RT_SENDER_TIMER` (0xFFFFFFFF): Timer tick messages
 - `RT_SENDER_SYSTEM` (0xFFFFFFFE): System messages (e.g., actor death notifications)
-
-## Future Considerations
-- Distributed actors for multi-MCU systems
-- Hot code reload
