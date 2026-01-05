@@ -5,7 +5,20 @@
 #include "rt_actor.h"
 
 // Send message to actor
-// Blocks if mode == IPC_BORROW (until receiver consumes)
+//
+// IPC_COPY: Payload copied to receiver's mailbox, sender continues immediately
+//   - Safe default for most use cases
+//   - Suitable for small messages and general communication
+//
+// IPC_BORROW: Zero-copy, payload on sender's stack, sender blocks until receiver releases
+//   - ⚠️  REQUIRES CAREFUL USE - see spec.md "IPC_BORROW Safety Considerations"
+//   - ⚠️  Actor context only (not I/O threads or completion handlers)
+//   - ⚠️  Data must be on sender's stack
+//   - ⚠️  Sender blocks and cannot process other messages
+//   - ⚠️  Risk of deadlock with circular/nested borrows
+//   - Use for: Large data (>1KB), performance-critical, trusted actors only
+//
+// Returns RT_ERR_NOMEM if IPC pools exhausted (see spec.md for handling)
 rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mode);
 
 // Receive message

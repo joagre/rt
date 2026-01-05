@@ -69,8 +69,16 @@ All runtime functions return `rt_status` with a code and optional string literal
 - When an actor dies: mailbox cleared, links/monitors notified, bus subscriptions removed, timers cancelled, resources freed
 
 ### IPC Modes
-- **IPC_COPY**: Payload copied to receiver's mailbox, sender continues immediately (suitable for small messages)
-- **IPC_BORROW**: Zero-copy, payload on sender's stack, sender blocks until receiver calls `rt_ipc_release()` (provides backpressure)
+- **IPC_COPY**: Payload copied to receiver's mailbox, sender continues immediately
+  - Use for: Small messages, general communication, fire-and-forget
+  - Safe default for most use cases
+
+- **IPC_BORROW**: Zero-copy, payload on sender's stack, sender blocks until receiver calls `rt_ipc_release()`
+  - Use for: Large data (>1KB), performance-critical paths, trusted cooperating actors
+  - ⚠️ **Requires careful use**: Actor-only, stack-based, blocking, deadlock risk
+  - ⚠️ **Preconditions**: Data on sender's stack, sender cannot process other messages while blocked
+  - ⚠️ **Avoid**: Circular borrows, nested borrows, untrusted receivers
+  - See spec.md "IPC_BORROW Safety Considerations" for full details
 
 ### IPC Pool Exhaustion
 IPC uses global pools shared by all actors:
