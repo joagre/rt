@@ -41,9 +41,9 @@ Benchmarks measured on a vanilla Dell XPS 13 (Intel Core i7, x86-64 Linux):
 |-----------|---------|------------|-------|
 | **Context switch** | ~1.1 µs/switch | 0.88 M switches/sec | Manual assembly, cooperative, +2.9% overhead for stack guards |
 | **IPC (COPY mode)** | ~2.2-2.3 µs/msg | 0.43-0.45 M msgs/sec | 8-256 byte messages |
-| **Pool allocation** | ~9 ns/op | 104 M ops/sec | 1.3x faster than malloc |
+| **Pool allocation** | ~9 ns/op | 104 M ops/sec | 1.2x faster than malloc |
 | **Actor spawn** | ~670 ns/actor | 1.49 M actors/sec | Includes stack allocation (arena) |
-| **Bus pub/sub** | ~288 ns/msg | 3.47 M msgs/sec | With cooperative yields |
+| **Bus pub/sub** | ~276 ns/msg | 3.61 M msgs/sec | With cooperative yields |
 
 Run benchmarks yourself:
 ```bash
@@ -327,4 +327,3 @@ All I/O operations (timers, file, network) are handled by dedicated worker threa
 ## Future Work
 
 - Port to ARM Cortex-M with FreeRTOS integration
-- Add stack overflow detection (guard patterns or MPU)
