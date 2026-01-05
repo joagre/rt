@@ -12,7 +12,7 @@
 //
 // IPC_SYNC: Payload copied to sync buffer pool, sender blocks until receiver releases
 //   - WARNING: REQUIRES CAREFUL USE - see spec.md "IPC_SYNC Safety Considerations"
-//   - Actor context only (not I/O threads or completion handlers)
+//   - Actor context only (not I/O threads or interrupt contexts)
 //   - Data copied to pinned runtime buffer (NOT sender's stack, eliminates UAF)
 //   - Sender blocks and cannot process other messages
 //   - Risk of deadlock with circular/nested synchronous sends
