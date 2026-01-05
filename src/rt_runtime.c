@@ -130,6 +130,7 @@ actor_id rt_spawn_ex(actor_fn fn, void *arg, const actor_config *cfg) {
     actual_cfg.stack_size = cfg->stack_size;
     actual_cfg.priority = cfg->priority;
     actual_cfg.name = cfg->name;
+    actual_cfg.malloc_stack = cfg->malloc_stack;
     if (actual_cfg.stack_size == 0) {
         actual_cfg.stack_size = RT_DEFAULT_STACK_SIZE;
     }
