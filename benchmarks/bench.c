@@ -338,7 +338,7 @@ static void bench_actor_spawn(void) {
 
     printf("  Spawn time:           %lu ns/actor\n", ns_per_spawn);
     printf("  Throughput:           %.0f actors/sec\n", spawns_per_sec);
-    printf("  Note: Includes stack allocation (malloc)\n");
+    printf("  Note: Includes stack allocation (arena)\n");
 
     printf("\n");
 }

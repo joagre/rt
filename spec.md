@@ -680,6 +680,10 @@ bool rt_spsc_peek(rt_spsc_queue *q, void *entry_out);
 
 When an actor dies (via `rt_exit()`, crash, or external kill):
 
+**Exception:** When death reason is `RT_EXIT_CRASH_STACK` (stack overflow), steps 1-5 below are **skipped** (only step 6 is performed) to prevent cascading crashes from accessing corrupted memory. Links and monitors are **not notified** of stack overflow deaths.
+
+**Normal death cleanup:**
+
 1. **Mailbox cleared:** All pending messages are discarded. Actors blocked on `IPC_BORROW` send receive `RT_ERR_CLOSED`.
 
 2. **Links notified:** All linked actors receive an exit message with `sender == RT_SENDER_SYSTEM`.

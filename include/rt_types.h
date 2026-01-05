@@ -53,7 +53,7 @@ typedef struct {
     size_t      stack_size;   // bytes, 0 = default
     rt_priority priority;
     const char *name;         // for debugging, may be NULL
-    bool        malloc_stack; // false = use static pool (default), true = malloc
+    bool        malloc_stack; // false = use static arena (default), true = malloc
 } actor_config;
 
 // Default configuration

@@ -161,6 +161,9 @@ After `rt_run()` completes, call `rt_cleanup()` to free actor stacks.
 ### Completion Queue
 Lock-free SPSC queue with atomic head/tail pointers. Capacity must be power of 2. Producer (I/O thread) pushes, consumer (scheduler) pops.
 
+### Scheduler Wakeup
+When all actors are blocked on I/O, the scheduler efficiently waits on a single shared wakeup primitive (eventfd on Linux, binary semaphore on FreeRTOS) instead of busy-polling. All I/O threads (file, network, timer) signal this primitive after posting completions. This eliminates CPU waste and provides immediate wakeup on I/O completion.
+
 ### Platform Abstraction
 Different implementations for Linux (dev) vs FreeRTOS (prod):
 - Context switch: x86-64 asm vs ARM Cortex-M asm
@@ -174,6 +177,5 @@ Different implementations for Linux (dev) vs FreeRTOS (prod):
 - `RT_SENDER_SYSTEM` (0xFFFFFFFE): System messages (e.g., actor death notifications)
 
 ## Future Considerations
-- Stack overflow detection (guard patterns or MPU)
 - Distributed actors for multi-MCU systems
 - Hot code reload
