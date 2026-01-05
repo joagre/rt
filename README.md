@@ -39,7 +39,7 @@ The runtime uses **static memory allocation** for deterministic behavior with ze
 This runtime is designed for:
 - **Embedded systems developers** building autopilots, sensor networks, or robotics platforms
 - **Safety-critical applications** requiring deterministic memory behavior (DO-178C, etc.)
-- **MCU/bare-metal** projects needing structured concurrency without an RTOS
+- **MCU projects** needing structured concurrency on top of FreeRTOS (or bare-metal with pthreads on Linux)
 - **Researchers** exploring actor models on resource-constrained hardware
 
 ### What Problems It Solves
@@ -54,7 +54,7 @@ This runtime is designed for:
 
 ❌ **General-purpose servers** - Use Erlang/BEAM, Akka, or Go instead
 ❌ **UI applications** - Event loops (Qt, GTK) are better suited
-❌ **Preemptive multitasking needed** - Use FreeRTOS or Linux threads
+❌ **Preemptive actor scheduling** - Actors use cooperative multitasking; use native OS threads for preemption
 ❌ **Dynamic workloads** - Requires compile-time configuration of pool sizes
 
 ### Comparison with Alternatives
