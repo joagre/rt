@@ -378,6 +378,38 @@ typedef enum {
 
 **IPC_BORROW:** Zero-copy transfer. Payload remains on sender's stack. Sender blocks until receiver calls `rt_ipc_release()`. Provides implicit backpressure.
 
+### Mailbox Semantics
+
+**Capacity model:**
+
+Per-actor mailbox limits: **None** - each actor's mailbox is unbounded (linked list)
+
+Global pool limits: **Yes** - all actors share:
+- `RT_MAILBOX_ENTRY_POOL_SIZE` (256 default) - mailbox entries
+- `RT_MESSAGE_DATA_POOL_SIZE` (256 default) - message data (COPY mode only)
+
+**Important:** One slow receiver can consume all mailbox entries, starving other actors.
+
+**Behavior when pools are exhausted:**
+
+| Mode        | Pool Exhausted Behavior | Blocks Waiting for Pool? | Drops Messages? |
+|-------------|-------------------------|--------------------------|-----------------|
+| **IPC_COPY**    | Returns `RT_ERR_NOMEM` immediately | No | No |
+| **IPC_BORROW**  | Returns `RT_ERR_NOMEM` immediately | No | No |
+
+**IPC_BORROW blocking semantics:**
+- Blocks **after** message is in mailbox, waiting for receiver to call `rt_ipc_release()`
+- Does **not** block waiting for pool availability (fails immediately if pool exhausted)
+- Blocking happens at line 117 in implementation (after mailbox insertion)
+
+**Design rationale:**
+- Explicit failure (`RT_ERR_NOMEM`) enables testable, predictable behavior
+- No implicit message drops (principle of least surprise)
+- No blocking on pool exhaustion (prevents deadlock)
+- Caller controls backpressure via retry logic
+
+See "Pool Exhaustion Behavior" section below for mitigation strategies and examples.
+
 ### IPC_BORROW Safety Considerations
 
 **WARNING: IPC_BORROW requires careful use.** It trades simplicity and performance for strict constraints.
