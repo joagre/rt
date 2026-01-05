@@ -209,6 +209,44 @@ int main(void) {
 }
 ```
 
+### Advanced Actor Spawning
+
+```c
+// Passing arguments to actors
+typedef struct {
+    int worker_id;
+    const char *task_name;
+} worker_args;
+
+void worker_actor(void *arg) {
+    worker_args *args = (worker_args *)arg;
+    printf("Worker %d starting task: %s\n", args->worker_id, args->task_name);
+
+    // Do work...
+
+    rt_exit();
+}
+
+int main(void) {
+    rt_init();
+
+    // Spawn with custom configuration
+    actor_config cfg = RT_ACTOR_CONFIG_DEFAULT;
+    cfg.name = "high_priority_worker";
+    cfg.priority = 0;           // CRITICAL priority (0-3, lower is higher)
+    cfg.stack_size = 128 * 1024; // 128 KB stack
+
+    worker_args args = {.worker_id = 1, .task_name = "sensor_processing"};
+    actor_id worker = rt_spawn_ex(worker_actor, &args, &cfg);
+
+    printf("Spawned worker actor (ID: %u, priority: %d)\n", worker, cfg.priority);
+
+    rt_run();
+    rt_cleanup();
+    return 0;
+}
+```
+
 ### Sending Messages
 
 ```c
@@ -304,11 +342,11 @@ rt_file_close(fd);
 ```c
 #include "rt_net.h"
 
-// Create listening socket
+// SERVER SIDE: Create listening socket and handle connections
 int listen_fd;
 rt_net_listen(8080, &listen_fd);
 
-// Accept connection (blocking)
+// Accept connection (blocking, timeout in ms, -1 = infinite)
 int client_fd;
 rt_net_accept(listen_fd, &client_fd, -1);
 
@@ -323,6 +361,23 @@ rt_net_send(client_fd, buffer, received, &sent, -1);
 
 // Close socket
 rt_net_close(client_fd);
+
+// CLIENT SIDE: Connect to remote server
+int server_fd;
+rt_status status = rt_net_connect("127.0.0.1", 8080, &server_fd, 5000); // 5 sec timeout
+if (!RT_FAILED(status)) {
+    // Send request
+    const char *request = "GET /data";
+    size_t sent;
+    rt_net_send(server_fd, request, strlen(request), &sent, -1);
+
+    // Receive response
+    char response[1024];
+    size_t received;
+    rt_net_recv(server_fd, response, sizeof(response), &received, -1);
+
+    rt_net_close(server_fd);
+}
 ```
 
 ### Bus (Pub-Sub)
