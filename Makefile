@@ -30,6 +30,11 @@ BENCHMARKS_DIR := benchmarks
 BENCHMARK_SRCS := $(wildcard $(BENCHMARKS_DIR)/*.c)
 BENCHMARKS := $(BENCHMARK_SRCS:$(BENCHMARKS_DIR)/%.c=$(BUILD_DIR)/%)
 
+# Tests
+TESTS_DIR := tests
+TEST_SRCS := $(wildcard $(TESTS_DIR)/*.c)
+TESTS := $(TEST_SRCS:$(TESTS_DIR)/%.c=$(BUILD_DIR)/%)
+
 # Default target
 .PHONY: all
 all: $(LIB) $(EXAMPLES) $(BENCHMARKS)
@@ -58,10 +63,26 @@ $(BUILD_DIR)/%: $(EXAMPLES_DIR)/%.c $(LIB)
 $(BUILD_DIR)/%: $(BENCHMARKS_DIR)/%.c $(LIB)
 	$(CC) $(CFLAGS) $(CPPFLAGS) $< -o $@ -L$(BUILD_DIR) -lrt $(LDLIBS)
 
+# Build tests
+$(BUILD_DIR)/%: $(TESTS_DIR)/%.c $(LIB)
+	$(CC) $(CFLAGS) $(CPPFLAGS) $< -o $@ -L$(BUILD_DIR) -lrt $(LDLIBS)
+
 # Run benchmarks
 .PHONY: bench
 bench: $(BUILD_DIR)/bench
 	./$(BUILD_DIR)/bench
+
+# Run tests
+.PHONY: test
+test: $(TESTS)
+	@echo "Running tests..."
+	@for test in $(TESTS); do \
+		echo ""; \
+		echo "=== Running $$test ==="; \
+		timeout 5 $$test || exit 1; \
+	done
+	@echo ""
+	@echo "All tests passed!"
 
 # Clean
 .PHONY: clean
@@ -89,6 +110,7 @@ help:
 	@echo "Available targets:"
 	@echo "  all               - Build library, examples, and benchmarks (default)"
 	@echo "  clean             - Remove build artifacts"
+	@echo "  test              - Build and run all tests"
 	@echo "  bench             - Build and run benchmark suite"
 	@echo "  run-pingpong      - Build and run ping-pong example"
 	@echo "  run-fileio        - Build and run file I/O example"
