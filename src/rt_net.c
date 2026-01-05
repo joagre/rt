@@ -2,6 +2,7 @@
 #include "rt_static_config.h"
 #include "rt_actor.h"
 #include "rt_scheduler.h"
+#include "rt_scheduler_wakeup.h"
 #include "rt_runtime.h"
 #include "rt_spsc.h"
 #include "rt_log.h"
@@ -342,6 +343,9 @@ static void *net_worker_thread(void *arg) {
             struct timespec ts = {.tv_sec = 0, .tv_nsec = RT_COMPLETION_RETRY_SLEEP_NS};
             nanosleep(&ts, NULL);
         }
+
+        // Wake up scheduler to process completion
+        rt_scheduler_wakeup_signal();
     }
 
     RT_LOG_DEBUG("Network I/O worker thread exiting");

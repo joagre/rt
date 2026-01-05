@@ -1,4 +1,5 @@
 #include "rt_scheduler.h"
+#include "rt_scheduler_wakeup.h"
 #include "rt_static_config.h"
 #include "rt_actor.h"
 #include "rt_context.h"
@@ -44,10 +45,19 @@ static bool check_stack_guard(actor *a) {
 rt_status rt_scheduler_init(void) {
     g_scheduler.shutdown_requested = false;
     g_scheduler.initialized = true;
+
+    // Initialize wakeup mechanism
+    rt_status status = rt_scheduler_wakeup_init();
+    if (RT_FAILED(status)) {
+        g_scheduler.initialized = false;
+        return status;
+    }
+
     return RT_SUCCESS;
 }
 
 void rt_scheduler_cleanup(void) {
+    rt_scheduler_wakeup_cleanup();
     g_scheduler.initialized = false;
 }
 
@@ -132,10 +142,9 @@ void rt_scheduler_run(void) {
             }
 
         } else {
-            // No runnable actors - they may be blocked on I/O
-            // Sleep briefly to allow I/O operations to complete
-            struct timespec ts = {.tv_sec = 0, .tv_nsec = RT_SCHEDULER_IDLE_SLEEP_NS};
-            nanosleep(&ts, NULL);
+            // No runnable actors - wait for I/O completion wakeup
+            // I/O threads will signal when they post completions
+            rt_scheduler_wakeup_wait();
         }
     }
 

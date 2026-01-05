@@ -316,6 +316,8 @@ All I/O operations (timers, file, network) are handled by dedicated worker threa
 - Uses lock-free queues for efficient cross-thread communication
 - Automatically handles actor cleanup (cancels timers, closes files/sockets)
 
+**Scheduler wakeup**: When all actors are blocked on I/O, the scheduler efficiently waits on a single eventfd (Linux) or semaphore (FreeRTOS). I/O threads signal this primitive after posting completions. This eliminates busy-polling and CPU waste.
+
 **Timer subsystem**: Uses Linux `timerfd_create()` and `epoll` for efficient multi-timer management.
 
 **File I/O subsystem**: Worker thread processes read/write requests asynchronously.
