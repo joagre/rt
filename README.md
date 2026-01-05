@@ -5,7 +5,7 @@ A complete actor-based runtime with a minimalistic design philosophy. Features c
 **Current platform:** x86-64 Linux (fully implemented)
 **Future platform:** STM32/ARM Cortex-M with FreeRTOS (see `spec.md`)
 
-The runtime is minimalistic by design: predictable behavior, no heap allocation in hot paths, and fast context switching via manual assembly. Despite this simplicity, it provides a complete actor system with linking, monitoring, timers, pub-sub messaging (bus), networking, and file I/O.
+The runtime is minimalistic by design: predictable behavior, no heap allocation in hot paths, and fast context switching via manual assembly. Despite this simplicity, it provides a complete actor system with message passing (IPC), linking, monitoring, timers, pub-sub messaging (bus), networking, and file I/O.
 
 ## Features
 
