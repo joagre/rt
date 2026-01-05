@@ -136,13 +136,20 @@ rt_status status = rt_ipc_send(target, &data, sizeof(data), IPC_COPY);
 if (RT_FAILED(status)) {
     // Pool exhausted: RT_MAILBOX_ENTRY_POOL_SIZE or RT_MESSAGE_DATA_POOL_SIZE
     // Send does NOT block or drop - caller must handle RT_ERR_NOMEM
+
+    // Backoff and retry pattern:
+    rt_message msg;
+    rt_ipc_recv(&msg, 10);  // Backoff 10ms (returns timeout or message)
+    // Retry send...
 }
 
 rt_ipc_send(target, &data, sizeof(data), IPC_BORROW);  // Zero-copy, blocks until released
 
 // Receive messages
 rt_message msg;
-rt_ipc_recv(&msg, -1);  // -1=block, 0=nonblock, >0=timeout ms
+rt_ipc_recv(&msg, -1);   // -1=block forever
+rt_ipc_recv(&msg, 0);    // 0=non-blocking (returns RT_ERR_WOULDBLOCK if empty)
+rt_ipc_recv(&msg, 100);  // 100=timeout after 100ms (returns RT_ERR_TIMEOUT if no message)
 
 if (msg.mode == IPC_BORROW) {
     rt_ipc_release(&msg);  // Unblock sender

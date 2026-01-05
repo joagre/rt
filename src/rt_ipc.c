@@ -4,6 +4,7 @@
 #include "rt_pool.h"
 #include "rt_actor.h"
 #include "rt_scheduler.h"
+#include "rt_timer.h"
 #include "rt_log.h"
 #include <stdlib.h>
 #include <string.h>
@@ -128,13 +129,36 @@ rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms) {
 
     RT_LOG_TRACE("IPC recv: actor %u checking mailbox (count=%zu)", current->id, current->mbox.count);
 
+    timer_id timeout_timer = TIMER_ID_INVALID;
+
     // Check if there's a message in the mailbox
     if (current->mbox.head == NULL) {
         if (timeout_ms == 0) {
             // Non-blocking
             return RT_ERROR(RT_ERR_WOULDBLOCK, "No messages available");
+        } else if (timeout_ms > 0) {
+            // Blocking with timeout - create a timer
+            RT_LOG_TRACE("IPC recv: actor %u blocking with %d ms timeout", current->id, timeout_ms);
+            rt_status status = rt_timer_after((uint32_t)timeout_ms * 1000, &timeout_timer);
+            if (RT_FAILED(status)) {
+                return status;
+            }
+
+            // Block and wait for message (timer or real)
+            current->state = ACTOR_STATE_BLOCKED;
+            rt_scheduler_yield();
+
+            // When we wake up, check mailbox
+            RT_LOG_TRACE("IPC recv: actor %u woke up, mailbox count=%zu", current->id, current->mbox.count);
+            if (current->mbox.head == NULL) {
+                // Shouldn't happen, but handle gracefully
+                if (timeout_timer != TIMER_ID_INVALID) {
+                    rt_timer_cancel(timeout_timer);
+                }
+                return RT_ERROR(RT_ERR_WOULDBLOCK, "No messages available after wakeup");
+            }
         } else {
-            // Blocking - yield until message arrives
+            // Blocking forever (timeout_ms < 0)
             RT_LOG_TRACE("IPC recv: actor %u blocking, waiting for message", current->id);
             current->state = ACTOR_STATE_BLOCKED;
             rt_scheduler_yield();
@@ -144,6 +168,37 @@ rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms) {
             if (current->mbox.head == NULL) {
                 return RT_ERROR(RT_ERR_WOULDBLOCK, "No messages available after wakeup");
             }
+        }
+    }
+
+    // At this point, mailbox has at least one message
+    // If we created a timeout timer, check if first message is the timeout
+    if (timeout_timer != TIMER_ID_INVALID) {
+        mailbox_entry *entry = current->mbox.head;
+        if (entry->sender == RT_SENDER_TIMER) {
+            // Check if this is our timeout timer (not another timer)
+            // For now, assume it is (could enhance with timer ID matching)
+            RT_LOG_TRACE("IPC recv: actor %u timeout occurred", current->id);
+
+            // Dequeue and discard the timer message
+            current->mbox.head = entry->next;
+            if (current->mbox.head == NULL) {
+                current->mbox.tail = NULL;
+            }
+            current->mbox.count--;
+
+            // Free the timer message entry
+            if (entry->data) {
+                message_data_entry *msg_data = DATA_TO_MSG_ENTRY(entry->data);
+                rt_pool_free(&g_message_pool_mgr, msg_data);
+            }
+            rt_pool_free(&g_mailbox_pool_mgr, entry);
+
+            return RT_ERROR(RT_ERR_TIMEOUT, "Receive timeout");
+        } else {
+            // Got a real message before timeout - cancel the timer
+            RT_LOG_TRACE("IPC recv: actor %u got message before timeout, cancelling timer", current->id);
+            rt_timer_cancel(timeout_timer);
         }
     }
 
