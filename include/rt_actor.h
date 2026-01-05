@@ -52,6 +52,7 @@ typedef struct {
     rt_context     ctx;
     void          *stack;
     size_t         stack_size;
+    bool           stack_is_malloced; // true if malloc'd, false if from pool
 
     // Mailbox
     mailbox        mbox;
