@@ -72,6 +72,22 @@ All runtime functions return `rt_status` with a code and optional string literal
 - **IPC_COPY**: Payload copied to receiver's mailbox, sender continues immediately (suitable for small messages)
 - **IPC_BORROW**: Zero-copy, payload on sender's stack, sender blocks until receiver calls `rt_ipc_release()` (provides backpressure)
 
+### IPC Pool Exhaustion
+IPC uses global pools shared by all actors:
+- **Mailbox entry pool**: `RT_MAILBOX_ENTRY_POOL_SIZE` (256 default)
+- **Message data pool**: `RT_MESSAGE_DATA_POOL_SIZE` (256 default, COPY mode only)
+
+**When pools are exhausted:**
+- `rt_ipc_send()` returns `RT_ERR_NOMEM` immediately
+- Send operation **does NOT block** waiting for space
+- Send operation **does NOT drop** messages automatically
+- Caller **must check** return value and handle failure (retry, backoff, or discard)
+
+**Notes:**
+- No per-actor mailbox limit - pools are shared globally
+- BORROW mode does NOT use message data pool (zero-copy)
+- Pool exhaustion indicates system overload - increase pool sizes or add backpressure
+
 ### Bus Retention
 - **max_readers**: Remove entry after N actors read it (0 = persist until aged out or buffer wraps)
 - **max_age_ms**: Remove entry after time expires (0 = no time-based expiry)

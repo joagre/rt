@@ -132,7 +132,12 @@ actor_id worker = rt_spawn_ex(worker_actor, &args, &cfg);
 
 // Send messages
 int data = 42;
-rt_ipc_send(target, &data, sizeof(data), IPC_COPY);    // Async, copied
+rt_status status = rt_ipc_send(target, &data, sizeof(data), IPC_COPY);
+if (RT_FAILED(status)) {
+    // Pool exhausted: RT_MAILBOX_ENTRY_POOL_SIZE or RT_MESSAGE_DATA_POOL_SIZE
+    // Send does NOT block or drop - caller must handle RT_ERR_NOMEM
+}
+
 rt_ipc_send(target, &data, sizeof(data), IPC_BORROW);  // Zero-copy, blocks until released
 
 // Receive messages
