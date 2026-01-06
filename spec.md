@@ -1007,6 +1007,7 @@ typedef struct {
     uint32_t max_age_ms;      // expire entries after ms, 0 = no expiry
     size_t   max_entries;     // ring buffer capacity
     size_t   max_entry_size;  // max payload bytes per entry
+    size_t   max_subscribers; // max concurrent subscribers (1..RT_MAX_BUS_SUBSCRIBERS)
 } rt_bus_config;
 ```
 
