@@ -268,7 +268,7 @@ if (rt_is_exit_msg(&msg)) {
 
 - `rt_link(target)` - Create bidirectional link
 - `rt_unlink(target)` - Remove bidirectional link
-- `rt_monitor(target, out_ref)` - Create unidirectional monitor
+- `rt_monitor(target, monitor_ref)` - Create unidirectional monitor
 - `rt_demonitor(ref)` - Remove monitor
 - `rt_is_exit_msg(msg)` - Check if message is exit notification
 - `rt_decode_exit(msg, out)` - Extract exit information
