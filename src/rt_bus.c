@@ -126,9 +126,7 @@ static void expire_old_entries(bus_t *bus) {
 
 // Initialize bus subsystem
 rt_status rt_bus_init(void) {
-    if (g_bus_table.initialized) {
-        return RT_SUCCESS;
-    }
+    RT_INIT_GUARD(g_bus_table.initialized);
 
     // Use static bus array (already zero-initialized)
     g_bus_table.buses = g_buses;

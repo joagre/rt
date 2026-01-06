@@ -40,9 +40,7 @@ static struct {
 
 // Initialize link subsystem
 rt_status rt_link_init(void) {
-    if (g_link_state.initialized) {
-        return RT_SUCCESS;
-    }
+    RT_INIT_GUARD(g_link_state.initialized);
 
     // Initialize link and monitor pools
     rt_pool_init(&g_link_pool_mgr, g_link_pool, g_link_used,
@@ -60,9 +58,7 @@ rt_status rt_link_init(void) {
 
 // Cleanup link subsystem
 void rt_link_cleanup(void) {
-    if (!g_link_state.initialized) {
-        return;
-    }
+    RT_CLEANUP_GUARD(g_link_state.initialized);
 
     g_link_state.initialized = false;
     RT_LOG_DEBUG("Link subsystem cleaned up");
