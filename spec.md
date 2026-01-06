@@ -645,6 +645,7 @@ The lifetime of `rt_message.data` depends on the send mode:
 - Data lives in a pool-allocated buffer
 - Next recv frees the previous message's buffer and reuses the pool entry
 - Calling `rt_ipc_release()` is optional (no-op for ASYNC)
+- **Per actor, only the most recently received ASYNC message payload is guaranteed valid; subsequent recv invalidates it**
 
 **IPC_SYNC:**
 - Data is **valid until `rt_ipc_release()`** is called
