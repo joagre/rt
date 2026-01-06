@@ -10,7 +10,7 @@ This is an actor-based runtime for embedded systems, targeting STM32 (ARM Cortex
 
 **Target Platforms:**
 - Development: Linux x86-64
-- Production: STM32 (ARM Cortex-M) with FreeRTOS
+- Production: STM32 (ARM Cortex-M) bare metal
 
 ## Design Principles
 
@@ -37,11 +37,11 @@ The runtime is **completely single-threaded** with an event loop architecture. A
 The runtime consists of:
 
 1. **Actors**: Cooperative tasks with individual stacks and mailboxes
-2. **Scheduler**: Priority-based round-robin scheduler with 4 priority levels (0=CRITICAL to 3=LOW), integrated event loop (epoll on Linux, queue sets on FreeRTOS)
+2. **Scheduler**: Priority-based round-robin scheduler with 4 priority levels (0=CRITICAL to 3=LOW), integrated event loop (epoll on Linux, WFI on STM32)
 3. **IPC**: Inter-process communication via mailboxes with ASYNC (fire-and-forget) and SYNC (blocking with backpressure) modes
 4. **Bus**: Publish-subscribe system with configurable retention policies (max_readers, max_age_ms)
-5. **Timers**: timerfd registered in epoll (Linux), software timers (FreeRTOS)
-6. **Network**: Non-blocking sockets registered in epoll (Linux), lwIP with select (FreeRTOS)
+5. **Timers**: timerfd registered in epoll (Linux), hardware timers on STM32 (SysTick/TIM)
+6. **Network**: Non-blocking sockets registered in epoll (Linux), lwIP NO_SYS mode on STM32
 7. **File**: Synchronous I/O (regular files don't work with epoll; embedded filesystems are fast)
 
 ## Key Concepts
@@ -184,7 +184,7 @@ After `rt_run()` completes, call `rt_cleanup()` to free actor stacks.
 ### Event Loop
 When all actors are blocked on I/O, the scheduler efficiently waits for I/O events using platform-specific mechanisms:
 - **Linux**: `epoll_wait()` blocks until timer fires or socket becomes ready
-- **FreeRTOS**: Queue sets or `select()` blocks until event arrives
+- **STM32**: `WFI` (Wait For Interrupt) until hardware interrupt occurs
 
 This eliminates busy-polling and CPU waste while providing immediate response to I/O events.
 
@@ -205,11 +205,11 @@ The runtime is **completely single-threaded**. All runtime APIs must be called f
 See SPEC.md "Thread Safety" section for full details.
 
 ### Platform Abstraction
-Different implementations for Linux (dev) vs FreeRTOS (prod):
+Different implementations for Linux (dev) vs STM32 bare metal (prod):
 - Context switch: x86-64 asm vs ARM Cortex-M asm
-- Event notification: epoll vs queue sets/select
-- Timer: timerfd + epoll vs FreeRTOS software timers
-- Network: Non-blocking BSD sockets + epoll vs lwIP + select
+- Event notification: epoll vs WFI + interrupt flags
+- Timer: timerfd + epoll vs hardware timers (SysTick/TIM)
+- Network: Non-blocking BSD sockets + epoll vs lwIP NO_SYS mode
 - File: Synchronous POSIX vs synchronous FATFS/littlefs
 
 ### Special Sender IDs

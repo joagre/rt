@@ -42,7 +42,7 @@ A minimalistic actor-based runtime designed for **embedded and safety-critical s
 
 **Development:** Linux x86-64
 
-**Production:** STM32 (ARM Cortex-M) with FreeRTOS
+**Production:** STM32 (ARM Cortex-M) bare metal
 
 On both platforms, the actor runtime is **single-threaded** with an event loop architecture. All actors run cooperatively in a single scheduler thread. I/O operations use platform-specific non-blocking mechanisms integrated directly into the scheduler's event loop.
 
@@ -83,7 +83,7 @@ On both platforms, the actor runtime is **single-threaded** with an event loop a
                      │
             ┌────────▼─────────┐
             │  epoll (Linux)   │
-            │  select (FreeRTOS)│
+            │  WFI (STM32)     │
             └──────────────────┘
 ```
 
@@ -271,13 +271,13 @@ This pure single-threaded model provides:
 - File: Direct synchronous I/O (regular files don't work with epoll anyway)
 - Event loop: `epoll_wait()` blocks when no actors runnable
 
-**FreeRTOS:**
-- Timers: FreeRTOS software timers or hardware timer interrupts
-- Network: lwIP with `select()`
+**STM32 (bare metal):**
+- Timers: Hardware timers (SysTick or TIM peripherals)
+- Network: lwIP in NO_SYS mode (polling or interrupt-driven)
 - File: Direct synchronous I/O (FATFS/littlefs are fast, <1ms typically)
-- Event loop: Queue sets or `select()` blocks when no actors runnable
+- Event loop: WFI (Wait For Interrupt) when no actors runnable
 
-**Key insight:** Modern OSes provide non-blocking I/O mechanisms (epoll, kqueue, IOCP) that eliminate the need for worker threads. The event loop pattern is standard in async runtimes (Node.js, Tokio, libuv, asyncio).
+**Key insight:** Modern OSes provide non-blocking I/O mechanisms (epoll, kqueue, IOCP). On bare metal, hardware interrupts and WFI provide equivalent functionality. The event loop pattern is standard in async runtimes (Node.js, Tokio, libuv, asyncio).
 
 ## Memory Model
 
@@ -1354,14 +1354,14 @@ Timer wake-ups are delivered as messages with `sender == RT_SENDER_TIMER`. The a
 Platform | Clock Source | API Precision | Actual Precision | Notes
 ---------|-------------|---------------|------------------|------
 **Linux (x86-64)** | `CLOCK_MONOTONIC` via `timerfd` | Nanosecond (`itimerspec`) | ~1 ms typical | Kernel-limited, non-realtime scheduler
-**FreeRTOS (ARM)** | Hardware timer + tick interrupt | Tick-based | 1-10 ms typical | Depends on `configTICK_RATE_HZ` (e.g., 1000 Hz = 1 ms)
+**STM32 (ARM)** | Hardware timer (SysTick/TIM) | Microsecond | ~1-10 us typical | Depends on timer configuration
 
 - On Linux, timers use `CLOCK_MONOTONIC` clock source via `timerfd_create()`
 - On Linux, requests < 1ms may still fire with ~1ms precision due to kernel scheduling
-- On FreeRTOS, timers round up to next tick boundary
+- On STM32, hardware timers provide microsecond-level precision
 
 **Monotonic clock guarantee:**
-- Uses **monotonic clock** on both platforms (CLOCK_MONOTONIC on Linux, hardware timer on FreeRTOS)
+- Uses **monotonic clock** on both platforms (CLOCK_MONOTONIC on Linux, hardware timer on STM32)
 - **NOT affected by**:
   - System time changes (NTP adjustments, user setting clock)
   - Timezone changes
@@ -1447,7 +1447,7 @@ All functions with `timeout_ms` parameter support **timeout enforcement**:
 
 **Timeout implementation:** Uses timer-based enforcement (consistent with `rt_ipc_recv`). When timeout expires, a timer message wakes the actor and `RT_ERR_TIMEOUT` is returned. This is essential for handling unreachable hosts, slow connections, and implementing application-level keepalives.
 
-On blocking calls, the actor yields to the scheduler. The scheduler's event loop registers the I/O operation with the platform's event notification mechanism (epoll on Linux, queue sets on FreeRTOS) and dispatches the operation when the socket becomes ready.
+On blocking calls, the actor yields to the scheduler. The scheduler's event loop registers the I/O operation with the platform's event notification mechanism (epoll on Linux, interrupt flags on STM32) and dispatches the operation when the socket becomes ready.
 
 ## File API
 
@@ -1661,27 +1661,38 @@ if (no_runnable_actors) {
 }
 ```
 
-**FreeRTOS (queue sets or timer callbacks):**
+**STM32 (bare metal with WFI):**
 ```c
-// Option 1: Queue sets
-QueueSetHandle_t queue_set = xQueueCreateSet(64);
-xQueueAddToSet(timer_queue, queue_set);
-xQueueAddToSet(net_queue, queue_set);
+// Interrupt handlers set flags
+volatile uint32_t pending_events = 0;
+#define EVENT_TIMER   (1 << 0)
+#define EVENT_NETWORK (1 << 1)
+
+void SysTick_Handler(void) {
+    pending_events |= EVENT_TIMER;
+}
+
+void ETH_IRQHandler(void) {
+    pending_events |= EVENT_NETWORK;
+}
 
 // Scheduler waits when no actors are ready
 if (no_runnable_actors) {
-    QueueSetMemberHandle_t active = xQueueSelectFromSet(queue_set, portMAX_DELAY);
-    if (active == timer_queue) {
+    __disable_irq();
+    if (pending_events == 0) {
+        __WFI();  // Wait For Interrupt - CPU sleeps until interrupt
+    }
+    __enable_irq();
+
+    // Process pending events
+    if (pending_events & EVENT_TIMER) {
+        pending_events &= ~EVENT_TIMER;
         handle_timer_event();
-    } else if (active == net_queue) {
+    }
+    if (pending_events & EVENT_NETWORK) {
+        pending_events &= ~EVENT_NETWORK;
         handle_network_event();
     }
-}
-
-// Option 2: Software timer callbacks post to scheduler queue
-TimerHandle_t timer = xTimerCreate(..., timer_callback, ...);
-void timer_callback(TimerHandle_t h) {
-    xQueueSendFromISR(scheduler_queue, &event, NULL);
 }
 ```
 
@@ -1719,20 +1730,20 @@ void timer_callback(TimerHandle_t h) {
 
 - **Standard pattern**: Used by Node.js, Tokio, libuv, asyncio
 - **Single-threaded**: No synchronization, no race conditions
-- **Efficient**: Kernel wakes scheduler only when I/O is ready
-- **Portable**: epoll (Linux), kqueue (BSD/macOS), queue sets (FreeRTOS)
+- **Efficient**: Kernel/hardware wakes scheduler only when I/O is ready
+- **Portable**: epoll (Linux), kqueue (BSD/macOS), WFI + interrupts (bare metal)
 - **Low overhead**: No context switches between threads, no queue copies
 
 ## Platform Abstraction
 
 The runtime abstracts platform-specific functionality:
 
-| Component | Linux (dev) | FreeRTOS (prod) |
-|-----------|-------------|-----------------|
+| Component | Linux (dev) | STM32 bare metal (prod) |
+|-----------|-------------|-------------------------|
 | Context switch | x86-64 asm | ARM Cortex-M asm |
-| Event notification | epoll | Queue sets or software timers |
-| Timer | timerfd + epoll | FreeRTOS software timers |
-| Network | Non-blocking BSD sockets + epoll | lwIP + queue notifications |
+| Event notification | epoll | WFI + interrupt flags |
+| Timer | timerfd + epoll | Hardware timers (SysTick/TIM) |
+| Network | Non-blocking BSD sockets + epoll | lwIP NO_SYS mode |
 | File | Synchronous POSIX | Synchronous FATFS or littlefs |
 
 ## Stack Overflow
@@ -1787,7 +1798,7 @@ If stack overflow is severe enough to corrupt guard patterns before the next con
 
 ### Detection Mechanism (Best-Effort)
 
-**Implementation:** Guard pattern detection (Linux/FreeRTOS)
+**Implementation:** Guard pattern detection (Linux/STM32)
 
 **Mechanism:**
 - 8-byte guard patterns placed at both ends of each actor stack

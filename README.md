@@ -5,7 +5,7 @@
 A complete actor-based runtime designed for **embedded and safety-critical systems**. Features cooperative multitasking with priority-based scheduling and message passing inspired by Erlang's actor model.
 
 **Current platform:** x86-64 Linux (fully implemented)
-**Future platform:** STM32/ARM Cortex-M with FreeRTOS (see `SPEC.md`)
+**Future platform:** STM32/ARM Cortex-M bare metal (see `SPEC.md`)
 
 The runtime uses **static memory allocation** for deterministic behavior with zero heap fragmentation. It features **priority-based scheduling** (4 levels: CRITICAL, HIGH, NORMAL, LOW) with fast context switching. Provides message passing (IPC with ASYNC/SYNC modes), linking, monitoring, timers, pub-sub messaging (bus), network I/O, and file I/O.
 
@@ -324,11 +324,11 @@ The runtime is **completely single-threaded** with an event loop architecture. A
 - File: Direct synchronous I/O (regular files don't work with epoll)
 - Event loop: `epoll_wait()` blocks when no actors runnable
 
-**FreeRTOS**:
-- Timers: FreeRTOS software timers or hardware timer interrupts
-- Network: lwIP with `select()`
+**STM32 (bare metal)**:
+- Timers: Hardware timers (SysTick or TIM peripherals)
+- Network: lwIP in NO_SYS mode (polling or interrupt-driven)
 - File: Direct synchronous I/O (FATFS/littlefs are fast, <1ms typically)
-- Event loop: Queue sets or `select()` blocks when no actors runnable
+- Event loop: WFI (Wait For Interrupt) when no actors runnable
 
 This single-threaded model provides:
 - Maximum simplicity (no lock ordering, no deadlock)
@@ -351,4 +351,4 @@ All runtime APIs must be called from actor context (the scheduler thread). The r
 
 ## Future Work
 
-- Port to ARM Cortex-M with FreeRTOS integration
+- Port to ARM Cortex-M bare metal (STM32)
