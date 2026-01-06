@@ -398,19 +398,8 @@ void rt_timer_process_completions(void) {
                     entry->sync_ptr = NULL;
                     entry->next = NULL;
 
-                    // Add to actor's mailbox
-                    if (a->mbox.tail) {
-                        a->mbox.tail->next = entry;
-                    } else {
-                        a->mbox.head = entry;
-                    }
-                    a->mbox.tail = entry;
-                    a->mbox.count++;
-
-                    // Wake actor if blocked waiting for message
-                    if (a->state == ACTOR_STATE_BLOCKED) {
-                        a->state = ACTOR_STATE_READY;
-                    }
+                    // Add to actor's mailbox and wake if blocked
+                    rt_mailbox_add_entry(a, entry);
                 }
                 break;
         }
@@ -430,10 +419,8 @@ static rt_status submit_and_block(timer_request *req) {
 
     req->requester = current->id;
 
-    // Submit request
-    while (!rt_spsc_push(&g_timer.request_queue, req)) {
-        rt_yield();
-    }
+    // Submit request (blocking retry)
+    rt_spsc_push_blocking(&g_timer.request_queue, req);
 
     // Block waiting for completion
     current->state = ACTOR_STATE_BLOCKED;

@@ -1,4 +1,5 @@
 #include "rt_file.h"
+#include "rt_internal.h"
 #include "rt_static_config.h"
 #include "rt_actor.h"
 #include "rt_scheduler.h"
@@ -273,11 +274,8 @@ static rt_status submit_and_block(file_request *req) {
 
     req->requester = current->id;
 
-    // Submit request
-    while (!rt_spsc_push(&g_file_io.request_queue, req)) {
-        // Request queue full, yield and try again
-        rt_yield();
-    }
+    // Submit request (blocking retry)
+    rt_spsc_push_blocking(&g_file_io.request_queue, req);
 
     // Block waiting for completion
     current->state = ACTOR_STATE_BLOCKED;

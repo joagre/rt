@@ -453,11 +453,8 @@ static rt_status submit_and_block(net_request *req) {
         }
     }
 
-    // Submit request
-    while (!rt_spsc_push(&g_net_io.request_queue, req)) {
-        // Request queue full, yield and try again
-        rt_yield();
-    }
+    // Submit request (blocking retry)
+    rt_spsc_push_blocking(&g_net_io.request_queue, req);
 
     // Block waiting for completion
     current->state = ACTOR_STATE_BLOCKED;
