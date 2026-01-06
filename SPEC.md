@@ -117,7 +117,7 @@ When an actor calls a blocking API, the following contract applies:
 **Operations that block (actor yields, other actors run):**
 - `rt_ipc_recv()` with timeout > 0 or timeout < 0 (block until message or timeout)
 - `rt_ipc_send()` with `IPC_SYNC` (block until receiver releases)
-- `rt_net_send()`, `rt_net_recv()` (block until I/O completes or timeout)
+- `rt_net_send()`, `rt_net_recv()` (block until at least 1 byte transferred or timeout)
 - `rt_bus_read_wait()` (block until data available or timeout)
 
 **Note:** File I/O (`rt_file_*`) is NOT in this list. See "Scheduler-Stalling Calls" below.
@@ -1560,6 +1560,57 @@ All functions with `timeout_ms` parameter support **timeout enforcement**:
 
 On blocking calls, the actor yields to the scheduler. The scheduler's event loop registers the I/O operation with the platform's event notification mechanism (epoll on Linux, interrupt flags on STM32) and dispatches the operation when the socket becomes ready.
 
+### Completion Semantics
+
+**`rt_net_recv()` - Partial completion:**
+- Returns successfully when **at least 1 byte** is read (or 0 for EOF/peer closed)
+- Does NOT loop until `len` bytes are received
+- `*received` contains actual bytes read (may be less than `len`)
+- Caller must loop if full message is required:
+```c
+size_t total = 0;
+while (total < expected_len) {
+    size_t n;
+    rt_status s = rt_net_recv(fd, buf + total, expected_len - total, &n, timeout);
+    if (RT_FAILED(s)) return s;
+    if (n == 0) return RT_ERROR(RT_ERR_IO, "Connection closed");
+    total += n;
+}
+```
+
+**`rt_net_send()` - Partial completion:**
+- Returns successfully when **at least 1 byte** is written
+- Does NOT loop until `len` bytes are sent
+- `*sent` contains actual bytes written (may be less than `len`)
+- Caller must loop if full buffer must be sent:
+```c
+size_t total = 0;
+while (total < len) {
+    size_t n;
+    rt_status s = rt_net_send(fd, buf + total, len - total, &n, timeout);
+    if (RT_FAILED(s)) return s;
+    total += n;
+}
+```
+
+**`rt_net_connect()` - Async connect completion:**
+- If `connect()` returns `EINPROGRESS`: registers for `EPOLLOUT`, actor yields
+- When socket becomes writable: checks `getsockopt(fd, SOL_SOCKET, SO_ERROR, ...)`
+- If `SO_ERROR == 0`: success, returns `RT_SUCCESS` with connected socket in `*fd_out`
+- If `SO_ERROR != 0`: returns `RT_ERR_IO` with error message, socket is closed
+- If timeout expires before writable: returns `RT_ERR_TIMEOUT`, socket is closed
+
+**`rt_net_accept()` - Connection ready:**
+- Waits for `EPOLLIN` on listen socket (incoming connection ready)
+- Calls `accept()` to obtain connected socket
+- Returns `RT_SUCCESS` with new socket in `*conn_fd_out`
+
+**Rationale for partial completion:**
+- Matches POSIX socket semantics (recv/send may return partial)
+- Avoids hidden loops that could block indefinitely
+- Caller controls retry policy and timeout behavior
+- Simpler implementation, more predictable behavior
+
 ## File API
 
 File I/O operations.
@@ -1735,7 +1786,7 @@ procedure rt_run():
                     send_timer_tick(source.owner)   # One tick regardless of count
                     wake_actor(source.owner)
                 elif source.type == NETWORK:
-                    perform_io_operation(source)
+                    perform_io_operation(source)  # recv/send partial, connect checks SO_ERROR
                     wake_actor(source.owner)
 ```
 
