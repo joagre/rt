@@ -7,7 +7,9 @@ A complete actor-based runtime designed for **embedded and safety-critical syste
 **Current platform:** x86-64 Linux (fully implemented)
 **Future platform:** STM32/ARM Cortex-M bare metal (see `SPEC.md`)
 
-The runtime uses **static memory allocation** for deterministic behavior with zero heap fragmentation. It features **priority-based scheduling** (4 levels: CRITICAL, HIGH, NORMAL, LOW) with fast context switching. Provides message passing (IPC with ASYNC/SYNC modes), linking, monitoring, timers, pub-sub messaging (bus), network I/O, and file I/O.
+**Safety-critical caveat:** File I/O stalls the entire scheduler. Restrict file I/O to initialization, shutdown, or non–time-critical phases.
+
+The runtime uses **statically bounded memory** for deterministic behavior with zero heap fragmentation (heap allocation optional only for actor stacks). It features **priority-based scheduling** (4 levels: CRITICAL, HIGH, NORMAL, LOW) with fast context switching. Provides message passing (IPC with ASYNC/SYNC modes), linking, monitoring, timers, pub-sub messaging (bus), network I/O, and file I/O.
 
 ## Quick Links
 
@@ -17,7 +19,7 @@ The runtime uses **static memory allocation** for deterministic behavior with ze
 
 ## Features
 
-- Static memory allocation - Deterministic footprint, zero fragmentation, safety-critical ready
+- Statically bounded memory - Deterministic footprint, zero fragmentation, heap optional only for actor stacks
 - Cooperative multitasking with manual x86-64 context switching
 - Priority-based round-robin scheduler (4 priority levels)
 - Stack overflow detection with guard patterns (16-byte overhead per actor)
@@ -341,9 +343,11 @@ This single-threaded model provides:
 All runtime APIs must be called from actor context (the scheduler thread). The runtime uses **zero synchronization primitives** in the core event loop:
 
 - No mutexes (single thread, no contention)
-- No atomics (single writer/reader per data structure)
+- No C11 atomics (single writer/reader per data structure)
 - No condition variables (event loop uses epoll/select for waiting)
 - No locks (mailboxes, actor state, bus state accessed only by scheduler thread)
+
+**Note:** STM32 uses `volatile bool` flags with interrupt disable for ISR-to-scheduler communication. This is a synchronization protocol but not C11 atomics.
 
 **Reentrancy constraint:** Runtime APIs are **not reentrant**. Actors **must not** call runtime APIs from signal handlers or interrupt service routines (ISRs). Violating this results in undefined behavior.
 
