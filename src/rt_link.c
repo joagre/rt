@@ -10,6 +10,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Helper macro: Append entry to linked list
+#define APPEND_TO_LIST(head, new_entry) \
+    do { \
+        if (head) { \
+            __typeof__(head) _last = head; \
+            while (_last->next) _last = _last->next; \
+            _last->next = new_entry; \
+        } else { \
+            head = new_entry; \
+        } \
+    } while(0)
+
 // External IPC pools (defined in rt_ipc.c)
 extern rt_pool g_mailbox_pool_mgr;
 extern rt_pool g_message_pool_mgr;
@@ -115,22 +127,10 @@ rt_status rt_link(actor_id target_id) {
     target_link->next = NULL;
 
     // Add to current actor's link list
-    if (current->links) {
-        link_entry *last = current->links;
-        while (last->next) last = last->next;
-        last->next = current_link;
-    } else {
-        current->links = current_link;
-    }
+    APPEND_TO_LIST(current->links, current_link);
 
     // Add to target actor's link list
-    if (target->links) {
-        link_entry *last = target->links;
-        while (last->next) last = last->next;
-        last->next = target_link;
-    } else {
-        target->links = target_link;
-    }
+    APPEND_TO_LIST(target->links, target_link);
 
     RT_LOG_DEBUG("Actor %u linked to actor %u", current->id, target_id);
     return RT_SUCCESS;
@@ -218,13 +218,7 @@ rt_status rt_monitor(actor_id target_id, uint32_t *monitor_ref) {
     entry->next = NULL;
 
     // Add to current actor's monitor list
-    if (current->monitors) {
-        monitor_entry *last = current->monitors;
-        while (last->next) last = last->next;
-        last->next = entry;
-    } else {
-        current->monitors = entry;
-    }
+    APPEND_TO_LIST(current->monitors, entry);
 
     *monitor_ref = entry->ref;
     RT_LOG_DEBUG("Actor %u monitoring actor %u (ref=%u)", current->id, target_id, entry->ref);
