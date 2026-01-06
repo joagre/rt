@@ -22,6 +22,24 @@ typedef struct {
 #define DATA_TO_MSG_ENTRY(data_ptr) \
     ((message_data_entry*)((char*)(data_ptr) - offsetof(message_data_entry, data)))
 
+// Initialization guard macro - early return if already initialized
+// Used by: All subsystem init functions
+#define RT_INIT_GUARD(initialized_flag) \
+    do { \
+        if (initialized_flag) { \
+            return RT_SUCCESS; \
+        } \
+    } while(0)
+
+// Cleanup guard macro - early return if not initialized
+// Used by: All subsystem cleanup functions
+#define RT_CLEANUP_GUARD(initialized_flag) \
+    do { \
+        if (!(initialized_flag)) { \
+            return; \
+        } \
+    } while(0)
+
 // Internal helper functions (implemented in rt_ipc.c)
 
 // Add mailbox entry to actor's mailbox and wake if blocked

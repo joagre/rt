@@ -358,9 +358,7 @@ static void *net_worker_thread(void *arg) {
 
 // Initialize network I/O subsystem
 rt_status rt_net_init(void) {
-    if (g_net_io.initialized) {
-        return RT_SUCCESS;
-    }
+    RT_INIT_GUARD(g_net_io.initialized);
 
     // Initialize queues with static buffers (power of 2 capacity)
     rt_status status = rt_spsc_init(&g_net_io.request_queue, g_net_request_buffer,
@@ -390,9 +388,7 @@ rt_status rt_net_init(void) {
 
 // Cleanup network I/O subsystem
 void rt_net_cleanup(void) {
-    if (!g_net_io.initialized) {
-        return;
-    }
+    RT_CLEANUP_GUARD(g_net_io.initialized);
 
     // Stop worker thread
     g_net_io.running = false;

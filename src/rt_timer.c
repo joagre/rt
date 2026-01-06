@@ -279,9 +279,7 @@ static void *timer_worker_thread(void *arg) {
 
 // Initialize timer subsystem
 rt_status rt_timer_init(void) {
-    if (g_timer.initialized) {
-        return RT_SUCCESS;
-    }
+    RT_INIT_GUARD(g_timer.initialized);
 
     // Initialize timer entry pool
     rt_pool_init(&g_timer_pool_mgr, g_timer_pool, g_timer_used,
@@ -321,9 +319,7 @@ rt_status rt_timer_init(void) {
 
 // Cleanup timer subsystem
 void rt_timer_cleanup(void) {
-    if (!g_timer.initialized) {
-        return;
-    }
+    RT_CLEANUP_GUARD(g_timer.initialized);
 
     // Stop worker thread
     g_timer.running = false;

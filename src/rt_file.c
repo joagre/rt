@@ -192,9 +192,7 @@ static void *file_worker_thread(void *arg) {
 
 // Initialize file I/O subsystem
 rt_status rt_file_init(void) {
-    if (g_file_io.initialized) {
-        return RT_SUCCESS;
-    }
+    RT_INIT_GUARD(g_file_io.initialized);
 
     // Initialize queues with static buffers (power of 2 capacity)
     rt_status status = rt_spsc_init(&g_file_io.request_queue, g_file_request_buffer,
@@ -224,9 +222,7 @@ rt_status rt_file_init(void) {
 
 // Cleanup file I/O subsystem
 void rt_file_cleanup(void) {
-    if (!g_file_io.initialized) {
-        return;
-    }
+    RT_CLEANUP_GUARD(g_file_io.initialized);
 
     // Stop worker thread
     g_file_io.running = false;
