@@ -1661,7 +1661,7 @@ The scheduler provides the following guarantees to prevent lost wakeups and ensu
 **Lost wakeup prevention:**
 - I/O threads: Push to queue **then** signal (ordering critical)
 - Scheduler: Check queues **before** wait (race prevention)
-- Atomic queue operations prevent ABA problems
+- Producer writes entry then advances head (release). Consumer reads head (acquire) then reads entry
 - Pattern guarantees: if completion exists, scheduler will process it
 
 **Determinism:**
