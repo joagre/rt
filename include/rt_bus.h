@@ -12,20 +12,20 @@ typedef uint32_t bus_id;
 
 // Bus configuration
 typedef struct {
-    uint8_t  max_readers;     // consume after N reads, 0 = unlimited
+    uint8_t  max_subscribers; // max concurrent subscribers (1..RT_MAX_BUS_SUBSCRIBERS)
+    uint8_t  max_readers;     // consume after N reads, 0 = unlimited (0..max_subscribers)
     uint32_t max_age_ms;      // expire entries after ms, 0 = no expiry
     size_t   max_entries;     // ring buffer capacity
     size_t   max_entry_size;  // max payload bytes per entry
-    size_t   max_subscribers; // maximum concurrent subscribers
 } rt_bus_config;
 
 // Default bus configuration
 #define RT_BUS_CONFIG_DEFAULT { \
+    .max_subscribers = 32, \
     .max_readers = 0, \
     .max_age_ms = 0, \
     .max_entries = 16, \
-    .max_entry_size = 256, \
-    .max_subscribers = 32 \
+    .max_entry_size = 256 \
 }
 
 // Bus operations
