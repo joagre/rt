@@ -418,6 +418,80 @@ static void test8_invalid_operations(void *arg) {
 }
 
 // ============================================================================
+// Test 9: max_age_ms retention policy (time-based expiry)
+// ============================================================================
+
+static void test9_max_age_expiry(void *arg) {
+    (void)arg;
+    printf("\nTest 9: max_age_ms retention policy (time-based expiry)\n");
+    fflush(stdout);
+
+    // Create bus with 100ms expiry
+    rt_bus_config cfg = RT_BUS_CONFIG_DEFAULT;
+    cfg.max_age_ms = 100;  // Entries expire after 100ms
+
+    bus_id bus;
+    rt_status status = rt_bus_create(&cfg, &bus);
+    if (RT_FAILED(status)) {
+        TEST_FAIL("failed to create bus with max_age_ms");
+        rt_exit();
+    }
+
+    status = rt_bus_subscribe(bus);
+    if (RT_FAILED(status)) {
+        TEST_FAIL("failed to subscribe");
+        rt_bus_destroy(bus);
+        rt_exit();
+    }
+
+    // Publish an entry
+    const char *data = "expires_soon";
+    status = rt_bus_publish(bus, data, strlen(data) + 1);
+    if (RT_FAILED(status)) {
+        TEST_FAIL("failed to publish");
+        rt_bus_unsubscribe(bus);
+        rt_bus_destroy(bus);
+        rt_exit();
+    }
+
+    // Read immediately - should succeed
+    char buf[64];
+    size_t actual_len;
+    status = rt_bus_read(bus, buf, sizeof(buf), &actual_len);
+    if (RT_FAILED(status)) {
+        TEST_FAIL("immediate read failed (expected success)");
+        rt_bus_unsubscribe(bus);
+        rt_bus_destroy(bus);
+        rt_exit();
+    }
+    TEST_PASS("entry readable immediately after publish");
+
+    // Publish another entry
+    const char *data2 = "will_expire";
+    rt_bus_publish(bus, data2, strlen(data2) + 1);
+
+    // Wait for expiry (longer than max_age_ms)
+    rt_message msg;
+    rt_ipc_recv(&msg, 150);  // Wait 150ms (entry should expire at 100ms)
+
+    // Try to read - should get WOULDBLOCK (entry expired)
+    status = rt_bus_read(bus, buf, sizeof(buf), &actual_len);
+    if (status.code == RT_ERR_WOULDBLOCK) {
+        TEST_PASS("entry expired after max_age_ms");
+    } else if (!RT_FAILED(status)) {
+        printf("    Entry still readable after expiry (data: %s)\n", buf);
+        TEST_FAIL("entry should have expired");
+    } else {
+        printf("    Unexpected error: %s\n", status.msg ? status.msg : "unknown");
+        TEST_FAIL("unexpected error reading expired entry");
+    }
+
+    rt_bus_unsubscribe(bus);
+    rt_bus_destroy(bus);
+    rt_exit();
+}
+
+// ============================================================================
 // Test runner
 // ============================================================================
 
@@ -430,6 +504,7 @@ static void (*test_funcs[])(void *) = {
     test6_blocking_read_timeout,
     test7_destroy_with_subscribers,
     test8_invalid_operations,
+    test9_max_age_expiry,
 };
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
