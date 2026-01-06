@@ -110,17 +110,22 @@ rt_status rt_mailbox_handle_timeout(actor *current, timer_id timeout_timer, cons
         return RT_SUCCESS;  // No timeout was set
     }
 
-    // Check if first message in mailbox is timer tick
+    // Check if first message is from OUR specific timeout timer
     if (current->mbox.head && current->mbox.head->sender == RT_SENDER_TIMER) {
-        // Timeout occurred - dequeue and free timer message
-        mailbox_entry *entry = rt_ipc_dequeue_head(current);
-        rt_ipc_free_entry(entry);
-        return RT_ERROR(RT_ERR_TIMEOUT, operation);
-    } else {
-        // I/O completed before timeout - cancel timer
-        rt_timer_cancel(timeout_timer);
-        return RT_SUCCESS;
+        // Timer message - check if it's from our timeout timer (not a periodic or other timer)
+        timer_id msg_timer_id = *(timer_id *)current->mbox.head->data;
+        if (msg_timer_id == timeout_timer) {
+            // This IS our timeout timer - dequeue, free, and return timeout error
+            mailbox_entry *entry = rt_ipc_dequeue_head(current);
+            rt_ipc_free_entry(entry);
+            return RT_ERROR(RT_ERR_TIMEOUT, operation);
+        }
     }
+
+    // Not our timeout timer - another message arrived first (regular, different timer, etc.)
+    // Cancel our timeout timer and return success
+    rt_timer_cancel(timeout_timer);
+    return RT_SUCCESS;
 }
 
 rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mode) {
