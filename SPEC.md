@@ -29,10 +29,10 @@ A minimalistic actor-based runtime designed for **embedded and safety-critical s
 - IPC (`rt_ipc_send()`, `rt_ipc_recv()`, `rt_ipc_release()`)
 - Timers (`rt_timer_after()`, `rt_timer_every()`, timer delivery)
 - Bus (`rt_bus_publish()`, `rt_bus_read()`, `rt_bus_read_wait()`)
-- Network I/O (`rt_net_*()` functions, completion handling)
-- File I/O (`rt_file_*()` functions, completion handling)
+- Network I/O (`rt_net_*()` functions, event loop dispatch)
+- File I/O (`rt_file_*()` functions, synchronous execution)
 - Linking/monitoring (`rt_link()`, `rt_monitor()`, death notifications)
-- All I/O completion processing
+- All I/O event processing (epoll event dispatch)
 
 **Consequence**: All "hot path" operations (scheduling, IPC, I/O) use **static pools** with **O(1) allocation** and return `RT_ERR_NOMEM` on pool exhaustion. Stack allocation (spawn/exit, cold path) uses arena allocator with O(n) first-fit search bounded by number of free blocks. No malloc in hot paths, no heap fragmentation, predictable allocation latency.
 
@@ -44,44 +44,47 @@ A minimalistic actor-based runtime designed for **embedded and safety-critical s
 
 **Production:** STM32 (ARM Cortex-M) with FreeRTOS
 
-On FreeRTOS, the actor runtime runs as a single task. Blocking I/O operations are handled by separate FreeRTOS tasks that communicate with the runtime via lock-free queues.
+On both platforms, the actor runtime is **single-threaded** with an event loop architecture. All actors run cooperatively in a single scheduler thread. I/O operations use platform-specific non-blocking mechanisms integrated directly into the scheduler's event loop.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│              Actor Runtime (cooperative)                │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐        │
-│  │ Actor 1 │ │ Actor 2 │ │ Actor 3 │ │   ...   │        │
-│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘        │
-│       │           │           │           │             │
-│       └───────────┴─────┬─────┴───────────┘             │
-│                         │                               │
-│              ┌──────────▼──────────┐                    │
-│              │     Scheduler       │                    │
-│              │  (run queues by     │                    │
-│              │   priority, yield)  │                    │
-│              └──────────┬──────────┘                    │
-│                         │                               │
-│    ┌────────────────────┼────────────────────┐          │
-│    │                    │                    │          │
-│    ▼                    ▼                    ▼          │
-│ ┌──────┐           ┌──────────┐          ┌──────┐       │
-│ │ IPC  │           │Completion│          │ Bus  │       │
-│ │      │           │  Queues  │          │      │       │
-│ └──────┘           └────┬─────┘          └──────┘       │
-│                         │                               │
-└─────────────────────────┼───────────────────────────────┘
-         FreeRTOS task    │
-         boundary         │
-                          │
-    ┌─────────────────────┼─────────────────────┐
-    │                     │                     │
-    ▼                     ▼                     ▼
-┌────────┐          ┌──────────┐          ┌────────┐
-│ Net IO │          │ File IO  │          │ Timer  │
-│ Task   │          │  Task    │          │ Task   │
-└────────┘          └──────────┘          └────────┘
+┌──────────────────────────────────────────────────────────┐
+│              Actor Runtime (single-threaded)             │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐         │
+│  │ Actor 1 │ │ Actor 2 │ │ Actor 3 │ │   ...   │         │
+│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘         │
+│       │           │           │           │              │
+│       └───────────┴─────┬─────┴───────────┘              │
+│                         │                                │
+│              ┌──────────▼──────────┐                     │
+│              │     Scheduler       │                     │
+│              │  (event loop with   │                     │
+│              │   epoll/select)     │                     │
+│              └──────────┬──────────┘                     │
+│                         │                                │
+│       ┌─────────────────┼─────────────────┐              │
+│       │                 │                 │              │
+│       ▼                 ▼                 ▼              │
+│   ┌──────┐          ┌──────┐          ┌──────┐           │
+│   │ IPC  │          │ Bus  │          │Timers│           │
+│   │      │          │      │          │(tfd) │           │
+│   └──────┘          └──────┘          └──┬───┘           │
+│                                          │               │
+│                    ┌─────────────────────┼──────┐        │
+│                    │                     │      │        │
+│                    ▼                     ▼      ▼        │
+│               ┌─────────┐         ┌──────────────────┐   │
+│               │ Network │         │   File I/O       │   │
+│               │(sockets)│         │ (synchronous)    │   │
+│               └────┬────┘         └──────────────────┘   │
+│                    │                                     │
+└────────────────────┼─────────────────────────────────────┘
+                     │
+            ┌────────▼─────────┐
+            │  epoll (Linux)   │
+            │  select (FreeRTOS)│
+            └──────────────────┘
 ```
 
 ## Scheduling
@@ -182,193 +185,99 @@ No use of setjmp/longjmp or ucontext for performance reasons.
 
 ## Thread Safety
 
-### Thread/Task Boundary Contract
+### Single-Threaded Event Loop Model
 
-The runtime uses a **single-threaded ownership model** with strict thread boundaries. All runtime state is owned by the scheduler thread; I/O threads/tasks and external threads have **no direct access** to runtime internals.
+The runtime is **completely single-threaded**. All runtime operations execute in a single scheduler thread with an event loop architecture. There are **no I/O worker threads** - all I/O operations are integrated into the scheduler's event loop using platform-specific non-blocking mechanisms.
 
-**The following three rules define the thread safety contract:**
+**Key architectural invariant:** Only one actor executes at any given time. Actors run cooperatively until they explicitly yield (via `rt_yield()`, blocking I/O, or `rt_exit()`). The scheduler then switches to the next runnable actor or waits for I/O events.
 
----
+### Runtime API Thread Safety Contract
 
-#### **BOUNDARY 1: Scheduler Thread (Exclusive Runtime Owner)**
+**All runtime APIs must be called from actor context (the scheduler thread):**
 
-**Contract:** **ONLY** the scheduler thread may mutate runtime state.
+| API Category | Thread Safety | Enforcement |
+|-------------|---------------|-------------|
+| **Actor APIs** (`rt_spawn`, `rt_exit`, etc.) | Single-threaded only | Must call from actor context |
+| **IPC APIs** (`rt_ipc_send`, `rt_ipc_recv`) | Single-threaded only | Must call from actor context |
+| **Bus APIs** (`rt_bus_publish`, `rt_bus_read`) | Single-threaded only | Must call from actor context |
+| **Timer APIs** (`rt_timer_after`, `rt_timer_every`) | Single-threaded only | Must call from actor context |
+| **File APIs** (`rt_file_read`, `rt_file_write`) | Single-threaded only | Must call from actor context |
+| **Network APIs** (`rt_net_recv`, `rt_net_send`) | Single-threaded only | Must call from actor context |
 
-**Allowed operations (scheduler thread ONLY):**
-- Mutate actor state (spawn, exit, state transitions)
-- Mutate mailboxes (enqueue/dequeue messages, link/monitor notifications)
-- Mutate bus state (publish, subscribe, read)
-- Call **ANY** runtime API:
-  - `rt_ipc_send()`, `rt_ipc_recv()`, `rt_ipc_release()`
-  - `rt_spawn()`, `rt_spawn_ex()`, `rt_exit()`, `rt_yield()`
-  - `rt_bus_create()`, `rt_bus_publish()`, `rt_bus_subscribe()`, `rt_bus_read()`
-  - `rt_link()`, `rt_monitor()`, `rt_unlink()`, `rt_demonitor()`
-  - `rt_timer_after()`, `rt_timer_every()`, `rt_timer_cancel()`
-  - `rt_file_*()`, `rt_net_*()` (request submission only, blocking handled via SPSC)
-- Process I/O completions from SPSC queues
-- Access/modify pools (actor table, message pool, mailbox pool, timer pool, etc.)
+**Forbidden from:**
+- Signal handlers (not reentrant)
+- Interrupt service routines (ISRs on embedded systems)
+- External threads (no locking/atomics implemented)
 
-**Forbidden operations:**
-- None (scheduler thread has full access to all runtime state)
+### External Thread Communication Pattern
 
-**Implementation:** All actor code runs in the scheduler thread. When an actor calls `rt_ipc_send()`, it executes in the scheduler thread context.
+**Problem:** External threads cannot call runtime APIs directly (no thread safety layer).
 
----
-
-#### **BOUNDARY 2: I/O Threads/Tasks (Completion-Only)**
-
-**Contract:** I/O threads/tasks may **ONLY** push completion entries to SPSC queues and signal scheduler wakeup. They **CANNOT** access runtime state.
-
-**Allowed operations (I/O threads ONLY):**
-1. **Push to SPSC completion queue:**
-   - `rt_spsc_push(&g_timer.completion_queue, &completion)`
-   - `rt_spsc_push(&g_file_io.completion_queue, &completion)`
-   - `rt_spsc_push(&g_net_io.completion_queue, &completion)`
-
-2. **Signal scheduler wakeup primitive:**
-   - `rt_scheduler_wakeup_signal()` (posts to eventfd/semaphore)
-
-3. **Access own I/O subsystem state:**
-   - Timer thread: Access timer list (via mutex)
-   - File thread: Process file I/O requests
-   - Network thread: Process socket operations
-
-**Forbidden operations (NEVER from I/O threads):**
-- Call runtime APIs: `rt_ipc_send()`, `rt_spawn()`, `rt_bus_publish()`, etc. (**NOT THREAD-SAFE**)
-- Access actor state directly (actor table, actor structs)
-- Access mailboxes directly (enqueue/dequeue)
-- Access bus state directly (ring buffers, subscriber lists)
-- Access pools directly (message pool, mailbox pool) except via completion queue mechanism
-
-**Rationale:** I/O threads exist solely to offload blocking operations (file I/O, network I/O, timer waits). They communicate results back to the scheduler via lock-free SPSC queues. The scheduler thread processes completions and updates runtime state accordingly.
-
-**Implementation:**
-- Timer worker thread: Waits on `timerfd` / `epoll`, pushes timer tick completions
-- File I/O worker thread: Processes file read/write requests, pushes completions
-- Network I/O worker thread: Processes socket operations, pushes completions
-
----
-
-#### **BOUNDARY 3: External Threads (Forbidden)**
-
-**Contract:** External threads **CANNOT** call runtime APIs. Communication with actors requires platform-specific mechanisms.
-
-**Allowed operations:**
-- None (no direct runtime API access)
-
-**Forbidden operations (NEVER from external threads):**
-- Call **ANY** runtime API:
-  - `rt_ipc_send()` (**NOT THREAD-SAFE** - no locking/atomics implemented)
-  - `rt_spawn()`, `rt_bus_publish()`, etc. (all forbidden)
-- Access runtime state in any way
-
-**Workaround for external thread communication:**
-- Use platform-specific IPC mechanisms (sockets, pipes, shared memory queues)
-- Have a dedicated **reader actor** that blocks on the external mechanism
-- External thread writes to socket/pipe -> reader actor receives via `rt_net_recv()` or `rt_file_read()` -> actor forwards to other actors via `rt_ipc_send()`
-
-**Design decision:** External threads are **NOT** supported for direct message passing. Adding thread-safe `rt_ipc_send()` would require:
-- Mutex/atomic protection on mailbox enqueue (contention in hot path)
-- Mutex/atomic protection on message pool allocation
-- Loss of deterministic behavior (priority inversion, lock contention)
-- Incompatible with safety-critical requirements
-
-**Alternative for multi-producer scenarios:** Use network/file I/O with dedicated reader actors instead of direct API calls.
-
----
-
-### Summary: Thread Boundary Rules
-
-| Thread Type | Mutate Runtime State? | Call Runtime APIs? | Push SPSC? | Access Actor/Mailbox/Bus? |
-|-------------|----------------------|-------------------|-----------|--------------------------|
-| **Scheduler** | YES (exclusive owner) | YES (all APIs) | YES (pop completions) | YES (exclusive access) |
-| **I/O threads** | NO | NO (forbidden) | YES (push completions) | NO (forbidden) |
-| **External threads** | NO | NO (forbidden) | NO | NO (forbidden) |
-
-### Synchronization Primitives
-
-The runtime uses minimal synchronization:
-
-- **SPSC queues:** Lock-free atomic head/tail for I/O completion queues
-- **Scheduler wakeup:** Single eventfd (Linux) or semaphore (FreeRTOS) for I/O->scheduler signaling
-- **Timer list:** Mutex-protected (accessed by both timer thread and scheduler thread for timer management)
-- **Logging:** Mutex-protected (optional, not part of core runtime)
-
-**No locks in hot paths:** Mailboxes, actor state, bus state, and message passing require no locks because they are accessed only by the scheduler thread.
-
-### Rationale
-
-This single-threaded model provides:
-
-- **Simplicity:** No lock ordering, no deadlock, easier to reason about
-- **Determinism:** No lock contention, predictable execution
-- **Performance:** No lock overhead in message passing or scheduling
-- **Safety-critical compliance:** Deterministic behavior, no priority inversion from locks
-
-The cooperative scheduling model ensures actors yield explicitly, so there are no race conditions within the runtime itself.
-
-### Consequences and Usage Patterns
-
-**Valid patterns (allowed by boundary contracts):**
+**Solution:** Use platform-specific IPC mechanisms with a dedicated reader actor:
 
 ```c
-// VALID: Actor calling runtime APIs (BOUNDARY 1: scheduler thread)
-void my_actor(void *arg) {
-    rt_ipc_send(other_actor, &data, sizeof(data), IPC_ASYNC);  // OK
-    actor_id new_actor = rt_spawn(worker, NULL);               // OK
-    rt_bus_publish(bus, &event, sizeof(event));               // OK
-}
-
-// VALID: I/O thread posting completion (BOUNDARY 2: completion-only)
-void timer_worker_thread(void) {
-    // Wait for timer expiry...
-    timer_completion comp = {...};
-    rt_spsc_push(&g_timer.completion_queue, &comp);  // OK (BOUNDARY 2 allows)
-    rt_scheduler_wakeup_signal();                    // OK (BOUNDARY 2 allows)
-}
-
-// VALID: External thread -> socket -> reader actor (BOUNDARY 3 workaround)
-// External thread:
+// External thread writes to socket/pipe
 void external_producer(void) {
     int sock = connect_to_actor_socket();
-    write(sock, data, len);  // OK (platform-specific IPC)
+    write(sock, data, len);  // Platform IPC, not runtime API
 }
 
-// Reader actor:
+// Dedicated reader actor bridges external thread -> actors
 void socket_reader_actor(void *arg) {
     int sock = listen_and_accept();
     while (1) {
-        rt_net_recv(sock, buf, len, &received, -1);  // OK (scheduler thread)
-        rt_ipc_send(worker, buf, received, IPC_ASYNC); // OK (scheduler thread)
+        size_t received;
+        rt_net_recv(sock, buf, len, &received, -1);  // Blocks in event loop
+        rt_ipc_send(worker, buf, received, IPC_ASYNC);  // Forward to actors
     }
 }
 ```
 
-**Invalid patterns (violate boundary contracts):**
+This pattern is safe because:
+- External thread only touches OS-level socket (thread-safe by OS)
+- `rt_net_recv()` executes in scheduler thread (actor context)
+- `rt_ipc_send()` executes in scheduler thread (actor context)
+- No direct runtime state access from external thread
 
-```c
-// INVALID: External thread calling runtime API (violates BOUNDARY 3)
-void external_thread(void) {
-    rt_ipc_send(actor, &data, sizeof(data), IPC_ASYNC);  // FORBIDDEN
-    // ERROR: No locking/atomics, NOT THREAD-SAFE, will corrupt mailbox!
-}
+### Synchronization Primitives
 
-// INVALID: I/O thread calling runtime API (violates BOUNDARY 2)
-void file_worker_thread(void) {
-    rt_spawn(actor, NULL);           // FORBIDDEN (violates BOUNDARY 2)
-    rt_ipc_send(actor, &data, len);  // FORBIDDEN (violates BOUNDARY 2)
-    // ERROR: I/O threads may ONLY push SPSC completions, not mutate runtime state!
-}
+The runtime uses **zero synchronization primitives** in the core event loop:
 
-// INVALID: I/O thread accessing actor state directly (violates BOUNDARY 2)
-void net_worker_thread(void) {
-    actor *a = rt_actor_get(id);     // FORBIDDEN (direct state access)
-    a->state = ACTOR_STATE_READY;    // FORBIDDEN (mutation from wrong thread)
-    // ERROR: Only scheduler thread may access/mutate actor state!
-}
-```
+- **No mutexes** - single thread, no contention
+- **No atomics** - single writer/reader per data structure
+- **No condition variables** - event loop uses epoll/select for waiting
+- **No locks** - mailboxes, actor state, bus state accessed only by scheduler thread
 
-**Key takeaway:** If you have external threads that need to communicate with actors, use **platform-specific IPC** (sockets, pipes, shared memory) with a **dedicated reader actor** that calls `rt_net_recv()` or `rt_file_read()` to bridge the boundary.
+**Optional synchronization** (not part of hot path):
+- **Logging:** No synchronization needed (single-threaded)
+
+### Rationale
+
+This pure single-threaded model provides:
+
+- **Maximum simplicity:** No lock ordering, no deadlock, trivial to reason about
+- **Maximum determinism:** No lock contention, no priority inversion, reproducible execution
+- **Maximum performance:** Zero lock overhead, no cache line bouncing, no atomic operations
+- **Safety-critical compliance:** Fully deterministic behavior, no threading edge cases
+- **Portability:** Works on platforms without pthread support
+
+**Trade-off:** Cannot leverage multiple CPU cores for I/O parallelism. This is acceptable for embedded systems (typically single-core) and simplifies the implementation dramatically.
+
+### Event Loop Architecture
+
+**Linux:**
+- Timers: `timerfd` registered in `epoll`
+- Network: Non-blocking sockets registered in `epoll`
+- File: Direct synchronous I/O (regular files don't work with epoll anyway)
+- Event loop: `epoll_wait()` blocks when no actors runnable
+
+**FreeRTOS:**
+- Timers: FreeRTOS software timers or hardware timer interrupts
+- Network: lwIP with `select()`
+- File: Direct synchronous I/O (FATFS/littlefs are fast, <1ms typically)
+- Event loop: Queue sets or `select()` blocks when no actors runnable
+
+**Key insight:** Modern OSes provide non-blocking I/O mechanisms (epoll, kqueue, IOCP) that eliminate the need for worker threads. The event loop pattern is standard in async runtimes (Node.js, Tokio, libuv, asyncio).
 
 ## Memory Model
 
@@ -404,7 +313,7 @@ The runtime uses static allocation for deterministic behavior and suitability fo
   - Bus entries: Pre-allocated array of `RT_MAX_BUS_ENTRIES` (64) per bus
   - Bus subscribers: Pre-allocated array of `RT_MAX_BUS_SUBSCRIBERS` (32) per bus
   - Entry data: Uses shared message pool
-- **Completion queues:** Static buffers of `RT_COMPLETION_QUEUE_SIZE` (64) for each I/O subsystem
+- **I/O sources:** Pool of `io_source` structures for tracking pending I/O operations in the event loop
 
 **Memory Footprint (typical configuration):**
 - Static data (BSS): ~231KB (measured with default configuration)
@@ -414,9 +323,7 @@ The runtime uses static allocation for deterministic behavior and suitability fo
   - Link/monitor pools: 256 entries × ~16 bytes = 4 KB
   - Timer pool: 64 entries × ~40 bytes = 2.5 KB
   - Bus tables: 32 buses × ~3 KB each = 96 KB
-  - Completion queues: 3 subsystems × (request + completion buffers) = variable
-    - Each subsystem has 2 buffers (request + completion) of RT_COMPLETION_QUEUE_SIZE (64) entries
-    - Entry sizes vary by subsystem (net_request/net_completion, file_request/file_completion, timer_request/timer_completion)
+  - I/O source pool: Small pool for tracking pending operations in event loop (typically ~64 entries × ~64 bytes = 4 KB)
   - Note: Actual size includes alignment padding and internal structures
 - Dynamic (heap): Variable actor stacks only
   - Example: 20 actors × 32KB average = 640 KB
@@ -849,9 +756,9 @@ See "Pool Exhaustion Behavior" section below for mitigation strategies and examp
 
 **Timer messages interleaving with IPC:**
 - Timer messages use the **same mailbox** as regular IPC messages
-- Timer messages are enqueued to tail when scheduler processes timer completions
+- Timer messages are enqueued to tail when the event loop processes timer events (epoll returns timerfd ready)
 - **No bypass, no special priority** - timers follow FIFO with other messages
-- Interleave based on when `rt_timer_process_completions()` runs relative to other sends
+- Interleave based on when the event loop dispatches timer events relative to other sends
 - Example: If actor receives IPC message M1, then timer fires, then IPC message M2, mailbox order is M1 -> timer_tick -> M2
 
 **System messages (actor death notifications):**
@@ -917,7 +824,7 @@ void actor_with_timer(void *arg) {
 
 1. **Actor context only**: SYNC can ONLY be used from actor context
    - OK: From actor's main function
-   - FORBIDDEN: From I/O worker threads
+   - FORBIDDEN: From event loop callbacks (timer/network event handlers)
    - FORBIDDEN: From interrupt contexts (signal handlers, ISRs)
 
 2. **Sender blocks until release**: Sender cannot process other messages while waiting
@@ -1540,7 +1447,7 @@ All functions with `timeout_ms` parameter support **timeout enforcement**:
 
 **Timeout implementation:** Uses timer-based enforcement (consistent with `rt_ipc_recv`). When timeout expires, a timer message wakes the actor and `RT_ERR_TIMEOUT` is returned. This is essential for handling unreachable hosts, slow connections, and implementing application-level keepalives.
 
-On blocking calls, the actor yields to the scheduler. The I/O thread handles the actual operation and posts completion to the scheduler's completion queue.
+On blocking calls, the actor yields to the scheduler. The scheduler's event loop registers the I/O operation with the platform's event notification mechanism (epoll on Linux, queue sets on FreeRTOS) and dispatches the operation when the socket becomes ready.
 
 ## File API
 
@@ -1581,14 +1488,13 @@ All resource limits are defined at compile-time and require recompilation to cha
 #define RT_LINK_ENTRY_POOL_SIZE 128         // Link entry pool
 #define RT_MONITOR_ENTRY_POOL_SIZE 128      // Monitor entry pool
 #define RT_TIMER_ENTRY_POOL_SIZE 64         // Timer entry pool
-#define RT_COMPLETION_QUEUE_SIZE 64         // I/O completion queue size
 #define RT_DEFAULT_STACK_SIZE 65536         // Default actor stack size
 ```
 
 All runtime structures are **statically allocated** based on these limits. Actor stacks use a static arena allocator by default (configurable via `actor_config.malloc_stack` for malloc). This ensures:
 - Deterministic memory footprint (calculable at link time)
 - Zero heap allocation in runtime operations (see Heap Usage Policy)
-- O(1) pool allocation for hot paths (scheduling, IPC, I/O completions); O(n) bounded arena allocation for cold paths (spawn/exit)
+- O(1) pool allocation for hot paths (scheduling, IPC); O(n) bounded arena allocation for cold paths (spawn/exit)
 - Suitable for embedded/MCU deployment
 
 ### Runtime API
@@ -1605,41 +1511,6 @@ void rt_shutdown(void);
 
 // Cleanup runtime resources (call after rt_run completes)
 void rt_cleanup(void);
-```
-
-## Completion Queue
-
-Lock-free SPSC (Single Producer Single Consumer) queue for I/O completions.
-
-Each I/O subsystem (net, file, timer) has its own completion queue. The I/O thread is the producer, the scheduler is the consumer.
-
-**Memory allocation contract:** SPSC queues use **caller-provided static buffers** and never allocate memory. The `buffer` parameter to `rt_spsc_init()` must point to pre-allocated storage (static array or arena). `rt_spsc_destroy()` does not free the buffer (caller owns it).
-
-```c
-typedef struct {
-    void           *buffer;       // Ring buffer (caller-provided, never allocated by runtime)
-    size_t          entry_size;
-    size_t          capacity;     // must be power of 2
-    atomic_size_t   head;         // written by producer
-    atomic_size_t   tail;         // written by consumer
-} rt_spsc_queue;
-
-// Initialize SPSC queue with pre-allocated buffer
-// buffer: Caller-provided storage, must be at least (entry_size * capacity) bytes
-// capacity: Must be power of 2
-// Returns: RT_SUCCESS or RT_ERR_INVALID if capacity is not power of 2
-// NEVER allocates memory
-rt_status rt_spsc_init(rt_spsc_queue *q, void *buffer, size_t entry_size, size_t capacity);
-
-// Destroy SPSC queue (does NOT free buffer - caller owns it)
-void      rt_spsc_destroy(rt_spsc_queue *q);
-
-// Producer (I/O thread)
-bool rt_spsc_push(rt_spsc_queue *q, const void *entry);
-
-// Consumer (scheduler)
-bool rt_spsc_pop(rt_spsc_queue *q, void *entry_out);
-bool rt_spsc_peek(rt_spsc_queue *q, void *entry_out);
 ```
 
 ## Actor Death Handling
@@ -1729,118 +1600,128 @@ Pseudocode for the scheduler:
 
 ```
 procedure rt_run():
-    while not shutdown_requested and actors_alive > 0:
-        # 1. Process I/O completions
-        process_net_completions()
-        process_file_completions()
-        process_timer_completions()
+    epoll_fd = epoll_create1(0)
 
-        # 2. Pick highest-priority runnable actor
+    while not shutdown_requested and actors_alive > 0:
+        # 1. Pick highest-priority runnable actor
         actor = pick_next_runnable()
 
         if actor exists:
-            # 3. Context switch to actor
+            # 2. Context switch to actor
             current_actor = actor
             context_switch(scheduler_ctx, actor.ctx)
             # Returns here when actor yields/blocks
 
         else:
-            # 4. No runnable actors, wait for I/O
-            wait_for_completions()
+            # 3. No runnable actors, wait for I/O events
+            events = epoll_wait(epoll_fd, timeout=-1)
+
+            # 4. Dispatch I/O events
+            for event in events:
+                source = event.data.ptr
+                if source.type == TIMER:
+                    send_timer_tick(source.owner)
+                    wake_actor(source.owner)
+                elif source.type == NETWORK:
+                    perform_io_operation(source)
+                    wake_actor(source.owner)
 ```
 
-## Scheduler Wakeup Mechanism
+## Event Loop Architecture
 
-When all actors are blocked on I/O, the scheduler must efficiently wait for I/O completions rather than busy-polling. The runtime uses a **single shared wakeup primitive** that all I/O threads signal when posting completions.
+When all actors are blocked on I/O, the scheduler waits efficiently for I/O events using platform-specific event notification mechanisms.
 
 ### Implementation
 
-**Linux (eventfd):**
+**Linux (epoll):**
 ```c
-// Single eventfd shared by all I/O threads
-int wakeup_fd = eventfd(0, EFD_SEMAPHORE);
+// Scheduler event loop
+int epoll_fd = epoll_create1(0);
 
-// I/O thread posts completion
-rt_spsc_push(&completion_queue, &completion);
-eventfd_write(wakeup_fd, 1);  // Wake scheduler
+// Timer creation - add timerfd to epoll
+int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+timerfd_settime(tfd, 0, &its, NULL);
+struct epoll_event ev = {.events = EPOLLIN, .data.ptr = timer_source};
+epoll_ctl(epoll_fd, EPOLL_CTL_ADD, tfd, &ev);
 
-// Scheduler waits when idle
+// Network I/O - add socket to epoll when would block
+int sock = socket(AF_INET, SOCK_STREAM, 0);
+fcntl(sock, F_SETFL, O_NONBLOCK);
+struct epoll_event ev = {.events = EPOLLIN, .data.ptr = net_source};
+epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock, &ev);
+
+// Scheduler waits when no actors are ready
 if (no_runnable_actors) {
-    eventfd_read(wakeup_fd, &val);  // Block until I/O completion
+    struct epoll_event events[64];
+    int n = epoll_wait(epoll_fd, events, 64, -1);
+    for (int i = 0; i < n; i++) {
+        io_source *source = events[i].data.ptr;
+        dispatch_io_event(source);  // Handle timer tick or network I/O
+    }
 }
 ```
 
-**FreeRTOS (binary semaphore):**
+**FreeRTOS (queue sets or timer callbacks):**
 ```c
-// Single semaphore shared by all I/O threads
-SemaphoreHandle_t wakeup_sem = xSemaphoreCreateBinary();
+// Option 1: Queue sets
+QueueSetHandle_t queue_set = xQueueCreateSet(64);
+xQueueAddToSet(timer_queue, queue_set);
+xQueueAddToSet(net_queue, queue_set);
 
-// I/O task posts completion
-rt_spsc_push(&completion_queue, &completion);
-xSemaphoreGiveFromISR(wakeup_sem, &higher_prio_woken);  // Wake scheduler
-
-// Scheduler waits when idle
+// Scheduler waits when no actors are ready
 if (no_runnable_actors) {
-    xSemaphoreTake(wakeup_sem, portMAX_DELAY);  // Block until I/O completion
+    QueueSetMemberHandle_t active = xQueueSelectFromSet(queue_set, portMAX_DELAY);
+    if (active == timer_queue) {
+        handle_timer_event();
+    } else if (active == net_queue) {
+        handle_network_event();
+    }
+}
+
+// Option 2: Software timer callbacks post to scheduler queue
+TimerHandle_t timer = xTimerCreate(..., timer_callback, ...);
+void timer_callback(TimerHandle_t h) {
+    xQueueSendFromISR(scheduler_queue, &event, NULL);
 }
 ```
 
 ### Semantics
 
-- **Blocks the entire runtime task**: When no actors are runnable, the scheduler blocks on the wakeup primitive
-- **Multiple producers**: File, network, and timer threads all signal the same primitive
-- **Simple SPSC queues**: Each I/O subsystem has its own completion queue (no queue sets needed)
-- **Signal after push**: I/O threads always signal after pushing completion (at most one extra wakeup per I/O operation)
-- **Check all queues**: When woken, scheduler checks all three completion queues (file, net, timer)
+- **Single-threaded event loop**: All I/O is multiplexed in the scheduler thread
+- **Non-blocking I/O registration**: Timers create timerfds, network operations register sockets with epoll
+- **Event dispatching**: epoll_wait returns when any I/O source becomes ready
+- **Immediate handling**: Timer ticks and network I/O are processed immediately when ready
 
-### Wakeup Guarantees
+### Event Loop Guarantees
 
-The scheduler provides the following guarantees to prevent lost wakeups and ensure correctness:
-
-**Queue draining:**
-- Scheduler **always drains all completion queues until empty** after wakeup
-- Processes all pending completions before re-entering wait state
-- No completions are lost even if multiple arrive before wakeup
+**Event processing order:**
+- epoll returns events in **kernel order** (arrival-dependent, not guaranteed FIFO)
+- All returned events are processed before next epoll_wait
+- No I/O events are lost
 
 **Spurious wakeup handling:**
-- Scheduler handles spurious wakeups correctly (wakes with no actual completions)
-- Checks all queues, finds them empty, returns to wait state
-- No correctness impact, minimal performance cost
+- epoll_wait may return 0 events (rare)
+- Scheduler handles correctly, immediately re-enters wait
+- No correctness impact
 
-**Coalesced wakeup handling:**
-- Multiple signals may be coalesced into single wakeup (eventfd/semaphore behavior)
-- Example: 3 I/O completions -> 3 signals -> 1 wakeup -> scheduler drains all 3
-- Signal coalescing is correct because scheduler drains until empty
-- No lost work: all completions processed regardless of signal count
+**Lost event prevention:**
+- Timerfds are level-triggered (fire until read)
+- Sockets are level-triggered by default (readable until read)
+- epoll guarantees: if I/O is ready, epoll_wait will return it
 
-**Lost wakeup prevention:**
-- I/O threads: Push to queue **then** signal (ordering critical)
-- Scheduler: Check queues **before** wait (race prevention)
-- Producer writes entry then advances head (release). Consumer reads head (acquire) then reads entry
-- Pattern guarantees: if completion exists, scheduler will process it
-
-**Determinism:**
-- **Deterministic policy**:
-  - Within each queue: FIFO order preserved (matches I/O thread posting order)
-  - Across queues: Fixed processing order (file -> net -> timer)
-  - Each queue drained fully before processing next queue
-  - **Rationale for file -> net -> timer order**: Timers are processed last because timer ticks are periodic/expected events with slack tolerance, whereas file/network completions represent external data arrival requiring prompt processing to avoid backpressure; applications needing timer-first priority can spawn high-priority timer-handling actors
-- Runtime wakeup mechanism does not introduce nondeterminism beyond external event timing
-- External factors (I/O timing, timer jitter, ISR scheduling) may cause different completion orderings across runs
-- Given the same event arrival sequence, scheduler makes identical decisions
+**File I/O blocking:**
+- File operations (read, write, fsync) are **synchronous** and block the scheduler briefly
+- On embedded systems: FATFS/littlefs operations are fast (< 1ms typical)
+- On Linux dev: Acceptable for development workloads
+- No async file I/O infrastructure (io_uring deferred for simplicity)
 
 ### Advantages
 
-- **Simple**: Single primitive, ~10 lines of code, no epoll/queue-set complexity
-- **Efficient**: No CPU waste, blocks efficiently until I/O
-- **Portable**: Maps cleanly to eventfd (Linux) and semaphore (FreeRTOS)
-- **Low overhead**: One syscall per I/O completion (eventfd write)
-
-### Alternative Approaches Considered
-
-- **Polling with sleep**: Wastes CPU, adds latency (original implementation)
-- **epoll + multiple eventfds**: More complex, no benefit for this use case
-- **Queue sets (FreeRTOS)**: Unnecessary complexity, single semaphore works fine
+- **Standard pattern**: Used by Node.js, Tokio, libuv, asyncio
+- **Single-threaded**: No synchronization, no race conditions
+- **Efficient**: Kernel wakes scheduler only when I/O is ready
+- **Portable**: epoll (Linux), kqueue (BSD/macOS), queue sets (FreeRTOS)
+- **Low overhead**: No context switches between threads, no queue copies
 
 ## Platform Abstraction
 
@@ -1849,12 +1730,10 @@ The runtime abstracts platform-specific functionality:
 | Component | Linux (dev) | FreeRTOS (prod) |
 |-----------|-------------|-----------------|
 | Context switch | x86-64 asm | ARM Cortex-M asm |
-| I/O threads | pthreads | FreeRTOS tasks |
-| Completion queue | SPSC with atomics | SPSC with atomics |
-| Scheduler wakeup | eventfd | Binary semaphore |
-| Timer | timerfd | FreeRTOS timer or hardware timer |
-| Network | BSD sockets | lwIP |
-| File | POSIX | FATFS or littlefs |
+| Event notification | epoll | Queue sets or software timers |
+| Timer | timerfd + epoll | FreeRTOS software timers |
+| Network | Non-blocking BSD sockets + epoll | lwIP + queue notifications |
+| File | Synchronous POSIX | Synchronous FATFS or littlefs |
 
 ## Stack Overflow
 
