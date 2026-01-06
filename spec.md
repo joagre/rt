@@ -136,9 +136,10 @@ When an actor calls a blocking API, the following contract applies:
 - Late completions (after timeout) are discarded
 
 **Determinism guarantee:**
-- Blocking is deterministic: same inputs always produce same wakeup ordering
+- **Deterministic policy**: Given the same sequence of completion events and runnable-set transitions, scheduling decisions are deterministic
+- Runtime does not introduce nondeterminism beyond external event arrival order (I/O timing, timer jitter, ISR scheduling)
 - No phantom wakeups (actor only unblocks on specified conditions)
-- Scheduler guarantees fair wakeup ordering (FIFO within priority level)
+- Scheduler guarantees fair wakeup ordering (FIFO within priority level for same-priority actors)
 
 ### Priority Levels
 
@@ -1651,9 +1652,10 @@ The scheduler provides the following guarantees to prevent lost wakeups and ensu
 - Pattern guarantees: if completion exists, scheduler will process it
 
 **Determinism:**
-- Wakeup order is deterministic (FIFO queue processing)
-- Completion processing order matches I/O thread posting order
-- No non-deterministic races between wakeup and completion visibility
+- **Deterministic policy**: Queue processing order is FIFO (matches I/O thread posting order)
+- Runtime wakeup mechanism does not introduce nondeterminism beyond external event timing
+- External factors (I/O timing, timer jitter, ISR scheduling) may cause different completion orderings across runs
+- Given the same event arrival sequence, scheduler makes identical decisions
 
 ### Advantages
 
