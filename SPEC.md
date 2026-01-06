@@ -152,19 +152,31 @@ For each event:
 - **Timer event (timerfd)**: Read timerfd, send timer tick message to actor's mailbox, wake actor
 - **Network event (socket)**: Perform I/O operation, store result in actor's `io_status`, wake actor
 
-All events are processed before any actor runs. This ensures the actor sees a consistent state.
+**Event drain timing (Option A semantics):**
+- If runnable actors exist, they run immediately (no `epoll_wait` call)
+- `epoll_wait` is only called when the run queue is empty
+- All events from a single `epoll_wait` call are drained before selecting the next actor
+- This minimizes latency for already-runnable actors at the cost of potentially delayed I/O event processing
 
-**Timeout vs I/O readiness - no race:**
+**Timeout vs I/O readiness - request state machine:**
 
-Timeouts and I/O readiness do not "race" in the traditional sense. They are **sequenced** by the event loop:
+Each blocking network request has an implicit state: `PENDING` → `COMPLETED` or `TIMED_OUT`.
 
-- If I/O becomes ready **before** timeout expires: Only network event fires, actor receives data
-- If timeout expires **before** I/O ready: Only timer event fires, actor receives timeout error
-- If both fire in the **same** `epoll_wait()` call: Both are processed, actor sees both I/O result and timer message
+**State transitions:**
+- Request starts in `PENDING` when actor blocks on network I/O with timeout
+- First event processed transitions state out of `PENDING`; subsequent events for same request are **ignored without side effects**
 
-In the simultaneous case, the actor's wakeup handler checks for timeout by examining the mailbox head. If the timer message is present, timeout is reported. The I/O result (if any) is discarded.
+**Tie-break rule (deadline check at wake time):**
+- When actor wakes, check: `now >= deadline`?
+- If yes: state = `TIMED_OUT`, return `RT_ERR_TIMEOUT`, **do not perform I/O even if socket is ready**
+- If no: state = `COMPLETED`, perform I/O operation, return result
 
-**Note:** This is "first-processed wins" semantics based on epoll array order. For most practical scenarios (I/O ready well before or well after timeout), this distinction is irrelevant.
+**Rationale:** This avoids the "read data then discard" oddity. The deadline check is deterministic and independent of epoll event ordering.
+
+**Concrete behavior:**
+- If I/O ready **before** timeout: Actor wakes, deadline not reached, I/O performed, success
+- If timeout **before** I/O ready: Actor wakes, deadline reached, return timeout (no I/O attempted)
+- If both fire in **same** `epoll_wait()`: Actor wakes, deadline check determines outcome (I/O not performed if timed out)
 
 **Request serialization (network I/O only):**
 - Applies to: `rt_net_accept()`, `rt_net_connect()`, `rt_net_recv()`, `rt_net_send()` with timeouts
@@ -185,8 +197,8 @@ The runtime provides **conditional determinism**, not absolute determinism:
 - **Consequence**: If multiple FDs become ready simultaneously, their processing order is kernel-dependent
 - **What we guarantee**:
   - No phantom wakeups (actor only unblocks on specified conditions)
-  - FIFO ordering among actors enqueued in the same scheduling phase
   - Consistent policy (same input → same output)
+  - **Concrete wake ordering rule**: When processing I/O events from a single `epoll_wait` call, actors made ready are appended to their priority run queues in event processing order. Within a priority level, the run queue is FIFO.
 - **What we do NOT guarantee**:
   - Deterministic ordering when multiple timers/sockets fire in the same epoll_wait call
   - Reproducible event dispatch order across kernel versions or system load conditions
@@ -201,8 +213,9 @@ File I/O operations (`rt_file_read()`, `rt_file_write()`, `rt_file_sync()`) are 
 - Calling actor does NOT transition to `ACTOR_STATE_BLOCKED`
 - The scheduler event loop is paused during the syscall
 - All actors are stalled (no actor runs while file I/O executes)
-- Timers do not fire during the stall
+- Timer delivery is suspended during the stall (timerfd expirations accumulate in kernel)
 - Network events are not processed during the stall
+- After stall resumes: accumulated timer expirations are observed and delivered per tick-coalescing rules (one tick message regardless of expiration count)
 
 **Rationale:**
 - Regular files do not work with `epoll` on Linux (always report ready)
@@ -335,7 +348,7 @@ This pure single-threaded model provides:
 - Timers: `timerfd` registered in `epoll`
 - Network: Non-blocking sockets registered in `epoll`
 - File: Direct synchronous I/O (regular files don't work with epoll anyway)
-- Event loop: `epoll_wait()` with short timeout when no actors runnable (allows IPC/bus polling)
+- Event loop: `epoll_wait()` with bounded timeout (10ms) for defensive wakeup
 
 **STM32 (bare metal):**
 - Timers: Hardware timers (SysTick or TIM peripherals)
@@ -353,21 +366,27 @@ In NO_SYS mode, lwIP callbacks can occur from interrupt context. The runtime enf
 - **Rationale:** Runtime APIs are not reentrant; lwIP in NO_SYS mode is not ISR-safe for most operations
 
 ```c
-// ISR: minimal, flag-only
+// Separate flags per interrupt source (avoids RMW atomicity issues)
+volatile bool net_event_pending = false;
+volatile bool timer_event_pending = false;
+
+// ISR: minimal, single-word write (atomic on Cortex-M for aligned bool)
 void ETH_IRQHandler(void) {
     ETH_DMAClearITPendingBit(ETH_DMA_IT_R);  // Clear interrupt
-    pending_events |= EVENT_NETWORK;          // Set flag (atomic write)
+    net_event_pending = true;                 // Single store, no RMW
     // DO NOT call lwip_input() or runtime APIs here
 }
 
 // Scheduler: processes flags from non-ISR context
-if (pending_events & EVENT_NETWORK) {
+if (net_event_pending) {
     __disable_irq();
-    pending_events &= ~EVENT_NETWORK;
+    net_event_pending = false;
     __enable_irq();
     ethernetif_input(&netif);  // Safe: called from scheduler context
 }
 ```
+
+**Atomicity note:** Using separate `volatile bool` flags per interrupt source avoids the read-modify-write (`|=`) atomicity issue. On Cortex-M, aligned word writes are atomic, but `|=` is not atomic (it's load-or-store). Separate flags ensure the ISR performs only a single store.
 
 **Key insight:** Modern OSes provide non-blocking I/O mechanisms (epoll, kqueue, IOCP). On bare metal, hardware interrupts and WFI provide equivalent functionality. The event loop pattern is standard in async runtimes (Node.js, Tokio, libuv, asyncio).
 
@@ -407,20 +426,23 @@ The runtime uses static allocation for deterministic behavior and suitability fo
   - Entry data: Uses shared message pool
 - **I/O sources:** Pool of `io_source` structures for tracking pending I/O operations in the event loop
 
-**Memory Footprint (measured with default configuration):**
+**Memory Footprint (estimated, 64-bit Linux build, default configuration):**
+
+*Note: Exact sizes are toolchain-dependent. Values below are estimates under GCC on x86-64 Linux. Actual footprint varies with compiler, target architecture, and alignment requirements.*
+
 - Static data (BSS): ~1.2 MB total (includes 1 MB stack arena)
   - Stack arena: 1,048,576 bytes (1 MB, configurable via `RT_STACK_ARENA_SIZE`)
-  - Actor table: 64 actors × ~200 bytes = 12.8 KB
-  - Mailbox pool: 256 entries × ~43 bytes = 11 KB
+  - Actor table: 64 actors × ~200 bytes ≈ 12.8 KB
+  - Mailbox pool: 256 entries × ~43 bytes ≈ 11 KB
   - Message pool: 256 entries × 256 bytes = 64 KB
   - Sync buffer pool: 64 entries × 256 bytes = 16 KB
-  - Link/monitor pools: 256 entries × ~18 bytes = 4.5 KB
-  - Timer pool: 64 entries × ~66 bytes = 4.2 KB
-  - Bus tables: 32 buses × ~2.9 KB each = 91 KB
-  - I/O source pool: 128 entries × ~42 bytes = 5.3 KB
+  - Link/monitor pools: 256 entries × ~18 bytes ≈ 4.5 KB
+  - Timer pool: 64 entries × ~66 bytes ≈ 4.2 KB
+  - Bus tables: 32 buses × ~2.9 KB each ≈ 91 KB
+  - I/O source pool: 128 entries × ~42 bytes ≈ 5.3 KB
 - Without stack arena: ~208 KB
 
-**Total:** ~1.2 MB static (calculable at link time, no heap allocation with default arena)
+**Total:** ~1.2 MB static (calculable at link time via `size` command; no heap allocation with default arena)
 
 **Benefits:**
 
@@ -458,6 +480,14 @@ Convenience macros:
 ```c
 #define RT_SUCCESS ((rt_status){RT_OK, NULL})
 #define RT_FAILED(s) ((s).code != RT_OK)
+#define RT_ERROR(code, msg) ((rt_status){(code), (msg)})
+```
+
+Usage example:
+```c
+if (len > RT_MAX_MESSAGE_SIZE) {
+    return RT_ERROR(RT_ERR_INVALID, "Message too large");
+}
 ```
 
 ## Design Trade-offs and Sharp Edges
@@ -745,10 +775,15 @@ The lifetime of `rt_message.data` depends on the send mode:
 **IPC_ASYNC:**
 
 **CRITICAL LIFETIME RULE:**
-- **Data is ONLY valid until the next `rt_ipc_recv()` call**
+- **Data is ONLY valid until the next *successful* `rt_ipc_recv()` call**
 - **Per actor: only ONE message payload pointer is valid at a time**
 - **Storing `msg.data` across receive iterations causes use-after-free**
 - **If you need the data later, COPY IT IMMEDIATELY**
+
+**Failed recv does NOT invalidate:**
+- If `rt_ipc_recv()` returns `RT_ERR_TIMEOUT` or `RT_ERR_WOULDBLOCK`, the previous message buffer remains valid
+- Only a *successful* recv (returns `RT_SUCCESS` with a new message) invalidates the previous pointer
+- Other runtime calls (timers, bus, network) do NOT affect IPC_ASYNC buffer validity
 
 **Correct pattern (copy immediately if needed):**
 ```c
@@ -1077,13 +1112,19 @@ size_t rt_ipc_count(void);
 
 **`rt_ipc_release()` semantics:**
 - Takes `const rt_message *` because release state is stored in actor context, not in the message
-- **Safe no-op** in edge cases:
+- **Safe no-op** in edge cases (release builds):
   - If `msg` is NULL: returns silently
   - If called outside actor context: returns silently
   - If `msg->sender` is not a blocked SYNC sender waiting on this actor: no effect
   - If message was ASYNC (not SYNC): no effect (no sender to unblock)
   - If already released or never received: no effect
 - Does not return status; callers need not check for errors
+
+**Debug build behavior (recommended):**
+- Define `RT_DEBUG` to enable assertions in edge cases
+- "Called outside actor context" triggers `assert()` failure
+- Helps catch bugs during development that silent no-ops would hide
+- Release builds retain no-op semantics for robustness
 
 **`rt_ipc_pending()` and `rt_ipc_count()` semantics:**
 - Query the **current actor's** mailbox only (actor-local operations)
@@ -1827,8 +1868,8 @@ procedure rt_run():
             # Returns here when actor yields/blocks
 
         else:
-            # 3. No runnable actors, wait for I/O events (short timeout for IPC/bus polling)
-            events = epoll_wait(epoll_fd, timeout=10ms)  # Returns 0 on timeout, -1/EINTR on signal
+            # 3. No runnable actors, wait for I/O events
+            events = epoll_wait(epoll_fd, timeout=10ms)  # Bounded timeout for defensive wakeup
 
             # 4. Dispatch I/O events
             for event in events:
@@ -1868,7 +1909,7 @@ epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock, &ev);
 // Scheduler waits when no actors are ready
 if (no_runnable_actors) {
     struct epoll_event events[64];
-    // Short timeout allows polling for actors made ready by IPC/bus (not epoll-based)
+    // Bounded timeout provides defensive wakeup (guards against lost events)
     int n = epoll_wait(epoll_fd, events, 64, 10);  // 10ms timeout
     if (n < 0 && errno == EINTR) continue;  // Signal interrupted, retry
     for (int i = 0; i < n; i++) {
@@ -1935,7 +1976,7 @@ if (no_runnable_actors) {
 
 **epoll_wait return handling:**
 - Returns > 0: Events ready, process them
-- Returns 0: Timeout expired (10ms), no events - scheduler retries (allows IPC/bus polling)
+- Returns 0: Timeout expired (10ms), no events - scheduler retries (defensive wakeup)
 - Returns -1 with `errno=EINTR`: Signal interrupted syscall - scheduler retries
 - Note: Runtime APIs are not reentrant - signal handlers must not call runtime APIs
 
