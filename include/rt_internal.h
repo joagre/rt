@@ -73,6 +73,10 @@ void rt_ipc_unblock_sender(actor_id sender_id, actor_id receiver_id);
 // Used by: IPC recv, timeout handling
 mailbox_entry *rt_ipc_dequeue_head(actor *a);
 
+// Actor crash handler (called when actor returns without rt_exit)
+// Sets RT_EXIT_CRASH and yields to scheduler - never returns
+_Noreturn void rt_exit_crash(void);
+
 // Event loop handlers (called by scheduler when I/O sources become ready)
 
 // Handle timer event (timerfd ready)

@@ -445,28 +445,55 @@ static void test11_multiple_spawns(void *arg) {
 }
 
 // ============================================================================
-// Test 12: Actor returns without calling rt_exit (crash)
-// NOTE: This tests crash detection which is NOT YET IMPLEMENTED.
-//       Currently, if an actor returns without rt_exit(), it hangs in an
-//       infinite loop (see rt_context.c). Since the scheduler is cooperative,
-//       the infinite loop blocks all other actors - so we can't actually
-//       spawn the crashing actor without hanging the test suite.
-//       This test documents expected behavior without actually running it.
+// Test 12: Actor returns without calling rt_exit (crash detection)
 // ============================================================================
+
+static void crashing_actor(void *arg) {
+    (void)arg;
+    // Deliberately return without calling rt_exit()
+    // This should be detected as RT_EXIT_CRASH
+}
 
 static void test12_actor_crash(void *arg) {
     (void)arg;
-    printf("\nTest 12: Actor returns without rt_exit (crash)\n");
-    printf("    NOTE: Crash detection NOT YET IMPLEMENTED\n");
-    printf("    Expected behavior: When actor returns without rt_exit(),\n");
-    printf("      - Runtime should detect this as RT_EXIT_CRASH\n");
-    printf("      - Linked actors should receive exit notification\n");
-    printf("      - Currently: Actor hangs in infinite loop (rt_context.c)\n");
+    printf("\nTest 12: Actor returns without rt_exit (crash detection)\n");
     fflush(stdout);
 
-    // Cannot actually test this without hanging the scheduler
-    // Just document the expected behavior
-    TEST_KNOWN_BUG("crash detection not implemented (see rt_context.c)");
+    actor_id crasher = rt_spawn(crashing_actor, NULL);
+    if (crasher == ACTOR_ID_INVALID) {
+        TEST_FAIL("failed to spawn crashing actor");
+        rt_exit();
+    }
+
+    rt_link(crasher);
+
+    // Wait for exit notification
+    rt_message msg;
+    rt_status status = rt_ipc_recv(&msg, 1000);
+    if (RT_FAILED(status)) {
+        printf("    recv failed: %s\n", status.msg ? status.msg : "unknown");
+        TEST_FAIL("did not receive exit notification");
+        rt_exit();
+    }
+
+    if (!rt_is_exit_msg(&msg)) {
+        TEST_FAIL("received non-exit message");
+        rt_exit();
+    }
+
+    rt_exit_msg exit_msg;
+    status = rt_decode_exit(&msg, &exit_msg);
+    if (RT_FAILED(status)) {
+        TEST_FAIL("failed to decode exit message");
+        rt_exit();
+    }
+
+    if (exit_msg.reason == RT_EXIT_CRASH) {
+        TEST_PASS("crash detected with RT_EXIT_CRASH");
+    } else {
+        printf("    exit reason: %d (expected RT_EXIT_CRASH=%d)\n", exit_msg.reason, RT_EXIT_CRASH);
+        TEST_FAIL("wrong exit reason");
+    }
 
     rt_exit();
 }

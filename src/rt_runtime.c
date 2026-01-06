@@ -163,6 +163,25 @@ _Noreturn void rt_exit(void) {
     abort();
 }
 
+_Noreturn void rt_exit_crash(void) {
+    actor *current = rt_actor_current();
+    if (current) {
+        RT_LOG_ERROR("Actor %u (%s) returned without calling rt_exit()",
+                     current->id, current->name ? current->name : "unnamed");
+
+        // Mark as crashed - linked/monitoring actors will be notified
+        current->exit_reason = RT_EXIT_CRASH;
+        current->state = ACTOR_STATE_DEAD;
+    }
+
+    // Yield back to scheduler and never return
+    rt_scheduler_yield();
+
+    // Should never reach here
+    RT_LOG_ERROR("rt_exit_crash: returned from scheduler yield");
+    abort();
+}
+
 actor_id rt_self(void) {
     actor *current = rt_actor_current();
     return current ? current->id : ACTOR_ID_INVALID;
