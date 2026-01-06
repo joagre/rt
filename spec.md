@@ -879,7 +879,7 @@ If receiver crashes or exits without releasing:
 - Principle of least surprise: sender is not stuck forever
 - **Important:** Sender does NOT receive notification of receiver death (unless explicitly linked/monitoring)
 
-**Semantic note:** Even on `RT_SUCCESS` (normal release), there is no guarantee the receiver processed the message. If the sender requires confirmation that the message was processed, it must use an explicit acknowledgment protocol (e.g., receiver sends reply after processing).
+**Semantic note:** `RT_SUCCESS` means receiver explicitly released (via `rt_ipc_release()` or auto-release), but does NOT guarantee the receiver processed the message successfully. `RT_ERR_CLOSED` means receiver died before releasing. If the sender requires confirmation that the message was processed correctly, it must use an explicit acknowledgment protocol (e.g., receiver sends reply after processing).
 
 Best practice: Design actors to always release sync messages, but receiver crashes are handled gracefully.
 
@@ -901,12 +901,11 @@ Best practice: Design actors to always release sync messages, but receiver crash
 
 2. **Receiver death while holding sync message:**
    - **Auto-release:** Sender is automatically unblocked during receiver's actor cleanup
-   - Sender's `rt_ipc_send()` returns `RT_SUCCESS` (no error, unblocked normally)
+   - Sender's `rt_ipc_send()` returns `RT_ERR_CLOSED` (receiver died, not normal release)
    - Message data no longer referenced by dead receiver
-   - Sender does NOT receive error or notification (already returned from send)
-   - **Sender cannot distinguish** receiver crash from normal processing completion
-   - Rationale: Principle of least surprise - sender not stuck forever
-   - **If sender requires confirmation:** Use explicit ack message or link/monitor the receiver
+   - **Sender CAN distinguish** receiver crash (RT_ERR_CLOSED) from normal release (RT_SUCCESS)
+   - Rationale: Honest failure reporting - don't lie to caller about receiver death
+   - Consistent with file/net I/O semantics (connection closed = error)
    - Tested: `tests/borrow_crash_test.c`
 
 3. **Sender death while blocked in SYNC:**
