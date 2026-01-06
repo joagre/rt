@@ -245,6 +245,7 @@ if (rt_is_exit_msg(&msg)) {
 - `rt_run()` - Run the scheduler (blocks until all actors exit)
 - `rt_cleanup()` - Cleanup and free resources
 - `rt_shutdown()` - Request graceful shutdown
+- `rt_actor_alive(id)` - Check if actor is still alive
 
 ### Actor Management
 
@@ -282,8 +283,11 @@ if (rt_is_exit_msg(&msg)) {
 
 - `rt_file_open(path, flags, mode, out_fd)` - Open file
 - `rt_file_close(fd)` - Close file
-- `rt_file_read(fd, buf, count, out_bytes)` - Read from file
-- `rt_file_write(fd, buf, count, out_bytes)` - Write to file
+- `rt_file_read(fd, buf, count, out_bytes, timeout_ms)` - Read from file
+- `rt_file_pread(fd, buf, count, offset, out_bytes, timeout_ms)` - Read from file at offset
+- `rt_file_write(fd, buf, count, out_bytes, timeout_ms)` - Write to file
+- `rt_file_pwrite(fd, buf, count, offset, out_bytes, timeout_ms)` - Write to file at offset
+- `rt_file_sync(fd, timeout_ms)` - Sync file to disk
 
 ### Network I/O
 
@@ -303,6 +307,7 @@ if (rt_is_exit_msg(&msg)) {
 - `rt_bus_publish(bus, data, len)` - Publish data to bus (non-blocking)
 - `rt_bus_read(bus, buf, len, out_len)` - Read next message (non-blocking)
 - `rt_bus_read_wait(bus, buf, len, out_len, timeout_ms)` - Read next message (blocking)
+- `rt_bus_entry_count(bus)` - Get number of entries in bus
 
 ## Implementation Details
 
