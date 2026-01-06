@@ -1703,15 +1703,15 @@ Exit notifications (steps 2-3 above) are enqueued in recipient mailboxes **durin
 
 **Ordering guarantees:**
 
-1. **Messages already in recipient mailboxes:**
-   - Exit notifications are enqueued at the **tail** of recipient mailboxes
-   - Recipients will receive all messages sent before death **before** the exit notification
-   - Example: If A sends M1, M2 to B, then A dies, B receives: M1 -> M2 -> EXIT(A)
+1. **Tail-append semantics:**
+   - Exit notifications are enqueued at the **tail** of recipient mailboxes at the moment death processing occurs
+   - Any messages already in that mailbox before that point remain ahead of the exit notification
+   - Example: If B's mailbox contains [M1, M2] when A's death is processed, B receives: M1 -> M2 -> EXIT(A)
 
-2. **Messages sent by dying actor:**
-   - Messages successfully enqueued before death remain in recipient mailboxes
-   - These messages will be delivered **before** exit notifications (FIFO)
-   - Example: A sends M1 to B, then A dies, B receives: M1 -> EXIT(A)
+2. **No global ordering guarantee:**
+   - The runtime does NOT guarantee ordering relative to concurrent events (timers, network I/O)
+   - If death processing and other enqueues occur in the same scheduling phase, ordering depends on processing order
+   - Example: If A dies and a timer fires for B in the same phase, the order of EXIT(A) vs timer tick in B's mailbox depends on event dispatch order
 
 3. **Messages in dying actor's mailbox:**
    - Dying actor's mailbox is **cleared** (step 1)
