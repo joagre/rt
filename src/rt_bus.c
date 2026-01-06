@@ -34,6 +34,7 @@ typedef struct {
     actor_id id;
     size_t   next_read_idx;   // Next entry index to read
     bool     active;
+    bool     blocked;         // Is actor blocked waiting for data?
 } bus_subscriber;
 
 // Bus structure
@@ -329,6 +330,18 @@ rt_status rt_bus_publish(bus_id id, const void *data, size_t len) {
 
     RT_LOG_TRACE("Published %zu bytes to bus %u (count=%zu)", len, id, bus->count);
 
+    // Wake up any blocked subscribers
+    for (size_t i = 0; i < bus->config.max_subscribers; i++) {
+        bus_subscriber *sub = &bus->subscribers[i];
+        if (sub->active && sub->blocked) {
+            actor *a = rt_actor_get(sub->id);
+            if (a && a->state == ACTOR_STATE_BLOCKED) {
+                a->state = ACTOR_STATE_READY;
+                RT_LOG_TRACE("Woke blocked subscriber %u on bus %u", sub->id, id);
+            }
+        }
+    }
+
     return RT_SUCCESS;
 }
 
@@ -364,6 +377,7 @@ rt_status rt_bus_subscribe(bus_id id) {
     sub->id = current->id;
     sub->next_read_idx = bus->head;  // Start reading from newest entry
     sub->active = true;
+    sub->blocked = false;
     bus->num_subscribers++;
 
     RT_LOG_DEBUG("Actor %u subscribed to bus %u", current->id, id);
@@ -489,6 +503,21 @@ rt_status rt_bus_read_wait(bus_id id, void *buf, size_t max_len,
         return RT_ERROR(RT_ERR_INVALID, "Invalid arguments");
     }
 
+    bus_t *bus = find_bus(id);
+    if (!bus) {
+        return RT_ERROR(RT_ERR_INVALID, "Bus not found");
+    }
+
+    RT_REQUIRE_ACTOR_CONTEXT();
+    actor *current = rt_actor_current();
+
+    int sub_idx = find_subscriber(bus, current->id);
+    if (sub_idx < 0) {
+        return RT_ERROR(RT_ERR_INVALID, "Not subscribed");
+    }
+
+    bus_subscriber *sub = &bus->subscribers[sub_idx];
+
     // Try non-blocking read first
     rt_status status = rt_bus_read(id, buf, max_len, actual_len);
     if (!RT_FAILED(status)) {
@@ -504,33 +533,38 @@ rt_status rt_bus_read_wait(bus_id id, void *buf, size_t max_len,
         return status;  // Non-blocking
     }
 
-    // Poll until data is available or timeout expires
-    // Use cooperative yielding - actors remain runnable
-    uint64_t start_ms = 0;
+    // Block until data is available or timeout expires
+    // Mark subscriber as blocked so rt_bus_publish can wake us
+    sub->blocked = true;
+    current->state = ACTOR_STATE_BLOCKED;
+
+    // Create timeout timer if needed
+    timer_id timeout_timer = TIMER_ID_INVALID;
     if (timeout_ms > 0) {
-        start_ms = get_time_ms();
-    }
-
-    while (true) {
-        rt_yield();
-
-        status = rt_bus_read(id, buf, max_len, actual_len);
-        if (!RT_FAILED(status)) {
-            return status;
-        }
-
-        if (status.code != RT_ERR_WOULDBLOCK) {
-            return status;
-        }
-
-        // Check timeout (if positive timeout specified)
-        if (timeout_ms > 0) {
-            uint64_t elapsed = get_time_ms() - start_ms;
-            if (elapsed >= (uint64_t)timeout_ms) {
-                return RT_ERROR(RT_ERR_TIMEOUT, "Bus read timeout");
-            }
+        rt_status timer_status = rt_timer_after((uint32_t)timeout_ms * 1000, &timeout_timer);
+        if (RT_FAILED(timer_status)) {
+            sub->blocked = false;
+            current->state = ACTOR_STATE_READY;
+            return timer_status;
         }
     }
+
+    // Yield to scheduler - will resume when woken by publish or timeout
+    rt_scheduler_yield();
+
+    // Woken up - clear blocked flag
+    sub->blocked = false;
+
+    // Check for timeout
+    if (timeout_timer != TIMER_ID_INVALID) {
+        rt_status timeout_status = rt_mailbox_handle_timeout(current, timeout_timer, "Bus read timeout");
+        if (RT_FAILED(timeout_status)) {
+            return timeout_status;
+        }
+    }
+
+    // Try to read again
+    return rt_bus_read(id, buf, max_len, actual_len);
 }
 
 // Query bus state
