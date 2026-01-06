@@ -6,12 +6,14 @@ A minimalistic actor-based runtime designed for **embedded and safety-critical s
 
 **Target use cases:** Drone autopilots, industrial sensor networks, robotics control systems, and other resource-constrained embedded applications requiring structured concurrency.
 
+**Safety-critical caveat:** File I/O operations stall the entire scheduler (see "File I/O"). Safety-critical deployments should restrict file I/O to initialization, shutdown, or non–time-critical phases.
+
 **Design principles:**
 
 1. **Minimalistic**: Only essential features, no bloat
 2. **Predictable**: Cooperative scheduling, no surprises
 3. **Modern C11**: Clean, safe, standards-compliant code
-4. **Static allocation**: Statically-bounded memory regions, zero heap fragmentation, deterministic footprint
+4. **Statically bounded memory**: All runtime memory is statically bounded and deterministic. Heap allocation is forbidden in hot paths and optional only for actor stacks (`malloc_stack = true`)
 5. **Pool-based allocation**: O(1) pools for hot paths; stack arena allocation is bounded and occurs only on spawn/exit
 6. **Explicit control**: Actors yield explicitly, no preemption
 
@@ -190,6 +192,8 @@ Each blocking network request has an implicit state: `PENDING` → `COMPLETED` o
 
 **Determinism guarantee (qualified):**
 
+> **Summary:** The runtime is deterministic given a fixed event order, but event order itself is kernel-dependent (epoll). Scheduling policy is deterministic; event arrival order is not.
+
 The runtime provides **conditional determinism**, not absolute determinism:
 
 - **Deterministic policy**: Given identical epoll event arrays in identical order, scheduling decisions are deterministic
@@ -323,9 +327,11 @@ This pattern is safe because:
 The runtime uses **zero synchronization primitives** in the core event loop:
 
 - **No mutexes** - single thread, no contention
-- **No atomics** - single writer/reader per data structure
+- **No C11 atomics** - single writer/reader per data structure
 - **No condition variables** - event loop uses epoll/select for waiting
 - **No locks** - mailboxes, actor state, bus state accessed only by scheduler thread
+
+**STM32 exception:** ISR-to-scheduler communication uses `volatile bool` flags with interrupt disable/enable for safe flag clearing. This is a synchronization protocol but not C11 atomics or lock-based synchronization.
 
 **Optional synchronization** (not part of hot path):
 - **Logging:** No synchronization needed (single-threaded)
@@ -344,11 +350,15 @@ This pure single-threaded model provides:
 
 ### Event Loop Architecture
 
+*Terminology: "Event loop" and "scheduler loop" refer to the same construct - the main loop that dispatches I/O events and schedules actors. This document uses "event loop" as the canonical term.*
+
 **Linux:**
 - Timers: `timerfd` registered in `epoll`
 - Network: Non-blocking sockets registered in `epoll`
 - File: Direct synchronous I/O (regular files don't work with epoll anyway)
 - Event loop: `epoll_wait()` with bounded timeout (10ms) for defensive wakeup
+
+**Defensive timeout rationale:** The 10ms bounded timeout guards against lost wakeups, misconfigured epoll registrations, or unexpected platform behavior. It is not required for correctness under ideal conditions but provides a safety net against programming errors or kernel edge cases.
 
 **STM32 (bare metal):**
 - Timers: Hardware timers (SysTick or TIM peripherals)
@@ -428,21 +438,21 @@ The runtime uses static allocation for deterministic behavior and suitability fo
 
 **Memory Footprint (estimated, 64-bit Linux build, default configuration):**
 
-*Note: Exact sizes are toolchain-dependent. Values below are estimates under GCC on x86-64 Linux. Actual footprint varies with compiler, target architecture, and alignment requirements.*
+*Note: Exact sizes are toolchain-dependent. Run `size build/librt.a` for precise numbers. Estimates below are for GCC on x86-64 Linux.*
 
 - Static data (BSS): ~1.2 MB total (includes 1 MB stack arena)
-  - Stack arena: 1,048,576 bytes (1 MB, configurable via `RT_STACK_ARENA_SIZE`)
-  - Actor table: 64 actors × ~200 bytes ≈ 12.8 KB
-  - Mailbox pool: 256 entries × ~43 bytes ≈ 11 KB
-  - Message pool: 256 entries × 256 bytes = 64 KB
-  - Sync buffer pool: 64 entries × 256 bytes = 16 KB
-  - Link/monitor pools: 256 entries × ~18 bytes ≈ 4.5 KB
-  - Timer pool: 64 entries × ~66 bytes ≈ 4.2 KB
-  - Bus tables: 32 buses × ~2.9 KB each ≈ 91 KB
-  - I/O source pool: 128 entries × ~42 bytes ≈ 5.3 KB
-- Without stack arena: ~208 KB
+  - Stack arena: 1 MB (configurable via `RT_STACK_ARENA_SIZE`)
+  - Actor table: ~10–15 KB
+  - Mailbox pool: ~10–15 KB
+  - Message pool: 64 KB (256 × 256 bytes, configurable)
+  - Sync buffer pool: 16 KB (64 × 256 bytes, configurable)
+  - Link/monitor pools: ~5 KB
+  - Timer pool: ~5 KB
+  - Bus tables: ~90 KB
+  - I/O source pool: ~5 KB
+- Without stack arena: ~200 KB
 
-**Total:** ~1.2 MB static (calculable at link time via `size` command; no heap allocation with default arena)
+**Total:** ~1.2 MB static (verify with `size` command; no heap allocation with default arena)
 
 **Benefits:**
 
@@ -834,6 +844,8 @@ rt_ipc_recv(&msg2, -1);  // msg1 auto-released, sender unblocked
 - Auto-release prevents deadlock if receiver forgets to call `rt_ipc_release()`
 - Forgiving API reduces cognitive load (one code path handles both ASYNC and SYNC)
 - Explicit release is still recommended for clarity and to minimize sender blocking time
+
+**Auto-release limitation:** Auto-release only occurs when the receiver calls `rt_ipc_recv()` again. A receiver that processes one SYNC message and then runs forever without calling `rt_ipc_recv()` will still deadlock SYNC senders. Auto-release mitigates forgetfulness, not infinite loops.
 
 ### Mailbox Semantics
 
@@ -2029,11 +2041,13 @@ The runtime abstracts platform-specific functionality:
 4. **Actor resources cleaned up** (stack freed, mailbox cleared, timers cancelled)
 5. **Error logged:** "Actor N stack overflow detected"
 
-**Why this is safe:**
+**Why this is usually safe:**
 - Guard patterns are stored **outside** the actor's usable stack region
 - Actor metadata (struct actor, links, monitors, mailbox) is stored in **static global arrays**, not on the actor's stack
-- Overflow corrupts the actor's stack data, not the runtime's bookkeeping structures
-- Therefore: Cleanup and notification can proceed safely after detection
+- Overflow is *intended* to corrupt only the actor's stack data; runtime metadata is stored separately and usually remains intact
+- Therefore: Cleanup and notification can proceed safely *when detection succeeds*
+
+**Caveat:** Without MPU-based stack isolation (future work), there is no hardware guarantee that overflow stays confined. The layout minimizes risk but does not eliminate it.
 
 **Implementation:** Guard patterns checked on every context switch (rt_scheduler.c)
 
