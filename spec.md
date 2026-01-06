@@ -11,7 +11,7 @@ A minimalistic actor-based runtime designed for **embedded and safety-critical s
 1. **Minimalistic**: Only essential features, no bloat
 2. **Predictable**: Cooperative scheduling, no surprises
 3. **Modern C11**: Clean, safe, standards-compliant code
-4. **Static allocation**: Deterministic memory, zero fragmentation, compile-time footprint
+4. **Static allocation**: Statically-bounded memory regions, zero heap fragmentation, deterministic footprint
 5. **Pool-based allocation**: O(1) pools for hot paths; stack arena allocation is bounded and occurs only on spawn/exit
 6. **Explicit control**: Actors yield explicitly, no preemption
 
@@ -382,7 +382,7 @@ Stack growth/reallocation is not supported. Stack overflow is detected via guard
 
 The runtime uses static allocation for deterministic behavior and suitability for MCU deployment:
 
-**Design Principle:** All memory is allocated at compile time or initialization. No heap allocation occurs during runtime operation except optional actor stack allocation at spawn/exit when explicitly enabled (message passing, timer events, etc.).
+**Design Principle:** All memory regions are statically reserved at compile time; allocation within those regions (e.g., stack arena, message pools) occurs at runtime via deterministic algorithms. No heap allocation occurs in hot paths (message passing, scheduling, I/O). Optional malloc for actor stacks when explicitly enabled via `actor_config.malloc_stack = true`.
 
 **Allocation Strategy:**
 
