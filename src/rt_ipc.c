@@ -210,6 +210,16 @@ rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms) {
 
     RT_LOG_TRACE("IPC recv: actor %u checking mailbox (count=%zu)", current->id, current->mbox.count);
 
+    // Auto-release previous active message if any (must happen BEFORE blocking)
+    // This ensures SYNC senders are unblocked even if this recv times out
+    if (current->active_msg) {
+        if (current->active_msg->sync_ptr) {
+            rt_ipc_unblock_sender(current->active_msg->sender, current->id);
+        }
+        rt_ipc_free_entry(current->active_msg);
+        current->active_msg = NULL;
+    }
+
     timer_id timeout_timer = TIMER_ID_INVALID;
 
     // Check if there's a message in the mailbox
@@ -257,16 +267,6 @@ rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms) {
     rt_status timeout_status = rt_mailbox_handle_timeout(current, timeout_timer, "Receive timeout");
     if (RT_FAILED(timeout_status)) {
         return timeout_status;
-    }
-
-    // Free previous active message if any (auto-release for SYNC)
-    if (current->active_msg) {
-        // If previous message was SYNC, unblock sender
-        if (current->active_msg->sync_ptr) {
-            rt_ipc_unblock_sender(current->active_msg->sender, current->id);
-        }
-        rt_ipc_free_entry(current->active_msg);
-        current->active_msg = NULL;
     }
 
     // Dequeue message

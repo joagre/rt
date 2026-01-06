@@ -497,15 +497,6 @@ static void test11_message_size_limits(void *arg) {
 // ============================================================================
 // Test 12: SYNC auto-release on next recv
 // Documentation: rt_types.h says "SYNC: valid until rt_ipc_release() (next recv auto-releases)"
-//
-// BUG: The auto-release code in rt_ipc_recv is placed AFTER timeout handling,
-//      but it needs to be at the START of the function. When the second recv
-//      is called, the sender is still blocked (so mailbox is empty), recv
-//      creates a timeout timer and waits. When timeout fires, it returns
-//      RT_ERR_TIMEOUT without ever reaching the auto-release code.
-//
-// FIX: Move the auto-release block (lines 262-270 in rt_ipc.c) to the very
-//      beginning of rt_ipc_recv(), before checking if mailbox is empty.
 // ============================================================================
 
 static void sync_sender_for_auto_release(void *arg) {
@@ -525,7 +516,6 @@ static void sync_sender_for_auto_release(void *arg) {
 static void test12_sync_auto_release(void *arg) {
     (void)arg;
     printf("\nTest 12: SYNC auto-release on next recv\n");
-    printf("    NOTE: BUG - auto-release code in wrong place in rt_ipc_recv\n");
     fflush(stdout);
 
     actor_id self = rt_self();
@@ -555,8 +545,8 @@ static void test12_sync_auto_release(void *arg) {
             TEST_PASS("next recv auto-released previous SYNC message");
         }
     } else {
-        printf("    Second recv timed out - auto-release code not reached (BUG)\n");
-        TEST_KNOWN_BUG("auto-release code in wrong place in rt_ipc_recv");
+        printf("    Second recv failed: %s\n", status.msg ? status.msg : "unknown");
+        TEST_FAIL("auto-release did not unblock SYNC sender");
     }
 
     rt_exit();
