@@ -229,34 +229,10 @@ rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms) {
     }
 
     // At this point, mailbox has at least one message
-    // If we created a timeout timer, check if first message is the timeout
-    if (timeout_timer != TIMER_ID_INVALID) {
-        mailbox_entry *entry = current->mbox.head;
-        if (entry->sender == RT_SENDER_TIMER) {
-            // Check if this is our timeout timer (not another timer)
-            // For now, assume it is (could enhance with timer ID matching)
-            RT_LOG_TRACE("IPC recv: actor %u timeout occurred", current->id);
-
-            // Dequeue and discard the timer message
-            current->mbox.head = entry->next;
-            if (current->mbox.head == NULL) {
-                current->mbox.tail = NULL;
-            }
-            current->mbox.count--;
-
-            // Free the timer message entry
-            if (entry->data) {
-                message_data_entry *msg_data = DATA_TO_MSG_ENTRY(entry->data);
-                rt_pool_free(&g_message_pool_mgr, msg_data);
-            }
-            rt_pool_free(&g_mailbox_pool_mgr, entry);
-
-            return RT_ERROR(RT_ERR_TIMEOUT, "Receive timeout");
-        } else {
-            // Got a real message before timeout - cancel the timer
-            RT_LOG_TRACE("IPC recv: actor %u got message before timeout, cancelling timer", current->id);
-            rt_timer_cancel(timeout_timer);
-        }
+    // Check for timeout and handle it
+    rt_status timeout_status = rt_mailbox_handle_timeout(current, timeout_timer, "Receive timeout");
+    if (RT_FAILED(timeout_status)) {
+        return timeout_status;
     }
 
     // Free previous active message if any (auto-release for SYNC)
