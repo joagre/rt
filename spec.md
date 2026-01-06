@@ -647,7 +647,7 @@ The lifetime of `rt_message.data` depends on the send mode:
 
 **IPC_ASYNC:**
 
-**⚠️ CRITICAL LIFETIME RULE:**
+**CRITICAL LIFETIME RULE:**
 - **Data is ONLY valid until the next `rt_ipc_recv()` call**
 - **Per actor: only ONE message payload pointer is valid at a time**
 - **Storing `msg.data` across receive iterations causes use-after-free**
