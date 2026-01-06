@@ -67,7 +67,7 @@ All resource limits are defined at compile time. Edit and recompile to change:
 // ... see rt_static_config.h for full list
 ```
 
-All structures are statically allocated. Actor stacks use a static arena allocator by default (configurable size), with optional malloc via `actor_config.malloc_stack = true`. Stack sizes are configurable per actor, allowing different actors to use different stack sizes. Arena memory is automatically reclaimed and reused when actors exit. No malloc in hot paths. Memory footprint calculable at link time.
+All structures are statically allocated. Actor stacks use a static arena allocator by default (configurable size), with optional malloc via `actor_config.malloc_stack = true`. Stack sizes are configurable per actor, allowing different actors to use different stack sizes. Arena memory is automatically reclaimed and reused when actors exit. No malloc in hot paths. Memory footprint calculable at link time when using arena allocator (default); optional malloc'd stacks add runtime-dependent heap usage.
 
 ## Running Examples
 
@@ -134,7 +134,8 @@ actor_id worker = rt_spawn_ex(worker_actor, &args, &cfg);
 int data = 42;
 rt_status status = rt_ipc_send(target, &data, sizeof(data), IPC_ASYNC);
 if (RT_FAILED(status)) {
-    // Pool exhausted: RT_MAILBOX_ENTRY_POOL_SIZE or RT_MESSAGE_DATA_POOL_SIZE
+    // Pool exhausted: RT_MAILBOX_ENTRY_POOL_SIZE or RT_MESSAGE_DATA_POOL_SIZE (ASYNC)
+    // For IPC_SYNC: RT_MAILBOX_ENTRY_POOL_SIZE or RT_SYNC_BUFFER_POOL_SIZE
     // Send does NOT block or drop - caller must handle RT_ERR_NOMEM
 
     // Backoff and retry pattern:
@@ -180,6 +181,7 @@ rt_timer_cancel(periodic);
 
 ```c
 // File operations
+// Note: timeout_ms < 0 blocks forever, > 0 times out (timeout=0 not supported)
 int fd;
 rt_file_open("test.txt", O_RDWR | O_CREAT, 0644, &fd);
 rt_file_write(fd, data, len, &written, -1);
@@ -205,6 +207,7 @@ rt_net_connect("127.0.0.1", 8080, &server_fd, 5000);
 rt_bus_config cfg = RT_BUS_CONFIG_DEFAULT;
 cfg.max_readers = 0;   // 0=persist, N=remove after N reads
 cfg.max_age_ms = 0;    // 0=no expiry, T=expire after T ms
+// Note: Maximum 32 subscribers per bus (architectural limit)
 
 bus_id bus;
 rt_bus_create(&cfg, &bus);
