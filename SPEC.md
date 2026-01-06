@@ -742,7 +742,7 @@ rt_ipc_recv(&msg, -1);       // ptr now INVALID (use-after-free)
 **Implementation details:**
 - Data lives in a pool-allocated buffer
 - Next recv frees the previous message's buffer and reuses the pool entry
-- Calling `rt_ipc_release()` is optional (no-op for ASYNC)
+- Calling `rt_ipc_release()` is optional (safe no-op for ASYNC, see "`rt_ipc_release()` semantics" below)
 
 **IPC_SYNC:**
 - Data is **valid until `rt_ipc_release()`** is called
@@ -1044,10 +1044,25 @@ rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms);
 // Release sync message (must call after consuming IPC_SYNC message)
 void rt_ipc_release(const rt_message *msg);
 
-// Query mailbox state
+// Query mailbox state (current actor only)
 bool rt_ipc_pending(void);
 size_t rt_ipc_count(void);
 ```
+
+**`rt_ipc_release()` semantics:**
+- Takes `const rt_message *` because release state is stored in actor context, not in the message
+- **Safe no-op** in edge cases:
+  - If `msg` is NULL: returns silently
+  - If called outside actor context: returns silently
+  - If `msg->sender` is not a blocked SYNC sender waiting on this actor: no effect
+  - If message was ASYNC (not SYNC): no effect (no sender to unblock)
+  - If already released or never received: no effect
+- Does not return status; callers need not check for errors
+
+**`rt_ipc_pending()` and `rt_ipc_count()` semantics:**
+- Query the **current actor's** mailbox only (actor-local operations)
+- Cannot query another actor's mailbox
+- Return `false` / `0` if called outside actor context
 
 ### Pool Exhaustion Behavior
 
