@@ -15,6 +15,7 @@ This is an actor-based runtime for embedded systems, targeting STM32 (ARM Cortex
 ## Design Principles
 
 - Minimalistic and predictable behavior
+- Statically bounded memory: All runtime memory is statically bounded. Heap allocation forbidden in hot paths, optional only for actor stacks (`malloc_stack = true`)
 - Pool-based allocation: O(1) for hot paths (IPC, scheduling, I/O); O(n) bounded arena for cold paths (spawn/exit)
 - Least surprise API design
 - Fast context switching via manual assembly (no setjmp/longjmp or ucontext)
@@ -42,7 +43,7 @@ The runtime consists of:
 4. **Bus**: Publish-subscribe system with configurable retention policies (max_readers, max_age_ms)
 5. **Timers**: timerfd registered in epoll (Linux), hardware timers on STM32 (SysTick/TIM)
 6. **Network**: Non-blocking sockets registered in epoll (Linux), lwIP NO_SYS mode on STM32
-7. **File**: Synchronous I/O (stalls scheduler; regular files don't work with epoll; embedded filesystems are fast)
+7. **File**: Synchronous I/O (stalls scheduler; regular files don't work with epoll; embedded filesystems are fast). **Safety-critical caveat:** Restrict file I/O to initialization, shutdown, or non–time-critical phases
 
 ## Key Concepts
 
@@ -194,9 +195,11 @@ The runtime is **completely single-threaded**. All runtime APIs must be called f
 
 **Zero synchronization primitives** in the core event loop:
 - No mutexes (single thread, no contention)
-- No atomics (single writer/reader per data structure)
+- No C11 atomics (single writer/reader per data structure)
 - No condition variables (event loop uses epoll/select for waiting)
 - No locks (mailboxes, actor state, bus state accessed only by scheduler thread)
+
+**STM32 exception:** ISR-to-scheduler communication uses `volatile bool` flags with interrupt disable/enable. This is a synchronization protocol but not C11 atomics or lock-based synchronization.
 
 **External threads (forbidden):**
 - CANNOT call runtime APIs (rt_ipc_send NOT THREAD-SAFE - no locking/atomics)
