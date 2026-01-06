@@ -312,19 +312,8 @@ static bool send_exit_notification(actor *recipient, actor_id dying_id, rt_exit_
     entry->sync_ptr = NULL;
     entry->next = NULL;
 
-    // Inject into recipient's mailbox
-    if (recipient->mbox.tail) {
-        recipient->mbox.tail->next = entry;
-    } else {
-        recipient->mbox.head = entry;
-    }
-    recipient->mbox.tail = entry;
-    recipient->mbox.count++;
-
-    // Wake if blocked
-    if (recipient->state == ACTOR_STATE_BLOCKED) {
-        recipient->state = ACTOR_STATE_READY;
-    }
+    // Inject into recipient's mailbox and wake if blocked
+    rt_mailbox_add_entry(recipient, entry);
 
     return true;
 }

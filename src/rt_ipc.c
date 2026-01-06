@@ -5,6 +5,8 @@
 #include "rt_actor.h"
 #include "rt_scheduler.h"
 #include "rt_timer.h"
+#include "rt_runtime.h"
+#include "rt_spsc.h"
 #include "rt_log.h"
 #include <stdlib.h>
 #include <string.h>
@@ -41,6 +43,61 @@ rt_status rt_ipc_init(void) {
                  sizeof(message_data_entry), RT_SYNC_BUFFER_POOL_SIZE);
 
     return RT_SUCCESS;
+}
+
+// Internal helper: Add mailbox entry to actor's mailbox and wake if blocked
+void rt_mailbox_add_entry(actor *recipient, mailbox_entry *entry) {
+    // Append to mailbox list
+    if (recipient->mbox.tail) {
+        recipient->mbox.tail->next = entry;
+    } else {
+        recipient->mbox.head = entry;
+    }
+    recipient->mbox.tail = entry;
+    recipient->mbox.count++;
+
+    // Wake actor if blocked
+    if (recipient->state == ACTOR_STATE_BLOCKED) {
+        recipient->state = ACTOR_STATE_READY;
+    }
+}
+
+// Internal helper: Check for timeout message and handle it
+rt_status rt_mailbox_handle_timeout(actor *current, timer_id timeout_timer, const char *operation) {
+    if (timeout_timer == TIMER_ID_INVALID) {
+        return RT_SUCCESS;  // No timeout was set
+    }
+
+    // Check if first message in mailbox is timer tick
+    if (current->mbox.head && current->mbox.head->sender == RT_SENDER_TIMER) {
+        // Timeout occurred - dequeue timer message
+        mailbox_entry *entry = current->mbox.head;
+        current->mbox.head = entry->next;
+        if (current->mbox.head == NULL) {
+            current->mbox.tail = NULL;
+        }
+        current->mbox.count--;
+
+        // Free timer message resources
+        if (entry->data) {
+            message_data_entry *msg_data = DATA_TO_MSG_ENTRY(entry->data);
+            rt_pool_free(&g_message_pool_mgr, msg_data);
+        }
+        rt_pool_free(&g_mailbox_pool_mgr, entry);
+
+        return RT_ERROR(RT_ERR_TIMEOUT, operation);
+    } else {
+        // I/O completed before timeout - cancel timer
+        rt_timer_cancel(timeout_timer);
+        return RT_SUCCESS;
+    }
+}
+
+// Internal helper: Push to SPSC queue with blocking retry
+void rt_spsc_push_blocking(rt_spsc_queue *queue, const void *entry) {
+    while (!rt_spsc_push(queue, entry)) {
+        rt_yield();
+    }
 }
 
 rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mode) {
@@ -85,20 +142,8 @@ rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mod
         entry->data = msg_data->data;
         entry->sync_ptr = NULL;
 
-        // Add to receiver's mailbox
-        if (receiver->mbox.tail) {
-            receiver->mbox.tail->next = entry;
-        } else {
-            receiver->mbox.head = entry;
-        }
-        receiver->mbox.tail = entry;
-        receiver->mbox.count++;
-
-        // If receiver is blocked waiting for message, wake it up
-        if (receiver->state == ACTOR_STATE_BLOCKED) {
-            RT_LOG_TRACE("IPC: Waking up blocked receiver %u", to);
-            receiver->state = ACTOR_STATE_READY;
-        }
+        // Add to receiver's mailbox and wake if blocked
+        rt_mailbox_add_entry(receiver, entry);
 
         RT_LOG_TRACE("IPC: Message sent from %u to %u (ASYNC mode)", sender->id, to);
         return RT_SUCCESS;
@@ -115,19 +160,8 @@ rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mod
         entry->data = NULL;
         entry->sync_ptr = sync_buf->data;
 
-        // Add to receiver's mailbox
-        if (receiver->mbox.tail) {
-            receiver->mbox.tail->next = entry;
-        } else {
-            receiver->mbox.head = entry;
-        }
-        receiver->mbox.tail = entry;
-        receiver->mbox.count++;
-
-        // If receiver is blocked waiting for message, wake it up
-        if (receiver->state == ACTOR_STATE_BLOCKED) {
-            receiver->state = ACTOR_STATE_READY;
-        }
+        // Add to receiver's mailbox and wake if blocked
+        rt_mailbox_add_entry(receiver, entry);
 
         // Block sender until receiver releases
         sender->waiting_for_release = true;
