@@ -11,14 +11,14 @@
 //   - Suitable for small messages and general communication
 //
 // IPC_SYNC: Payload copied to sync buffer pool, sender blocks until receiver releases
-//   - WARNING: REQUIRES CAREFUL USE - see SPECIFICATION.md "IPC_SYNC Safety Considerations"
+//   - WARNING: REQUIRES CAREFUL USE - see SPEC.md "IPC_SYNC Safety Considerations"
 //   - Actor context only (not I/O threads or interrupt contexts)
 //   - Data copied to pinned runtime buffer (NOT sender's stack, eliminates UAF)
 //   - Sender blocks and cannot process other messages
 //   - Risk of deadlock with circular/nested synchronous sends
 //   - Use for: Flow control, backpressure, trusted cooperating actors
 //
-// Returns RT_ERR_NOMEM if IPC pools exhausted (see SPECIFICATION.md for handling)
+// Returns RT_ERR_NOMEM if IPC pools exhausted (see SPEC.md for handling)
 rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mode);
 
 // Receive message
