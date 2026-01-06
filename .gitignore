@@ -28,6 +28,8 @@ core.*
 *.swp
 *.swo
 *~
+#*#
+.#*
 
 # OS files
 .DS_Store
