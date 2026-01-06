@@ -322,7 +322,7 @@ The runtime is **completely single-threaded** with an event loop architecture. A
 - Timers: `timerfd` registered in `epoll`
 - Network: Non-blocking sockets registered in `epoll`
 - File: Direct synchronous I/O (regular files don't work with epoll)
-- Event loop: `epoll_wait()` blocks when no actors runnable
+- Event loop: `epoll_wait()` with bounded timeout (10ms) for defensive wakeup
 
 **STM32 (bare metal)**:
 - Timers: Hardware timers (SysTick or TIM peripherals)
@@ -332,9 +332,9 @@ The runtime is **completely single-threaded** with an event loop architecture. A
 
 This single-threaded model provides:
 - Maximum simplicity (no lock ordering, no deadlock)
-- Maximum determinism (no lock contention, no priority inversion)
+- Conditional determinism (no lock contention, no priority inversion; see SPEC.md for epoll ordering caveats)
 - Maximum performance (zero lock overhead, no cache line bouncing)
-- Safety-critical compliance (fully deterministic behavior)
+- Safety-critical compliance (deterministic memory, predictable scheduling)
 
 ### Thread Safety
 
