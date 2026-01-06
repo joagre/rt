@@ -27,8 +27,8 @@ The runtime uses **static memory allocation** for deterministic behavior with ze
 - Actor linking and monitoring (bidirectional links, unidirectional monitors)
 - Exit notifications with exit reasons (normal, crash, stack overflow, killed)
 - Timers (one-shot and periodic with timerfd/epoll)
-- Network I/O (async TCP with worker thread)
-- File I/O (async read/write with worker thread)
+- Network I/O (non-blocking TCP via event loop)
+- File I/O (synchronous read/write)
 - Bus (pub-sub with retention policies)
 
 ## Performance
@@ -62,7 +62,6 @@ All resource limits are defined at compile time. Edit and recompile to change:
 #define RT_MAILBOX_ENTRY_POOL_SIZE 256  // Mailbox pool size
 #define RT_MESSAGE_DATA_POOL_SIZE 256   // Message pool size (IPC_ASYNC)
 #define RT_SYNC_BUFFER_POOL_SIZE 64   // Sync buffer pool (IPC_SYNC)
-#define RT_COMPLETION_QUEUE_SIZE 64     // I/O completion queue size
 #define RT_MAX_BUSES 32                 // Maximum concurrent buses
 // ... see rt_static_config.h for full list
 ```
@@ -315,36 +314,40 @@ if (rt_is_exit_msg(&msg)) {
 
 ## Implementation Details
 
-### I/O Subsystems
+### Event Loop Architecture
 
-All I/O operations (timers, file, network) are handled by dedicated worker threads that communicate with the scheduler via lock-free SPSC queues. This design:
+The runtime is **completely single-threaded** with an event loop architecture. All actors run cooperatively in a single scheduler thread. There are no I/O worker threads - all I/O operations are integrated into the scheduler's event loop.
 
-- Keeps the actor runtime non-blocking
-- Allows multiple I/O operations to run concurrently
-- Uses lock-free queues for efficient cross-thread communication
-- Automatically handles actor cleanup (cancels timers, closes files/sockets)
+**Linux (epoll)**:
+- Timers: `timerfd` registered in `epoll`
+- Network: Non-blocking sockets registered in `epoll`
+- File: Direct synchronous I/O (regular files don't work with epoll)
+- Event loop: `epoll_wait()` blocks when no actors runnable
 
-**Scheduler wakeup**: When all actors are blocked on I/O, the scheduler efficiently waits on a single eventfd (Linux) or semaphore (FreeRTOS). I/O threads signal this primitive after posting completions. This eliminates busy-polling and CPU waste.
+**FreeRTOS**:
+- Timers: FreeRTOS software timers or hardware timer interrupts
+- Network: lwIP with `select()`
+- File: Direct synchronous I/O (FATFS/littlefs are fast, <1ms typically)
+- Event loop: Queue sets or `select()` blocks when no actors runnable
 
-**Timer subsystem**: Uses Linux `timerfd_create()` and `epoll` for efficient multi-timer management.
-
-**File I/O subsystem**: Worker thread processes read/write requests asynchronously.
-
-**Network I/O subsystem**: Worker thread handles socket operations (accept, connect, send, recv) asynchronously.
+This single-threaded model provides:
+- Maximum simplicity (no lock ordering, no deadlock)
+- Maximum determinism (no lock contention, no priority inversion)
+- Maximum performance (zero lock overhead, no cache line bouncing)
+- Safety-critical compliance (fully deterministic behavior)
 
 ### Thread Safety
 
-The runtime enforces **strict thread boundaries** with three contractual rules:
+All runtime APIs must be called from actor context (the scheduler thread). The runtime uses **zero synchronization primitives** in the core event loop:
 
-1. **Scheduler thread**: ONLY thread that may mutate runtime state and call runtime APIs
-2. **I/O threads**: May ONLY push SPSC completions and signal wakeup (CANNOT call APIs)
-3. **External threads**: FORBIDDEN from calling runtime APIs (`rt_ipc_send` is NOT THREAD-SAFE)
+- No mutexes (single thread, no contention)
+- No atomics (single writer/reader per data structure)
+- No condition variables (event loop uses epoll/select for waiting)
+- No locks (mailboxes, actor state, bus state accessed only by scheduler thread)
 
-**Reentrancy constraint:** Runtime APIs are **not reentrant**. Actors **must not** call runtime APIs from signal handlers or interrupt service routines (ISRs). All runtime API calls must occur from actor context (the scheduler thread). Violating this results in undefined behavior.
+**Reentrancy constraint:** Runtime APIs are **not reentrant**. Actors **must not** call runtime APIs from signal handlers or interrupt service routines (ISRs). Violating this results in undefined behavior.
 
-**Why external threads can't call `rt_ipc_send()`:** Adding thread-safe message passing would require locks/atomics on mailbox enqueue and pool allocation, causing lock contention in hot paths. This violates deterministic behavior requirements for safety-critical systems. Instead, use platform IPC (sockets/pipes) with dedicated reader actors.
-
-This single-threaded ownership model eliminates locks in hot paths (message passing, scheduling, actor management), ensuring deterministic, predictable behavior. No lock contention, no priority inversion, no deadlock. See `SPEC.md` "Thread Safety" section for complete details.
+**External thread communication:** External threads cannot call runtime APIs directly. Use platform-specific IPC (sockets/pipes) with dedicated reader actors to bridge external threads into the actor system. See `SPEC.md` "Thread Safety" section for complete details.
 
 ## Future Work
 

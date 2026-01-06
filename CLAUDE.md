@@ -27,21 +27,22 @@ This is an actor-based runtime for embedded systems, targeting STM32 (ARM Cortex
 - Actor cleanup: Corresponding free for malloc'd stacks
 
 **Forbidden malloc** (exhaustive):
-- Scheduler, IPC, timers, bus, network I/O, file I/O, linking/monitoring, completion processing
+- Scheduler, IPC, timers, bus, network I/O, file I/O, linking/monitoring, I/O event processing
 - Hot path operations use static pools with O(1) allocation
 
 ## Architecture
 
+The runtime is **completely single-threaded** with an event loop architecture. All actors run cooperatively in a single scheduler thread. There are no I/O worker threads.
+
 The runtime consists of:
 
 1. **Actors**: Cooperative tasks with individual stacks and mailboxes
-2. **Scheduler**: Priority-based round-robin scheduler with 4 priority levels (0=CRITICAL to 3=LOW)
+2. **Scheduler**: Priority-based round-robin scheduler with 4 priority levels (0=CRITICAL to 3=LOW), integrated event loop (epoll on Linux, queue sets on FreeRTOS)
 3. **IPC**: Inter-process communication via mailboxes with ASYNC (fire-and-forget) and SYNC (blocking with backpressure) modes
 4. **Bus**: Publish-subscribe system with configurable retention policies (max_readers, max_age_ms)
-5. **I/O Subsystems**: Network, file, and timer operations handled by separate threads/tasks with lock-free completion queues
-6. **Completion Queues**: Lock-free SPSC (Single Producer Single Consumer) queues for cross-thread communication
-
-On FreeRTOS, the entire actor runtime runs as a single task. Blocking I/O is delegated to separate FreeRTOS tasks that communicate via lock-free queues.
+5. **Timers**: timerfd registered in epoll (Linux), software timers (FreeRTOS)
+6. **Network**: Non-blocking sockets registered in epoll (Linux), lwIP with select (FreeRTOS)
+7. **File**: Synchronous I/O (regular files don't work with epoll; embedded filesystems are fast)
 
 ## Key Concepts
 
@@ -97,7 +98,7 @@ All runtime functions return `rt_status` with a code and optional string literal
   - WARNING: Requires careful use - actor context only, sender blocks until release
   - Data copied to pinned runtime buffer (NOT sender's stack, eliminates use-after-free)
   - Risk of deadlock with circular/nested synchronous sends
-  - Preconditions: Actor context only (not I/O threads), sender cannot process other messages while blocked
+  - Preconditions: Actor context only, sender cannot process other messages while blocked
   - See SPEC.md "IPC_SYNC Safety Considerations" for full details
 
 ### IPC Pool Exhaustion
@@ -164,7 +165,6 @@ The runtime uses **compile-time configuration** for deterministic memory allocat
 - `RT_LINK_ENTRY_POOL_SIZE`: Link entry pool (128)
 - `RT_MONITOR_ENTRY_POOL_SIZE`: Monitor entry pool (128)
 - `RT_TIMER_ENTRY_POOL_SIZE`: Timer entry pool (64)
-- `RT_COMPLETION_QUEUE_SIZE`: I/O completion queue size (64)
 - `RT_MAX_MESSAGE_SIZE`: Maximum message size in bytes (256)
 - `RT_STACK_ARENA_SIZE`: Stack arena size (1*1024*1024) // 1 MB default
 - `RT_DEFAULT_STACK_SIZE`: Default actor stack size (65536)
@@ -174,47 +174,43 @@ To change these limits, edit `rt_static_config.h` and recompile.
 **Memory characteristics:**
 - All runtime structures are **statically allocated** based on compile-time limits
 - Actor stacks use static arena by default, with optional malloc via `actor_config.malloc_stack`
-- No malloc in hot paths (IPC, scheduling, I/O completions)
+- No malloc in hot paths (IPC, scheduling, I/O operations)
 - Memory footprint calculable at link time
 - Zero heap fragmentation in message passing
 - Ideal for embedded/safety-critical systems
 
 After `rt_run()` completes, call `rt_cleanup()` to free actor stacks.
 
-### Completion Queue
-Lock-free SPSC queue with atomic head/tail pointers. Capacity must be power of 2. Producer (I/O thread) pushes, consumer (scheduler) pops.
+### Event Loop
+When all actors are blocked on I/O, the scheduler efficiently waits for I/O events using platform-specific mechanisms:
+- **Linux**: `epoll_wait()` blocks until timer fires or socket becomes ready
+- **FreeRTOS**: Queue sets or `select()` blocks until event arrives
 
-### Scheduler Wakeup
-When all actors are blocked on I/O, the scheduler efficiently waits on a single shared wakeup primitive (eventfd on Linux, binary semaphore on FreeRTOS) instead of busy-polling. All I/O threads (file, network, timer) signal this primitive after posting completions. This eliminates CPU waste and provides immediate wakeup on I/O completion.
+This eliminates busy-polling and CPU waste while providing immediate response to I/O events.
 
 ### Thread Safety
 
-**Three thread/task boundaries (strict contracts):**
+The runtime is **completely single-threaded**. All runtime APIs must be called from actor context (the scheduler thread).
 
-1. **BOUNDARY 1: Scheduler thread (exclusive runtime owner)**
-   - ONLY thread that may mutate runtime state (actors, mailboxes, buses)
-   - ONLY thread that may call runtime APIs (rt_ipc_send, rt_spawn, rt_bus_publish, etc.)
-   - All actor code runs in this thread
+**Zero synchronization primitives** in the core event loop:
+- No mutexes (single thread, no contention)
+- No atomics (single writer/reader per data structure)
+- No condition variables (event loop uses epoll/select for waiting)
+- No locks (mailboxes, actor state, bus state accessed only by scheduler thread)
 
-2. **BOUNDARY 2: I/O threads/tasks (completion-only)**
-   - May ONLY push to SPSC completion queues
-   - May ONLY signal scheduler wakeup (eventfd/semaphore)
-   - CANNOT call runtime APIs (NOT THREAD-SAFE)
-   - CANNOT access actor/mailbox/bus state
+**External threads (forbidden):**
+- CANNOT call runtime APIs (rt_ipc_send NOT THREAD-SAFE - no locking/atomics)
+- Must use platform-specific IPC (sockets, pipes) with dedicated reader actors
 
-3. **BOUNDARY 3: External threads (forbidden)**
-   - CANNOT call runtime APIs (rt_ipc_send NOT THREAD-SAFE - no locking/atomics)
-   - Must use platform-specific IPC (sockets, pipes) with dedicated reader actors
-
-**No locks in hot paths:** Mailboxes, IPC, scheduling accessed only by scheduler thread. See SPEC.md "Thread Safety" section for full details.
+See SPEC.md "Thread Safety" section for full details.
 
 ### Platform Abstraction
 Different implementations for Linux (dev) vs FreeRTOS (prod):
 - Context switch: x86-64 asm vs ARM Cortex-M asm
-- I/O threads: pthreads vs FreeRTOS tasks
-- Timer: timerfd vs FreeRTOS timer/hardware timer
-- Network: BSD sockets vs lwIP
-- File: POSIX vs FATFS/littlefs
+- Event notification: epoll vs queue sets/select
+- Timer: timerfd + epoll vs FreeRTOS software timers
+- Network: Non-blocking BSD sockets + epoll vs lwIP + select
+- File: Synchronous POSIX vs synchronous FATFS/littlefs
 
 ### Special Sender IDs
 - `RT_SENDER_TIMER` (0xFFFFFFFF): Timer tick messages
