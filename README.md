@@ -5,13 +5,13 @@
 A complete actor-based runtime designed for **embedded and safety-critical systems**. Features cooperative multitasking with priority-based scheduling and message passing inspired by Erlang's actor model.
 
 **Current platform:** x86-64 Linux (fully implemented)
-**Future platform:** STM32/ARM Cortex-M with FreeRTOS (see `SPECIFICATION.md`)
+**Future platform:** STM32/ARM Cortex-M with FreeRTOS (see `SPEC.md`)
 
 The runtime uses **static memory allocation** for deterministic behavior with zero heap fragmentation. It features **priority-based scheduling** (4 levels: CRITICAL, HIGH, NORMAL, LOW) with fast context switching. Provides message passing (IPC with ASYNC/SYNC modes), linking, monitoring, timers, pub-sub messaging (bus), network I/O, and file I/O.
 
 ## Quick Links
 
-- **[Full Specification](SPECIFICATION.md)** - Complete design and implementation details
+- **[Full Specification](SPEC.md)** - Complete design and implementation details
 - **[Examples Directory](examples/)** - Working examples (pingpong, bus, echo server, etc.)
 - **[Static Configuration](include/rt_static_config.h)** - Compile-time memory limits and pool sizes
 
@@ -145,7 +145,7 @@ if (RT_FAILED(status)) {
 
 // IPC_SYNC: Payload copied to sync buffer pool, sender blocks until receiver releases
 // WARNING: Use with care - sender blocks, risk of deadlock
-// See SPECIFICATION.md for safety considerations and deadlock scenarios
+// See SPEC.md for safety considerations and deadlock scenarios
 rt_ipc_send(target, &data, sizeof(data), IPC_SYNC);
 
 // Receive messages
@@ -335,7 +335,7 @@ The runtime enforces **strict thread boundaries** with three contractual rules:
 
 **Why external threads can't call `rt_ipc_send()`:** Adding thread-safe message passing would require locks/atomics on mailbox enqueue and pool allocation, causing lock contention in hot paths. This violates deterministic behavior requirements for safety-critical systems. Instead, use platform IPC (sockets/pipes) with dedicated reader actors.
 
-This single-threaded ownership model eliminates locks in hot paths (message passing, scheduling, actor management), ensuring deterministic, predictable behavior. No lock contention, no priority inversion, no deadlock. See `SPECIFICATION.md` "Thread Safety" section for complete details.
+This single-threaded ownership model eliminates locks in hot paths (message passing, scheduling, actor management), ensuring deterministic, predictable behavior. No lock contention, no priority inversion, no deadlock. See `SPEC.md` "Thread Safety" section for complete details.
 
 ## Future Work
 
