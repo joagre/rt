@@ -265,7 +265,7 @@ The runtime uses a **single-threaded ownership model** with strict thread bounda
 **Workaround for external thread communication:**
 - Use platform-specific IPC mechanisms (sockets, pipes, shared memory queues)
 - Have a dedicated **reader actor** that blocks on the external mechanism
-- External thread writes to socket/pipe → reader actor receives via `rt_net_recv()` or `rt_file_read()` → actor forwards to other actors via `rt_ipc_send()`
+- External thread writes to socket/pipe -> reader actor receives via `rt_net_recv()` or `rt_file_read()` -> actor forwards to other actors via `rt_ipc_send()`
 
 **Design decision:** External threads are **NOT** supported for direct message passing. Adding thread-safe `rt_ipc_send()` would require:
 - Mutex/atomic protection on mailbox enqueue (contention in hot path)
@@ -281,16 +281,16 @@ The runtime uses a **single-threaded ownership model** with strict thread bounda
 
 | Thread Type | Mutate Runtime State? | Call Runtime APIs? | Push SPSC? | Access Actor/Mailbox/Bus? |
 |-------------|----------------------|-------------------|-----------|--------------------------|
-| **Scheduler** | ✓ YES (exclusive owner) | ✓ YES (all APIs) | ✓ YES (pop completions) | ✓ YES (exclusive access) |
-| **I/O threads** | ✗ NO | ✗ NO (forbidden) | ✓ YES (push completions) | ✗ NO (forbidden) |
-| **External threads** | ✗ NO | ✗ NO (forbidden) | ✗ NO | ✗ NO (forbidden) |
+| **Scheduler** | YES (exclusive owner) | YES (all APIs) | YES (pop completions) | YES (exclusive access) |
+| **I/O threads** | NO | NO (forbidden) | YES (push completions) | NO (forbidden) |
+| **External threads** | NO | NO (forbidden) | NO | NO (forbidden) |
 
 ### Synchronization Primitives
 
 The runtime uses minimal synchronization:
 
 - **SPSC queues:** Lock-free atomic head/tail for I/O completion queues
-- **Scheduler wakeup:** Single eventfd (Linux) or semaphore (FreeRTOS) for I/O→scheduler signaling
+- **Scheduler wakeup:** Single eventfd (Linux) or semaphore (FreeRTOS) for I/O->scheduler signaling
 - **Timer list:** Mutex-protected (accessed by both timer thread and scheduler thread for timer management)
 - **Logging:** Mutex-protected (optional, not part of core runtime)
 
@@ -312,34 +312,34 @@ The cooperative scheduling model ensures actors yield explicitly, so there are n
 **Valid patterns (allowed by boundary contracts):**
 
 ```c
-// ✓ VALID: Actor calling runtime APIs (BOUNDARY 1: scheduler thread)
+// VALID: Actor calling runtime APIs (BOUNDARY 1: scheduler thread)
 void my_actor(void *arg) {
-    rt_ipc_send(other_actor, &data, sizeof(data), IPC_ASYNC);  // ✓ OK
-    actor_id new_actor = rt_spawn(worker, NULL);               // ✓ OK
-    rt_bus_publish(bus, &event, sizeof(event));               // ✓ OK
+    rt_ipc_send(other_actor, &data, sizeof(data), IPC_ASYNC);  // OK
+    actor_id new_actor = rt_spawn(worker, NULL);               // OK
+    rt_bus_publish(bus, &event, sizeof(event));               // OK
 }
 
-// ✓ VALID: I/O thread posting completion (BOUNDARY 2: completion-only)
+// VALID: I/O thread posting completion (BOUNDARY 2: completion-only)
 void timer_worker_thread(void) {
     // Wait for timer expiry...
     timer_completion comp = {...};
-    rt_spsc_push(&g_timer.completion_queue, &comp);  // ✓ OK (BOUNDARY 2 allows)
-    rt_scheduler_wakeup_signal();                    // ✓ OK (BOUNDARY 2 allows)
+    rt_spsc_push(&g_timer.completion_queue, &comp);  // OK (BOUNDARY 2 allows)
+    rt_scheduler_wakeup_signal();                    // OK (BOUNDARY 2 allows)
 }
 
-// ✓ VALID: External thread → socket → reader actor (BOUNDARY 3 workaround)
+// VALID: External thread -> socket -> reader actor (BOUNDARY 3 workaround)
 // External thread:
 void external_producer(void) {
     int sock = connect_to_actor_socket();
-    write(sock, data, len);  // ✓ OK (platform-specific IPC)
+    write(sock, data, len);  // OK (platform-specific IPC)
 }
 
 // Reader actor:
 void socket_reader_actor(void *arg) {
     int sock = listen_and_accept();
     while (1) {
-        rt_net_recv(sock, buf, len, &received, -1);  // ✓ OK (scheduler thread)
-        rt_ipc_send(worker, buf, received, IPC_ASYNC); // ✓ OK (scheduler thread)
+        rt_net_recv(sock, buf, len, &received, -1);  // OK (scheduler thread)
+        rt_ipc_send(worker, buf, received, IPC_ASYNC); // OK (scheduler thread)
     }
 }
 ```
@@ -347,23 +347,23 @@ void socket_reader_actor(void *arg) {
 **Invalid patterns (violate boundary contracts):**
 
 ```c
-// ✗ INVALID: External thread calling runtime API (violates BOUNDARY 3)
+// INVALID: External thread calling runtime API (violates BOUNDARY 3)
 void external_thread(void) {
-    rt_ipc_send(actor, &data, sizeof(data), IPC_ASYNC);  // ✗ FORBIDDEN
+    rt_ipc_send(actor, &data, sizeof(data), IPC_ASYNC);  // FORBIDDEN
     // ERROR: No locking/atomics, NOT THREAD-SAFE, will corrupt mailbox!
 }
 
-// ✗ INVALID: I/O thread calling runtime API (violates BOUNDARY 2)
+// INVALID: I/O thread calling runtime API (violates BOUNDARY 2)
 void file_worker_thread(void) {
-    rt_spawn(actor, NULL);           // ✗ FORBIDDEN (violates BOUNDARY 2)
-    rt_ipc_send(actor, &data, len);  // ✗ FORBIDDEN (violates BOUNDARY 2)
+    rt_spawn(actor, NULL);           // FORBIDDEN (violates BOUNDARY 2)
+    rt_ipc_send(actor, &data, len);  // FORBIDDEN (violates BOUNDARY 2)
     // ERROR: I/O threads may ONLY push SPSC completions, not mutate runtime state!
 }
 
-// ✗ INVALID: I/O thread accessing actor state directly (violates BOUNDARY 2)
+// INVALID: I/O thread accessing actor state directly (violates BOUNDARY 2)
 void net_worker_thread(void) {
-    actor *a = rt_actor_get(id);     // ✗ FORBIDDEN (direct state access)
-    a->state = ACTOR_STATE_READY;    // ✗ FORBIDDEN (mutation from wrong thread)
+    actor *a = rt_actor_get(id);     // FORBIDDEN (direct state access)
+    a->state = ACTOR_STATE_READY;    // FORBIDDEN (mutation from wrong thread)
     // ERROR: Only scheduler thread may access/mutate actor state!
 }
 ```
@@ -751,12 +751,12 @@ The lifetime of `rt_message.data` depends on the send mode:
 rt_message msg;
 rt_ipc_recv(&msg, -1);
 
-// ✓ SAFE: Copy data immediately
+// SAFE: Copy data immediately
 char local_copy[256];
 memcpy(local_copy, msg.data, msg.len);
 // local_copy is safe to use indefinitely
 
-// ✗ UNSAFE: Storing pointer
+// UNSAFE: Storing pointer
 const char *ptr = msg.data;  // DANGER
 rt_ipc_recv(&msg, -1);       // ptr now INVALID (use-after-free)
 ```
@@ -839,20 +839,20 @@ See "Pool Exhaustion Behavior" section below for mitigation strategies and examp
 **Single sender to single receiver:**
 - Messages are received in the order they were sent
 - **FIFO guaranteed**
-- Example: If actor A sends M1, M2, M3 to actor B, B receives them in order M1 → M2 → M3
+- Example: If actor A sends M1, M2, M3 to actor B, B receives them in order M1 -> M2 -> M3
 
 **Multiple senders to single receiver:**
 - Message order depends on scheduling (which sender runs first)
 - **Arrival order is scheduling-dependent**
 - No fairness guarantee (one sender can monopolize if scheduled more often)
-- Example: If actor A sends M1 and actor B sends M2, receiver may get M1→M2 or M2→M1 depending on scheduler
+- Example: If actor A sends M1 and actor B sends M2, receiver may get M1->M2 or M2->M1 depending on scheduler
 
 **Timer messages interleaving with IPC:**
 - Timer messages use the **same mailbox** as regular IPC messages
 - Timer messages are enqueued to tail when scheduler processes timer completions
 - **No bypass, no special priority** - timers follow FIFO with other messages
 - Interleave based on when `rt_timer_process_completions()` runs relative to other sends
-- Example: If actor receives IPC message M1, then timer fires, then IPC message M2, mailbox order is M1 → timer_tick → M2
+- Example: If actor receives IPC message M1, then timer fires, then IPC message M2, mailbox order is M1 -> timer_tick -> M2
 
 **System messages (actor death notifications):**
 - Exit messages (sender == RT_SENDER_SYSTEM) also use the same mailbox
@@ -1190,15 +1190,15 @@ The bus implements **per-subscriber read cursors** with the following **three co
 ```c
 // Bus has retained entries [E1, E2, E3] with head=3
 rt_bus_subscribe(bus);
-//   → subscriber.next_read_idx = 3 (next write position)
+//   -> subscriber.next_read_idx = 3 (next write position)
 
 rt_bus_read(bus, buf, len, &actual);
-//   → Returns RT_ERR_WOULDBLOCK (no new data)
-//   → E1, E2, E3 are invisible (behind cursor)
+//   -> Returns RT_ERR_WOULDBLOCK (no new data)
+//   -> E1, E2, E3 are invisible (behind cursor)
 
 // Publisher publishes E4 (head advances to 4)
 rt_bus_read(bus, buf, len, &actual);
-//   → Returns E4 (first entry after subscription)
+//   -> Returns E4 (first entry after subscription)
 ```
 
 ---
@@ -1215,7 +1215,7 @@ rt_bus_read(bus, buf, len, &actual);
 
 2. **Storage per entry:**
    - 32-bit `readers_mask` bitmask (max 32 subscribers per bus)
-   - Bit N set → subscriber N has read this entry
+   - Bit N set -> subscriber N has read this entry
    - Storage cost: **O(1)** per entry (4 bytes bitmask + 1 byte read_count)
 
 3. **Eviction behavior (buffer full):**
@@ -1242,14 +1242,14 @@ rt_bus_read(bus, buf, len, &actual);
 // Slow subscriber: next_read_idx=0 (still at E1, hasn't read any)
 
 rt_bus_publish(bus, &E4, sizeof(E4));
-//   → Buffer full: Evict E1 at tail=0, free from pool
-//   → Write E4 at index 0: entries=[E4, E2, E3]
-//   → tail=1 (E2 is now oldest), head=1 (next write)
+//   -> Buffer full: Evict E1 at tail=0, free from pool
+//   -> Write E4 at index 0: entries=[E4, E2, E3]
+//   -> tail=1 (E2 is now oldest), head=1 (next write)
 
 // Slow subscriber calls rt_bus_read():
-//   → Search from tail=1: E2 (unread), E3 (unread), E4 (unread)
-//   → Returns E2 (first unread)
-//   → E1 is LOST (no error, silent skip)
+//   -> Search from tail=1: E2 (unread), E3 (unread), E4 (unread)
+//   -> Returns E2 (first unread)
+//   -> E1 is LOST (no error, silent skip)
 ```
 
 **Eviction does NOT notify slow subscribers:**
@@ -1266,7 +1266,7 @@ rt_bus_publish(bus, &E4, sizeof(E4));
 **Guaranteed semantics:**
 - Each entry has a `readers_mask` bitmask (32 bits, max 32 subscribers per bus)
 - When subscriber N reads an entry:
-  1. Check if bit N is set in `readers_mask` → if yes, skip (already read)
+  1. Check if bit N is set in `readers_mask` -> if yes, skip (already read)
   2. If no, set bit N, increment `read_count`, return entry
 - Entry is removed when `read_count >= max_readers` (N unique subscribers have read)
 - Same subscriber CANNOT read the same entry twice (deduplication)
@@ -1291,7 +1291,7 @@ if (config.max_readers > 0 && entry->read_count >= config.max_readers) {
 **Implications:**
 - `max_readers=3` means "remove after 3 **different** subscribers read it"
 - If subscriber A reads entry twice (e.g., re-subscribes), that's still 1 read
-- If 3 subscribers each read entry once, that's 3 reads → entry removed
+- If 3 subscribers each read entry once, that's 3 reads -> entry removed
 - Set `max_readers=0` to disable (entry persists until aged out or evicted)
 
 **Example (unique counting):**
@@ -1300,21 +1300,21 @@ if (config.max_readers > 0 && entry->read_count >= config.max_readers) {
 // Subscribers: A, B, C
 
 rt_bus_publish(bus, &E1, sizeof(E1));
-//   → E1: readers_mask=0b000, read_count=0
+//   -> E1: readers_mask=0b000, read_count=0
 
 // Subscriber A reads E1
 rt_bus_read(bus, ...);
-//   → E1: readers_mask=0b001, read_count=1 (A's bit set)
+//   -> E1: readers_mask=0b001, read_count=1 (A's bit set)
 
 // Subscriber A reads again (tries to read E1)
 rt_bus_read(bus, ...);
-//   → E1 skipped (bit already set), returns RT_ERR_WOULDBLOCK
-//   → E1: readers_mask=0b001, read_count=1 (unchanged)
+//   -> E1 skipped (bit already set), returns RT_ERR_WOULDBLOCK
+//   -> E1: readers_mask=0b001, read_count=1 (unchanged)
 
 // Subscriber B reads E1
 rt_bus_read(bus, ...);
-//   → E1: readers_mask=0b011, read_count=2 (B's bit set)
-//   → read_count >= max_readers (2) → E1 REMOVED, freed from pool
+//   -> E1: readers_mask=0b011, read_count=2 (B's bit set)
+//   -> read_count >= max_readers (2) -> E1 REMOVED, freed from pool
 ```
 
 ---
@@ -1673,12 +1673,12 @@ Exit notifications (steps 2-3 above) are enqueued in recipient mailboxes **durin
 1. **Messages already in recipient mailboxes:**
    - Exit notifications are enqueued at the **tail** of recipient mailboxes
    - Recipients will receive all messages sent before death **before** the exit notification
-   - Example: If A sends M1, M2 to B, then A dies, B receives: M1 → M2 → EXIT(A)
+   - Example: If A sends M1, M2 to B, then A dies, B receives: M1 -> M2 -> EXIT(A)
 
 2. **Messages sent by dying actor:**
    - Messages successfully enqueued before death remain in recipient mailboxes
    - These messages will be delivered **before** exit notifications (FIFO)
-   - Example: A sends M1 to B, then A dies, B receives: M1 → EXIT(A)
+   - Example: A sends M1 to B, then A dies, B receives: M1 -> EXIT(A)
 
 3. **Messages in dying actor's mailbox:**
    - Dying actor's mailbox is **cleared** (step 1)
@@ -1809,7 +1809,7 @@ The scheduler provides the following guarantees to prevent lost wakeups and ensu
 
 **Coalesced wakeup handling:**
 - Multiple signals may be coalesced into single wakeup (eventfd/semaphore behavior)
-- Example: 3 I/O completions → 3 signals → 1 wakeup → scheduler drains all 3
+- Example: 3 I/O completions -> 3 signals -> 1 wakeup -> scheduler drains all 3
 - Signal coalescing is correct because scheduler drains until empty
 - No lost work: all completions processed regardless of signal count
 
@@ -1822,9 +1822,9 @@ The scheduler provides the following guarantees to prevent lost wakeups and ensu
 **Determinism:**
 - **Deterministic policy**:
   - Within each queue: FIFO order preserved (matches I/O thread posting order)
-  - Across queues: Fixed processing order (file → net → timer)
+  - Across queues: Fixed processing order (file -> net -> timer)
   - Each queue drained fully before processing next queue
-  - **Rationale for file → net → timer order**: Timers are processed last because timer ticks are periodic/expected events with slack tolerance, whereas file/network completions represent external data arrival requiring prompt processing to avoid backpressure; applications needing timer-first priority can spawn high-priority timer-handling actors
+  - **Rationale for file -> net -> timer order**: Timers are processed last because timer ticks are periodic/expected events with slack tolerance, whereas file/network completions represent external data arrival requiring prompt processing to avoid backpressure; applications needing timer-first priority can spawn high-priority timer-handling actors
 - Runtime wakeup mechanism does not introduce nondeterminism beyond external event timing
 - External factors (I/O timing, timer jitter, ISR scheduling) may cause different completion orderings across runs
 - Given the same event arrival sequence, scheduler makes identical decisions
@@ -1920,7 +1920,7 @@ If stack overflow is severe enough to corrupt guard patterns before the next con
 - **Best-effort:** Catches most overflows during normal operation
 - **Post-facto:** Detection occurs on next context switch after overflow
 - **Not guaranteed:** Severe overflows may corrupt guards before check
-- **Timing:** Overflow → corruption → next context switch → detection
+- **Timing:** Overflow -> corruption -> next context switch -> detection
 
 **Comparison with alternatives:**
 
