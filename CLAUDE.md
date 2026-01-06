@@ -98,7 +98,7 @@ All runtime functions return `rt_status` with a code and optional string literal
   - Data copied to pinned runtime buffer (NOT sender's stack, eliminates use-after-free)
   - Risk of deadlock with circular/nested synchronous sends
   - Preconditions: Actor context only (not I/O threads), sender cannot process other messages while blocked
-  - See spec.md "IPC_SYNC Safety Considerations" for full details
+  - See SPECIFICATION.md "IPC_SYNC Safety Considerations" for full details
 
 ### IPC Pool Exhaustion
 IPC uses global pools shared by all actors:
@@ -206,7 +206,7 @@ When all actors are blocked on I/O, the scheduler efficiently waits on a single 
    - CANNOT call runtime APIs (rt_ipc_send NOT THREAD-SAFE - no locking/atomics)
    - Must use platform-specific IPC (sockets, pipes) with dedicated reader actors
 
-**No locks in hot paths:** Mailboxes, IPC, scheduling accessed only by scheduler thread. See spec.md "Thread Safety" section for full details.
+**No locks in hot paths:** Mailboxes, IPC, scheduling accessed only by scheduler thread. See SPECIFICATION.md "Thread Safety" section for full details.
 
 ### Platform Abstraction
 Different implementations for Linux (dev) vs FreeRTOS (prod):
