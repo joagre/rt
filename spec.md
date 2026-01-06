@@ -1439,13 +1439,13 @@ File I/O operations.
 rt_status rt_file_open(const char *path, int flags, int mode, int *fd_out);
 rt_status rt_file_close(int fd);
 
-rt_status rt_file_read(int fd, void *buf, size_t len, size_t *actual);
-rt_status rt_file_pread(int fd, void *buf, size_t len, size_t offset, size_t *actual);
+rt_status rt_file_read(int fd, void *buf, size_t len, size_t *actual, int32_t timeout_ms);
+rt_status rt_file_pread(int fd, void *buf, size_t len, size_t offset, size_t *actual, int32_t timeout_ms);
 
-rt_status rt_file_write(int fd, const void *buf, size_t len, size_t *actual);
-rt_status rt_file_pwrite(int fd, const void *buf, size_t len, size_t offset, size_t *actual);
+rt_status rt_file_write(int fd, const void *buf, size_t len, size_t *actual, int32_t timeout_ms);
+rt_status rt_file_pwrite(int fd, const void *buf, size_t len, size_t offset, size_t *actual, int32_t timeout_ms);
 
-rt_status rt_file_sync(int fd);
+rt_status rt_file_sync(int fd, int32_t timeout_ms);
 ```
 
 The `mode` parameter in `rt_file_open()` specifies file permissions (e.g., 0644) when creating files with `O_CREAT` flag, following POSIX conventions.
