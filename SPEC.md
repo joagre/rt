@@ -1414,6 +1414,40 @@ bool rt_timer_is_tick(const rt_message *msg);
 
 Timer wake-ups are delivered as messages with `sender == RT_SENDER_TIMER`. The actor receives these in its normal `rt_ipc_recv()` loop.
 
+### Timer Tick Coalescing (Periodic Timers)
+
+**Behavior:** When the scheduler reads a timerfd, it obtains an expiration count (how many intervals elapsed since last read). The runtime sends **exactly one tick message** regardless of the expiration count.
+
+**Rationale:**
+- Simplicity: Actor receives predictable single-message notification
+- Real-time principle: Current state matters more than history
+- Memory efficiency: No risk of mailbox flooding from fast timers
+
+**Implications:**
+- If scheduler is delayed (file I/O stall, long actor computation), periodic timer ticks are **coalesced**
+- Actor cannot determine how many intervals actually elapsed
+- For precise tick counting, use external time measurement (`clock_gettime()`)
+
+**Example:**
+```c
+// 10ms periodic timer, but actor takes 35ms to process
+rt_timer_every(10000, &timer);  // 10ms = 10000us
+
+while (1) {
+    rt_ipc_recv(&msg, -1);
+    if (rt_timer_is_tick(&msg)) {
+        // Even if 35ms passed (3-4 intervals), actor receives ONE tick
+        // timerfd read returned expirations=3 or 4, but only one message sent
+        do_work();  // Takes 35ms
+    }
+}
+```
+
+**Alternative not implemented:** Enqueuing N tick messages for N expirations was rejected because:
+- Risk of mailbox overflow for fast timers
+- Most embedded use cases don't need tick counting
+- Actors needing precise counts can use `clock_gettime()` directly
+
 ### Timer Precision and Monotonicity
 
 **Unit mismatch by design:**
@@ -1697,7 +1731,8 @@ procedure rt_run():
             for event in events:
                 source = event.data.ptr
                 if source.type == TIMER:
-                    send_timer_tick(source.owner)
+                    read(timerfd, &expirations, 8)  # Clear level-triggered, get count
+                    send_timer_tick(source.owner)   # One tick regardless of count
                     wake_actor(source.owner)
                 elif source.type == NETWORK:
                     perform_io_operation(source)
@@ -1735,6 +1770,12 @@ if (no_runnable_actors) {
     if (n < 0 && errno == EINTR) continue;  // Signal interrupted, retry
     for (int i = 0; i < n; i++) {
         io_source *source = events[i].data.ptr;
+        if (source->type == TIMER) {
+            uint64_t expirations;
+            read(source->fd, &expirations, sizeof(expirations));  // Clear timerfd
+            // expirations may be > 1 for periodic timers (coalesced)
+            // We send ONE tick message regardless of count
+        }
         dispatch_io_event(source);  // Handle timer tick or network I/O
     }
 }
@@ -1796,8 +1837,9 @@ if (no_runnable_actors) {
 - Note: Runtime APIs are not reentrant - signal handlers must not call runtime APIs
 
 **Lost event prevention:**
-- Timerfds are level-triggered (fire until read)
-- Sockets are level-triggered by default (readable until read)
+- Timerfds are level-triggered (epoll reports ready until `read()` clears the event)
+- Scheduler **must** read timerfd to clear level-triggered state (otherwise epoll spins)
+- Sockets are level-triggered by default (readable until data consumed)
 - epoll guarantees: if I/O is ready, epoll_wait will return it
 
 **File I/O stalling:**
