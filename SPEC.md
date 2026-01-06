@@ -339,9 +339,35 @@ This pure single-threaded model provides:
 
 **STM32 (bare metal):**
 - Timers: Hardware timers (SysTick or TIM peripherals)
-- Network: lwIP in NO_SYS mode (polling or interrupt-driven)
+- Network: lwIP in NO_SYS mode with ISR flag protocol (see below)
 - File: Direct synchronous I/O (FATFS/littlefs are fast, <1ms typically)
 - Event loop: WFI (Wait For Interrupt) when no actors runnable
+
+**lwIP NO_SYS ISR contract:**
+
+In NO_SYS mode, lwIP callbacks can occur from interrupt context. The runtime enforces strict separation:
+
+- **ISR responsibility:** Set flag only (`pending_events |= EVENT_NETWORK`), then return
+- **ISR prohibition:** Never call runtime APIs, never call `lwip_input()` or heavy lwIP paths
+- **Scheduler responsibility:** Check flags, call `lwip_input()` and process packets from scheduler context
+- **Rationale:** Runtime APIs are not reentrant; lwIP in NO_SYS mode is not ISR-safe for most operations
+
+```c
+// ISR: minimal, flag-only
+void ETH_IRQHandler(void) {
+    ETH_DMAClearITPendingBit(ETH_DMA_IT_R);  // Clear interrupt
+    pending_events |= EVENT_NETWORK;          // Set flag (atomic write)
+    // DO NOT call lwip_input() or runtime APIs here
+}
+
+// Scheduler: processes flags from non-ISR context
+if (pending_events & EVENT_NETWORK) {
+    __disable_irq();
+    pending_events &= ~EVENT_NETWORK;
+    __enable_irq();
+    ethernetif_input(&netif);  // Safe: called from scheduler context
+}
+```
 
 **Key insight:** Modern OSes provide non-blocking I/O mechanisms (epoll, kqueue, IOCP). On bare metal, hardware interrupts and WFI provide equivalent functionality. The event loop pattern is standard in async runtimes (Node.js, Tokio, libuv, asyncio).
 
