@@ -315,20 +315,20 @@ The runtime uses static allocation for deterministic behavior and suitability fo
   - Entry data: Uses shared message pool
 - **I/O sources:** Pool of `io_source` structures for tracking pending I/O operations in the event loop
 
-**Memory Footprint (typical configuration):**
-- Static data (BSS): ~231KB (measured with default configuration)
+**Memory Footprint (measured with default configuration):**
+- Static data (BSS): ~1.2 MB total (includes 1 MB stack arena)
+  - Stack arena: 1,048,576 bytes (1 MB, configurable via `RT_STACK_ARENA_SIZE`)
   - Actor table: 64 actors × ~200 bytes = 12.8 KB
-  - Mailbox pool: 256 entries × ~40 bytes = 10.2 KB
+  - Mailbox pool: 256 entries × ~43 bytes = 11 KB
   - Message pool: 256 entries × 256 bytes = 64 KB
-  - Link/monitor pools: 256 entries × ~16 bytes = 4 KB
-  - Timer pool: 64 entries × ~40 bytes = 2.5 KB
-  - Bus tables: 32 buses × ~3 KB each = 96 KB
-  - I/O source pool: Small pool for tracking pending operations in event loop (typically ~64 entries × ~64 bytes = 4 KB)
-  - Note: Actual size includes alignment padding and internal structures
-- Dynamic (heap): Variable actor stacks only
-  - Example: 20 actors × 32KB average = 640 KB
+  - Sync buffer pool: 64 entries × 256 bytes = 16 KB
+  - Link/monitor pools: 256 entries × ~18 bytes = 4.5 KB
+  - Timer pool: 64 entries × ~66 bytes = 4.2 KB
+  - Bus tables: 32 buses × ~2.9 KB each = 91 KB
+  - I/O source pool: 128 entries × ~42 bytes = 5.3 KB
+- Without stack arena: ~208 KB
 
-**Total:** ~871 KB static + dynamic stacks (known at compile time)
+**Total:** ~1.2 MB static (calculable at link time, no heap allocation with default arena)
 
 **Benefits:**
 
