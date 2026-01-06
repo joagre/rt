@@ -2,6 +2,7 @@
 #include "rt_ipc.h"
 #include "rt_timer.h"
 #include "rt_link.h"
+#include "rt_static_config.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -499,6 +500,69 @@ static void test12_actor_crash(void *arg) {
 }
 
 // ============================================================================
+// Test 13: Actor table exhaustion (RT_MAX_ACTORS)
+// ============================================================================
+
+static void wait_for_signal_actor(void *arg) {
+    (void)arg;
+    // Wait for signal from parent to exit
+    rt_message msg;
+    rt_ipc_recv(&msg, 5000);  // Timeout after 5s in case parent dies
+    rt_exit();
+}
+
+static void test13_actor_table_exhaustion(void *arg) {
+    (void)arg;
+    printf("\nTest 13: Actor table exhaustion (RT_MAX_ACTORS=%d)\n", RT_MAX_ACTORS);
+    fflush(stdout);
+
+    // Use malloc stacks with small size to avoid arena exhaustion
+    // This tests the actual actor table limit, not stack arena
+    actor_config cfg = RT_ACTOR_CONFIG_DEFAULT;
+    cfg.malloc_stack = true;
+    cfg.stack_size = 8 * 1024;  // 8KB stacks
+
+    // We're already using slots for: test runner + this test actor
+    // Try to spawn until we hit the limit
+    actor_id ids[RT_MAX_ACTORS];
+    int spawned = 0;
+
+    for (int i = 0; i < RT_MAX_ACTORS; i++) {
+        actor_id id = rt_spawn_ex(wait_for_signal_actor, NULL, &cfg);
+        if (id == ACTOR_ID_INVALID) {
+            // Exhaustion reached
+            break;
+        }
+        ids[spawned++] = id;
+    }
+
+    printf("    Spawned %d actors before exhaustion\n", spawned);
+    fflush(stdout);
+
+    // We should have hit actor table exhaustion
+    // With RT_MAX_ACTORS=64, we should spawn at least 60 (some slots used by test infrastructure)
+    if (spawned >= RT_MAX_ACTORS - 4) {
+        TEST_PASS("actor table exhaustion detected");
+    } else {
+        printf("    Expected to spawn at least %d actors\n", RT_MAX_ACTORS - 4);
+        TEST_FAIL("spawned fewer actors than expected");
+    }
+
+    // Signal all waiting actors to exit
+    int dummy = 1;
+    for (int i = 0; i < spawned; i++) {
+        rt_ipc_send(ids[i], &dummy, sizeof(dummy), IPC_ASYNC);
+    }
+
+    // Yield a few times to let them exit
+    for (int i = 0; i < spawned + 5; i++) {
+        rt_yield();
+    }
+
+    rt_exit();
+}
+
+// ============================================================================
 // Test runner
 // ============================================================================
 
@@ -515,6 +579,7 @@ static void (*test_funcs[])(void *) = {
     test10_spawn_null_fn,
     test11_multiple_spawns,
     test12_actor_crash,
+    test13_actor_table_exhaustion,
 };
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))

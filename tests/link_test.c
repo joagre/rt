@@ -456,6 +456,49 @@ static void test7_exit_reason(void *arg) {
 }
 
 // ============================================================================
+// Test 8: Link to dead actor (actor that existed but has exited)
+// ============================================================================
+
+static void quickly_exiting_actor(void *arg) {
+    (void)arg;
+    rt_exit();
+}
+
+static void test8_link_to_dead_actor(void *arg) {
+    (void)arg;
+    printf("\nTest 8: Link to dead actor\n");
+    fflush(stdout);
+
+    // Spawn an actor that exits immediately
+    actor_id target = rt_spawn(quickly_exiting_actor, NULL);
+    if (target == ACTOR_ID_INVALID) {
+        TEST_FAIL("failed to spawn target actor");
+        rt_exit();
+    }
+
+    // Yield to let it run and exit
+    for (int i = 0; i < 5; i++) {
+        rt_yield();
+    }
+
+    // Verify the actor is dead
+    if (rt_actor_alive(target)) {
+        TEST_FAIL("target actor should be dead by now");
+        rt_exit();
+    }
+
+    // Try to link to the dead actor
+    rt_status status = rt_link(target);
+    if (RT_FAILED(status)) {
+        TEST_PASS("rt_link rejects dead actor");
+    } else {
+        TEST_FAIL("rt_link should reject dead actor");
+    }
+
+    rt_exit();
+}
+
+// ============================================================================
 // Test runner
 // ============================================================================
 
@@ -467,6 +510,7 @@ static void (*test_funcs[])(void *) = {
     test5_multiple_links,
     test6_link_vs_monitor,
     test7_exit_reason,
+    test8_link_to_dead_actor,
 };
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))

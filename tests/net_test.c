@@ -495,6 +495,155 @@ static void test8_recv_timeout(void *arg) {
 }
 
 // ============================================================================
+// Test 9: Non-blocking recv (timeout=0)
+// ============================================================================
+
+static void test9_nonblocking_recv(void *arg) {
+    (void)arg;
+    printf("\nTest 9: Non-blocking recv (timeout=0)\n");
+
+    // Create a connection to ourselves
+    int listen_fd = -1;
+    rt_status status = rt_net_listen(TEST_PORT + 7, &listen_fd);
+    if (RT_FAILED(status)) {
+        TEST_FAIL("listen failed");
+        rt_exit();
+    }
+
+    int client_fd = -1;
+    status = rt_net_connect("127.0.0.1", TEST_PORT + 7, &client_fd, 1000);
+    if (RT_FAILED(status)) {
+        TEST_FAIL("connect failed");
+        rt_net_close(listen_fd);
+        rt_exit();
+    }
+
+    int server_fd = -1;
+    status = rt_net_accept(listen_fd, &server_fd, 1000);
+    if (RT_FAILED(status)) {
+        TEST_FAIL("accept failed");
+        rt_net_close(client_fd);
+        rt_net_close(listen_fd);
+        rt_exit();
+    }
+
+    // Non-blocking recv (timeout=0) with no data
+    char buf[64];
+    size_t received = 0;
+    uint64_t start = time_ms();
+    status = rt_net_recv(server_fd, buf, sizeof(buf), &received, 0);
+    uint64_t elapsed = time_ms() - start;
+
+    if (status.code == RT_ERR_WOULDBLOCK) {
+        printf("    Returned WOULDBLOCK after %lu ms\n", (unsigned long)elapsed);
+        TEST_PASS("non-blocking recv returns WOULDBLOCK immediately");
+    } else if (RT_FAILED(status)) {
+        printf("    Returned error after %lu ms: %s\n", (unsigned long)elapsed,
+               status.msg ? status.msg : "unknown");
+        if (elapsed < 50) {
+            TEST_PASS("non-blocking recv returns quickly");
+        } else {
+            TEST_FAIL("non-blocking recv took too long");
+        }
+    } else {
+        TEST_FAIL("non-blocking recv should not succeed without data");
+    }
+
+    rt_net_close(server_fd);
+    rt_net_close(client_fd);
+    rt_net_close(listen_fd);
+    rt_exit();
+}
+
+// ============================================================================
+// Test 10: Non-blocking send (timeout=0)
+// ============================================================================
+
+static void test10_nonblocking_send(void *arg) {
+    (void)arg;
+    printf("\nTest 10: Non-blocking send (timeout=0)\n");
+
+    // Create a connection to ourselves
+    int listen_fd = -1;
+    rt_status status = rt_net_listen(TEST_PORT + 8, &listen_fd);
+    if (RT_FAILED(status)) {
+        TEST_FAIL("listen failed");
+        rt_exit();
+    }
+
+    int client_fd = -1;
+    status = rt_net_connect("127.0.0.1", TEST_PORT + 8, &client_fd, 1000);
+    if (RT_FAILED(status)) {
+        TEST_FAIL("connect failed");
+        rt_net_close(listen_fd);
+        rt_exit();
+    }
+
+    int server_fd = -1;
+    status = rt_net_accept(listen_fd, &server_fd, 1000);
+    if (RT_FAILED(status)) {
+        TEST_FAIL("accept failed");
+        rt_net_close(client_fd);
+        rt_net_close(listen_fd);
+        rt_exit();
+    }
+
+    // Non-blocking send should succeed if buffer is not full
+    const char *data = "test";
+    size_t sent = 0;
+    status = rt_net_send(client_fd, data, strlen(data), &sent, 0);
+
+    if (!RT_FAILED(status) && sent > 0) {
+        TEST_PASS("non-blocking send succeeds with available buffer");
+    } else if (status.code == RT_ERR_WOULDBLOCK) {
+        TEST_PASS("non-blocking send returns WOULDBLOCK (buffer full)");
+    } else {
+        printf("    Status: %s\n", status.msg ? status.msg : "unknown");
+        TEST_FAIL("unexpected error from non-blocking send");
+    }
+
+    rt_net_close(server_fd);
+    rt_net_close(client_fd);
+    rt_net_close(listen_fd);
+    rt_exit();
+}
+
+// ============================================================================
+// Test 11: Connect timeout
+// ============================================================================
+
+static void test11_connect_timeout(void *arg) {
+    (void)arg;
+    printf("\nTest 11: Connect timeout to non-routable address\n");
+
+    // Try to connect to a non-routable address (should timeout)
+    // 10.255.255.1 is typically non-routable
+    int fd = -1;
+    uint64_t start = time_ms();
+    rt_status status = rt_net_connect("10.255.255.1", 12345, &fd, 200);  // 200ms timeout
+    uint64_t elapsed = time_ms() - start;
+
+    if (status.code == RT_ERR_TIMEOUT) {
+        printf("    Connect timed out after %lu ms (expected ~200ms)\n", (unsigned long)elapsed);
+        TEST_PASS("connect times out to non-routable address");
+    } else if (RT_FAILED(status)) {
+        printf("    Connect failed after %lu ms: %s\n", (unsigned long)elapsed,
+               status.msg ? status.msg : "unknown");
+        // Some systems return error immediately for unreachable networks
+        if (elapsed < 250) {
+            TEST_PASS("connect fails quickly for unreachable address");
+        } else {
+            TEST_FAIL("connect took too long");
+        }
+    } else {
+        rt_net_close(fd);
+        TEST_FAIL("connect should not succeed to non-routable address");
+    }
+
+    rt_exit();
+}
+
+// ============================================================================
 // Test runner
 // ============================================================================
 
@@ -507,6 +656,9 @@ static void (*test_funcs[])(void *) = {
     test6_close_reuse,
     test7_nonblocking_accept,
     test8_recv_timeout,
+    test9_nonblocking_recv,
+    test10_nonblocking_send,
+    test11_connect_timeout,
 };
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
