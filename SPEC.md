@@ -166,11 +166,15 @@ In the simultaneous case, the actor's wakeup handler checks for timeout by exami
 
 **Note:** This is "first-processed wins" semantics based on epoll array order. For most practical scenarios (I/O ready well before or well after timeout), this distinction is irrelevant.
 
-**Request serialization:**
-- Constraint: **One outstanding blocking request per actor per I/O subsystem**
-- Enforced by scheduler: blocked actor cannot issue new requests
-- When timeout occurs: I/O registration cleaned up, any late I/O result is ignored
-- New request from same actor gets fresh state
+**Request serialization (network I/O only):**
+- Applies to: `rt_net_accept()`, `rt_net_connect()`, `rt_net_recv()`, `rt_net_send()` with timeouts
+- Constraint: **One outstanding network request per actor** (enforced by actor blocking)
+- When timeout occurs: epoll registration cleaned up, any late readiness signal is ignored
+- New request from same actor gets fresh epoll state
+
+**Note:** This serialization model does NOT apply to:
+- **File I/O**: Stalls scheduler synchronously (no event loop involvement)
+- **IPC_SYNC**: Sender blocks until receiver releases (no event loop, no timeout race)
 
 **Determinism guarantee:**
 - **Deterministic policy**: Given the same sequence of epoll events in the same order, scheduling decisions are deterministic
