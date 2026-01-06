@@ -1,4 +1,5 @@
 #include "rt_context.h"
+#include "rt_internal.h"
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
@@ -23,11 +24,8 @@ static void context_entry(void) {
 
     fn(arg);
 
-    // If actor function returns, we should exit
-    // For now, just hang (in full implementation, would call rt_exit)
-    while (1) {
-        __asm__ volatile("pause");
-    }
+    // Actor returned without calling rt_exit() - this is a crash
+    rt_exit_crash();
 }
 
 void rt_context_init(rt_context *ctx, void *stack, size_t stack_size,
