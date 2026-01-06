@@ -149,6 +149,7 @@ When an actor calls a blocking API, the following contract applies:
 - **Deterministic policy**: Given the same sequence of completion events and runnable-set transitions, scheduling decisions are deterministic
 - Runtime does not introduce nondeterminism beyond external event arrival order (I/O timing, timer jitter, ISR scheduling)
 - No phantom wakeups (actor only unblocks on specified conditions)
+- **Scheduling phase definition**: One iteration of the scheduler loop, including completion draining (file/net/timer queues) and all run-queue enqueues performed during that iteration, ending when the next actor is selected for execution
 - Scheduler guarantees FIFO ordering among actors enqueued into the same run queue in the same scheduling phase
 
 ### Priority Levels
