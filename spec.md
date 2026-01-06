@@ -128,6 +128,7 @@ When an actor calls a blocking API, the following contract applies:
 - Timer expires (for APIs with timeout)
 - Message arrives in mailbox (for `rt_ipc_recv()`)
 - Explicit release occurs (for `IPC_SYNC` sender)
+- **Important**: Mailbox arrival only unblocks actors blocked in `rt_ipc_recv()` or `rt_bus_read_wait()`, not actors blocked on file/net I/O or `IPC_SYNC` send
 
 **Timeout and completion races:**
 - Exactly one unblock event is processed
