@@ -93,6 +93,9 @@ All structures are statically allocated. Actor stacks use a static arena allocat
 
 # Bus pub-sub example
 ./build/bus
+
+# IPC_SYNC example (backpressure, flow control)
+./build/sync_ipc
 ```
 
 ## Quick Start
