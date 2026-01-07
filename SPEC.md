@@ -727,7 +727,8 @@ typedef enum {
 rt_status rt_ipc_send(actor_id to, const void *data, size_t len, rt_ipc_mode mode);
 ```
 
-**Message size validation:**
+**Parameter validation:**
+- If `data == NULL && len > 0`: Returns `RT_ERR_INVALID` (NULL pointer with non-zero length)
 - If `len > RT_MAX_MESSAGE_SIZE` (256 bytes): Returns `RT_ERR_INVALID`
 - Message data pools use fixed-size entries of `RT_MAX_MESSAGE_SIZE` bytes
 - Oversized messages are rejected immediately, not truncated
@@ -1261,6 +1262,12 @@ size_t rt_bus_entry_count(bus_id bus);
 - If `len > cfg.max_entry_size`: Returns `RT_ERR_INVALID`
 - Oversized messages are rejected immediately, not truncated
 - The `max_entry_size` was validated at bus creation time
+
+`rt_bus_read()` / `rt_bus_read_wait()`:
+- If message size > `max_len`: Data is **truncated** to fit in buffer
+- `*actual_len` returns the **actual bytes copied** (truncated length), NOT the original message size
+- This is safe buffer overflow protection - caller gets as much data as fits
+- No error is returned for truncation (caller can compare `actual_len < max_entry_size` to detect)
 
 ### Bus Consumption Model (Semantic Contract)
 
