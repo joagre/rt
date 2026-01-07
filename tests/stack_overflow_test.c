@@ -10,18 +10,19 @@ void overflow_actor(void *arg) {
 
     printf("Overflow actor: Deliberately corrupting stack guard...\n");
 
-    // Allocate buffer that will barely overflow the guard
-    // Stack is 8KB, usable is ~8176 bytes after guards
-    // Use just slightly more to minimize corruption
+    // Allocate buffer that will overflow the stack
+    // Stack is 8KB, usable is ~8176 bytes after guards (8 bytes each end)
+    // This will overflow and corrupt the guard at the bottom of the stack
     volatile char buffer[8200];
 
-    // Touch only first part to ensure allocation but minimize corruption
+    // Touch the buffer to force allocation and prevent optimization
     volatile int sum = 0;
     for (int i = 0; i < 100; i++) {
         buffer[i] = (char)i;
-        sum += buffer[i];  // Prevent optimization
+        sum += buffer[i];
     }
-    (void)sum;  // Mark as intentionally unused
+    // Also touch near the end to ensure full allocation
+    buffer[8199] = (char)sum;
 
     // Yield to trigger guard check
     printf("Overflow actor: Yielding to allow guard check...\n");
