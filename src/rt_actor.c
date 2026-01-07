@@ -27,8 +27,15 @@ typedef struct {
 #define STACK_GUARD_PATTERN 0xDEADBEEFCAFEBABEULL
 #define STACK_GUARD_SIZE 8  // sizeof(uint64_t)
 
-// Static arena storage (16-byte aligned)
-static uint8_t g_stack_arena_memory[RT_STACK_ARENA_SIZE] __attribute__((aligned(16)));
+// Stack arena with overflow guard zone
+// Guard zone comes BEFORE the arena in memory so that stack overflow
+// (which writes to lower addresses) hits the guard zone instead of other data
+static struct {
+    uint8_t guard_zone[4096];  // Absorbs stack overflow
+    uint8_t arena[RT_STACK_ARENA_SIZE];
+} g_stack_arena_storage __attribute__((aligned(16)));
+
+#define g_stack_arena_memory (g_stack_arena_storage.arena)
 static stack_arena g_stack_arena = {0};
 
 // Static actor storage
@@ -143,7 +150,11 @@ rt_status rt_actor_init(void) {
     // Initialize stack arena
     arena_init();
 
-    // Use static actor array (already zero-initialized)
+    // Explicitly zero-initialize actor array for valgrind
+    // (Static arrays are zero-initialized by C, but valgrind doesn't track this)
+    memset(g_actors, 0, sizeof(g_actors));
+
+    // Use static actor array
     g_actor_table.actors = g_actors;
     g_actor_table.max_actors = RT_MAX_ACTORS;
     g_actor_table.num_actors = 0;
