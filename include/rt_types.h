@@ -18,12 +18,12 @@ typedef uint32_t actor_id;
 
 // Message classes (4 bits, stored in header bits 31-28)
 typedef enum {
-    RT_MSG_CAST   = 0,  // Fire-and-forget message
-    RT_MSG_CALL   = 1,  // Request expecting reply
-    RT_MSG_REPLY  = 2,  // Response to call
-    RT_MSG_TIMER  = 3,  // Timer tick
-    RT_MSG_SYSTEM = 4,  // System message (exit notifications, etc.)
-    RT_MSG_ANY    = 15, // Wildcard for filtering (use with rt_ipc_recv_match)
+    RT_MSG_NOTIFY  = 0,  // Fire-and-forget notification
+    RT_MSG_REQUEST = 1,  // Request expecting reply
+    RT_MSG_REPLY   = 2,  // Response to request
+    RT_MSG_TIMER   = 3,  // Timer tick
+    RT_MSG_SYSTEM  = 4,  // System message (exit notifications, etc.)
+    RT_MSG_ANY     = 15, // Wildcard for filtering (use with rt_ipc_recv_match)
 } rt_msg_class;
 
 // Tag constants

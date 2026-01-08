@@ -8,10 +8,10 @@
 // Core Send/Receive
 // -----------------------------------------------------------------------------
 
-// Cast a fire-and-forget message (RT_MSG_CAST)
+// Send a fire-and-forget notification (RT_MSG_NOTIFY)
 // Payload is copied to receiver's mailbox, sender continues immediately.
 // Returns RT_ERR_NOMEM if IPC pools exhausted.
-rt_status rt_ipc_cast(actor_id to, const void *data, size_t len);
+rt_status rt_ipc_notify(actor_id to, const void *data, size_t len);
 
 // Receive any message (FIFO order)
 // timeout_ms == 0:  non-blocking, returns RT_ERR_WOULDBLOCK if empty
@@ -31,14 +31,14 @@ rt_status rt_ipc_recv_match(const actor_id *from, const rt_msg_class *class,
 // -----------------------------------------------------------------------------
 
 // Send request and wait for reply (blocking RPC)
-// Sends RT_MSG_CALL with generated tag, blocks until RT_MSG_REPLY received.
+// Sends RT_MSG_REQUEST with generated tag, blocks until RT_MSG_REPLY received.
 // The reply message is returned in 'reply'.
-rt_status rt_ipc_call(actor_id to, const void *request, size_t req_len,
-                      rt_message *reply, int32_t timeout_ms);
+rt_status rt_ipc_request(actor_id to, const void *request, size_t req_len,
+                         rt_message *reply, int32_t timeout_ms);
 
-// Reply to a call message
+// Reply to a request message
 // Extracts tag from request header and sends RT_MSG_REPLY.
-// 'request' must be a RT_MSG_CALL message from the current rt_ipc_recv().
+// 'request' must be a RT_MSG_REQUEST message from the current rt_ipc_recv().
 rt_status rt_ipc_reply(const rt_message *request, const void *data, size_t len);
 
 // -----------------------------------------------------------------------------
@@ -72,8 +72,8 @@ void rt_ipc_mailbox_clear(mailbox *mbox);
 // Free active message entry (used during actor cleanup)
 void rt_ipc_free_active_msg(mailbox_entry *entry);
 
-// Cast with explicit class and tag (used internally by timer, link, etc.)
-rt_status rt_ipc_cast_ex(actor_id to, actor_id sender, rt_msg_class class,
-                         uint32_t tag, const void *data, size_t len);
+// Send with explicit class and tag (used internally by timer, link, etc.)
+rt_status rt_ipc_notify_ex(actor_id to, actor_id sender, rt_msg_class class,
+                           uint32_t tag, const void *data, size_t len);
 
 #endif // RT_IPC_H
