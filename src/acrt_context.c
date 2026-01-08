@@ -1,11 +1,11 @@
-#include "rt_context.h"
-#include "rt_internal.h"
+#include "acrt_context.h"
+#include "acrt_internal.h"
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 
 // Forward declaration of assembly function
-extern void rt_context_switch_asm(rt_context *from, rt_context *to);
+extern void acrt_context_switch_asm(acrt_context *from, acrt_context *to);
 
 // Wrapper function that calls the actor function and handles return
 static void context_entry(void) {
@@ -24,14 +24,14 @@ static void context_entry(void) {
 
     fn(arg);
 
-    // Actor returned without calling rt_exit() - this is a crash
-    rt_exit_crash();
+    // Actor returned without calling acrt_exit() - this is a crash
+    acrt_exit_crash();
 }
 
-void rt_context_init(rt_context *ctx, void *stack, size_t stack_size,
+void acrt_context_init(acrt_context *ctx, void *stack, size_t stack_size,
                      void (*fn)(void *), void *arg) {
     // Zero out context
-    memset(ctx, 0, sizeof(rt_context));
+    memset(ctx, 0, sizeof(acrt_context));
 
     // Stack grows down on x86-64
     // Calculate stack top (align to 16 bytes as required by x86-64 ABI)
@@ -76,6 +76,6 @@ void rt_context_init(rt_context *ctx, void *stack, size_t stack_size,
     ctx->rsp = (void *)stack_top;
 }
 
-void rt_context_switch(rt_context *from, rt_context *to) {
-    rt_context_switch_asm(from, to);
+void acrt_context_switch(acrt_context *from, acrt_context *to) {
+    acrt_context_switch_asm(from, to);
 }

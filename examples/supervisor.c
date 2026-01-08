@@ -1,7 +1,7 @@
-#include "rt_runtime.h"
-#include "rt_link.h"
-#include "rt_ipc.h"
-#include "rt_timer.h"
+#include "acrt_runtime.h"
+#include "acrt_link.h"
+#include "acrt_ipc.h"
+#include "acrt_timer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -10,27 +10,27 @@
 static void worker_actor(void *arg) {
     int worker_id = *(int *)arg;
 
-    printf("Worker %d started (Actor ID: %u)\n", worker_id, rt_self());
+    printf("Worker %d started (Actor ID: %u)\n", worker_id, acrt_self());
 
     // Simulate some work with random duration
     srand(time(NULL) + worker_id);
     uint64_t work_time = 200000 + (rand() % 400000);  // 200-600ms
 
     timer_id work_timer;
-    rt_timer_after(work_time, &work_timer);
+    acrt_timer_after(work_time, &work_timer);
 
-    rt_message msg;
-    rt_ipc_recv(&msg, -1);
+    acrt_message msg;
+    acrt_ipc_recv(&msg, -1);
 
     printf("Worker %d: Completed work, exiting normally\n", worker_id);
-    rt_exit();
+    acrt_exit();
 }
 
 // Supervisor actor - monitors workers and reports when they exit
 static void supervisor_actor(void *arg) {
     (void)arg;
 
-    printf("Supervisor started (Actor ID: %u)\n", rt_self());
+    printf("Supervisor started (Actor ID: %u)\n", acrt_self());
 
     // Spawn 3 workers
     #define NUM_WORKERS 3
@@ -40,18 +40,18 @@ static void supervisor_actor(void *arg) {
     printf("Supervisor: Spawning %d workers...\n", NUM_WORKERS);
 
     for (int i = 0; i < NUM_WORKERS; i++) {
-        actor_config worker_cfg = RT_ACTOR_CONFIG_DEFAULT;
+        actor_config worker_cfg = ACRT_ACTOR_CONFIG_DEFAULT;
         worker_cfg.name = "worker";
 
-        actor_id worker = rt_spawn_ex(worker_actor, &worker_ids[i], &worker_cfg);
+        actor_id worker = acrt_spawn_ex(worker_actor, &worker_ids[i], &worker_cfg);
         if (worker == ACTOR_ID_INVALID) {
             printf("Supervisor: Failed to spawn worker %d\n", i + 1);
             continue;
         }
 
         // Monitor the worker
-        rt_status status = rt_monitor(worker, &monitor_refs[i]);
-        if (RT_FAILED(status)) {
+        acrt_status status = acrt_monitor(worker, &monitor_refs[i]);
+        if (ACRT_FAILED(status)) {
             printf("Supervisor: Failed to monitor worker %d: %s\n", i + 1,
                    status.msg ? status.msg : "unknown error");
         } else {
@@ -65,22 +65,22 @@ static void supervisor_actor(void *arg) {
     printf("\nSupervisor: Waiting for workers to complete...\n");
 
     while (workers_completed < NUM_WORKERS) {
-        rt_message msg;
-        rt_status status = rt_ipc_recv(&msg, -1);
+        acrt_message msg;
+        acrt_status status = acrt_ipc_recv(&msg, -1);
 
-        if (RT_FAILED(status)) {
+        if (ACRT_FAILED(status)) {
             printf("Supervisor: Failed to receive message\n");
             break;
         }
 
-        if (rt_is_exit_msg(&msg)) {
-            rt_exit_msg exit_info;
-            rt_decode_exit(&msg, &exit_info);
+        if (acrt_is_exit_msg(&msg)) {
+            acrt_exit_msg exit_info;
+            acrt_decode_exit(&msg, &exit_info);
 
             printf("Supervisor: Worker died (Actor ID: %u, reason: %s)\n",
                    exit_info.actor,
-                   exit_info.reason == RT_EXIT_NORMAL ? "NORMAL" :
-                   exit_info.reason == RT_EXIT_CRASH ? "CRASH" : "KILLED");
+                   exit_info.reason == ACRT_EXIT_NORMAL ? "NORMAL" :
+                   exit_info.reason == ACRT_EXIT_CRASH ? "CRASH" : "KILLED");
 
             workers_completed++;
         } else {
@@ -89,41 +89,41 @@ static void supervisor_actor(void *arg) {
     }
 
     printf("\nSupervisor: All workers completed, exiting\n");
-    rt_exit();
+    acrt_exit();
 }
 
 int main(void) {
     printf("=== Actor Runtime Supervisor Demo ===\n\n");
 
     // Initialize runtime
-    rt_status status = rt_init();
-    if (RT_FAILED(status)) {
+    acrt_status status = acrt_init();
+    if (ACRT_FAILED(status)) {
         fprintf(stderr, "Failed to initialize runtime: %s\n",
                 status.msg ? status.msg : "unknown error");
         return 1;
     }
 
     // Spawn supervisor with larger stack (needs space for arrays and nested spawns)
-    actor_config sup_cfg = RT_ACTOR_CONFIG_DEFAULT;
+    actor_config sup_cfg = ACRT_ACTOR_CONFIG_DEFAULT;
     sup_cfg.name = "supervisor";
     sup_cfg.stack_size = 128 * 1024;  // 128KB stack
 
-    actor_id supervisor = rt_spawn_ex(supervisor_actor, NULL, &sup_cfg);
+    actor_id supervisor = acrt_spawn_ex(supervisor_actor, NULL, &sup_cfg);
     if (supervisor == ACTOR_ID_INVALID) {
         fprintf(stderr, "Failed to spawn supervisor\n");
-        rt_cleanup();
+        acrt_cleanup();
         return 1;
     }
 
     printf("Spawned supervisor (Actor ID: %u)\n\n", supervisor);
 
     // Run scheduler
-    rt_run();
+    acrt_run();
 
     printf("\nScheduler finished\n");
 
     // Cleanup
-    rt_cleanup();
+    acrt_cleanup();
 
     printf("\n=== Demo completed ===\n");
 

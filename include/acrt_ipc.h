@@ -1,45 +1,45 @@
-#ifndef RT_IPC_H
-#define RT_IPC_H
+#ifndef ACRT_IPC_H
+#define ACRT_IPC_H
 
-#include "rt_types.h"
-#include "rt_actor.h"
+#include "acrt_types.h"
+#include "acrt_actor.h"
 
 // -----------------------------------------------------------------------------
 // Core Send/Receive
 // -----------------------------------------------------------------------------
 
-// Send an async notification (RT_MSG_NOTIFY)
+// Send an async notification (ACRT_MSG_NOTIFY)
 // Payload is copied to receiver's mailbox, sender continues immediately.
-// Returns RT_ERR_NOMEM if IPC pools exhausted.
-rt_status rt_ipc_notify(actor_id to, const void *data, size_t len);
+// Returns ACRT_ERR_NOMEM if IPC pools exhausted.
+acrt_status acrt_ipc_notify(actor_id to, const void *data, size_t len);
 
 // Receive any message (FIFO order)
-// timeout_ms == 0:  non-blocking, returns RT_ERR_WOULDBLOCK if empty
+// timeout_ms == 0:  non-blocking, returns ACRT_ERR_WOULDBLOCK if empty
 // timeout_ms < 0:   block forever
-// timeout_ms > 0:   block up to timeout, returns RT_ERR_TIMEOUT if exceeded
-rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms);
+// timeout_ms > 0:   block up to timeout, returns ACRT_ERR_TIMEOUT if exceeded
+acrt_status acrt_ipc_recv(acrt_message *msg, int32_t timeout_ms);
 
 // Receive message matching filters (selective receive)
 // Pass NULL for any filter parameter to accept any value.
-// Pass RT_SENDER_ANY, RT_MSG_ANY, or RT_TAG_ANY to match any.
+// Pass ACRT_SENDER_ANY, ACRT_MSG_ANY, or ACRT_TAG_ANY to match any.
 // Scans mailbox for first matching message (O(n) worst case).
-rt_status rt_ipc_recv_match(const actor_id *from, const rt_msg_class *class,
-                            const uint32_t *tag, rt_message *msg, int32_t timeout_ms);
+acrt_status acrt_ipc_recv_match(const actor_id *from, const acrt_msg_class *class,
+                            const uint32_t *tag, acrt_message *msg, int32_t timeout_ms);
 
 // -----------------------------------------------------------------------------
 // Request/Reply Pattern
 // -----------------------------------------------------------------------------
 
 // Send request and wait for reply (blocking)
-// Sends RT_MSG_REQUEST with generated tag, blocks until RT_MSG_REPLY received.
+// Sends ACRT_MSG_REQUEST with generated tag, blocks until ACRT_MSG_REPLY received.
 // The reply message is returned in 'reply'.
-rt_status rt_ipc_request(actor_id to, const void *request, size_t req_len,
-                         rt_message *reply, int32_t timeout_ms);
+acrt_status acrt_ipc_request(actor_id to, const void *request, size_t req_len,
+                         acrt_message *reply, int32_t timeout_ms);
 
 // Reply to a request message
-// Extracts tag from request header and sends RT_MSG_REPLY.
-// 'request' must be a RT_MSG_REQUEST message from the current rt_ipc_recv().
-rt_status rt_ipc_reply(const rt_message *request, const void *data, size_t len);
+// Extracts tag from request header and sends ACRT_MSG_REPLY.
+// 'request' must be a ACRT_MSG_REQUEST message from the current acrt_ipc_recv().
+acrt_status acrt_ipc_reply(const acrt_message *request, const void *data, size_t len);
 
 // -----------------------------------------------------------------------------
 // Message Inspection
@@ -48,32 +48,32 @@ rt_status rt_ipc_reply(const rt_message *request, const void *data, size_t len);
 // Decode message header fields
 // Extracts class, tag, and payload from raw message data.
 // Pass NULL for any field you don't need.
-rt_status rt_msg_decode(const rt_message *msg, rt_msg_class *class,
+acrt_status acrt_msg_decode(const acrt_message *msg, acrt_msg_class *class,
                         uint32_t *tag, const void **payload, size_t *payload_len);
 
 // Check if message is a timer tick
-bool rt_msg_is_timer(const rt_message *msg);
+bool acrt_msg_is_timer(const acrt_message *msg);
 
 // -----------------------------------------------------------------------------
 // Query Functions
 // -----------------------------------------------------------------------------
 
 // Query mailbox state
-bool rt_ipc_pending(void);
-size_t rt_ipc_count(void);
+bool acrt_ipc_pending(void);
+size_t acrt_ipc_count(void);
 
 // -----------------------------------------------------------------------------
 // Internal (used by runtime)
 // -----------------------------------------------------------------------------
 
 // Clear mailbox entries (used during actor cleanup)
-void rt_ipc_mailbox_clear(mailbox *mbox);
+void acrt_ipc_mailbox_clear(mailbox *mbox);
 
 // Free active message entry (used during actor cleanup)
-void rt_ipc_free_active_msg(mailbox_entry *entry);
+void acrt_ipc_free_active_msg(mailbox_entry *entry);
 
 // Send with explicit class and tag (used internally by timer, link, etc.)
-rt_status rt_ipc_notify_ex(actor_id to, actor_id sender, rt_msg_class class,
+acrt_status acrt_ipc_notify_ex(actor_id to, actor_id sender, acrt_msg_class class,
                            uint32_t tag, const void *data, size_t len);
 
-#endif // RT_IPC_H
+#endif // ACRT_IPC_H

@@ -20,25 +20,25 @@ A minimalistic actor-based runtime designed for **embedded and safety-critical s
 ### Heap Usage Policy
 
 **Allowed heap use** (malloc/free):
-- `rt_init()`: None (uses only static/BSS)
-- `rt_spawn()` / `rt_spawn_ex()`: Actor stack allocation **only if** `actor_config.malloc_stack = true`
+- `acrt_init()`: None (uses only static/BSS)
+- `acrt_spawn()` / `acrt_spawn_ex()`: Actor stack allocation **only if** `actor_config.malloc_stack = true`
   - Default: Arena allocator (static memory, no malloc)
   - Optional: Explicit malloc via config flag
 - Actor exit/cleanup: Corresponding free for malloc'd stacks
 
 **Forbidden heap use** (exhaustive):
-- Scheduler loop (`rt_run()`, `rt_yield()`, context switching)
-- IPC (`rt_ipc_notify()`, `rt_ipc_recv()`, `rt_ipc_recv_match()`, `rt_ipc_request()`, `rt_ipc_reply()`)
-- Timers (`rt_timer_after()`, `rt_timer_every()`, timer delivery)
-- Bus (`rt_bus_publish()`, `rt_bus_read()`, `rt_bus_read_wait()`)
-- Network I/O (`rt_net_*()` functions, event loop dispatch)
-- File I/O (`rt_file_*()` functions, synchronous execution)
-- Linking/monitoring (`rt_link()`, `rt_monitor()`, death notifications)
+- Scheduler loop (`acrt_run()`, `acrt_yield()`, context switching)
+- IPC (`acrt_ipc_notify()`, `acrt_ipc_recv()`, `acrt_ipc_recv_match()`, `acrt_ipc_request()`, `acrt_ipc_reply()`)
+- Timers (`acrt_timer_after()`, `acrt_timer_every()`, timer delivery)
+- Bus (`acrt_bus_publish()`, `acrt_bus_read()`, `acrt_bus_read_wait()`)
+- Network I/O (`acrt_net_*()` functions, event loop dispatch)
+- File I/O (`acrt_file_*()` functions, synchronous execution)
+- Linking/monitoring (`acrt_link()`, `acrt_monitor()`, death notifications)
 - All I/O event processing (epoll event dispatch)
 
-**Consequence**: All "hot path" operations (scheduling, IPC, I/O) use **static pools** with **O(1) allocation** and return `RT_ERR_NOMEM` on pool exhaustion. Stack allocation (spawn/exit, cold path) uses arena allocator with O(n) first-fit search bounded by number of free blocks. No malloc in hot paths, no heap fragmentation, predictable allocation latency.
+**Consequence**: All "hot path" operations (scheduling, IPC, I/O) use **static pools** with **O(1) allocation** and return `ACRT_ERR_NOMEM` on pool exhaustion. Stack allocation (spawn/exit, cold path) uses arena allocator with O(n) first-fit search bounded by number of free blocks. No malloc in hot paths, no heap fragmentation, predictable allocation latency.
 
-**Linux verification**: Run with `LD_PRELOAD` malloc wrapper to assert no malloc calls after `rt_init()` (except explicit `malloc_stack = true` spawns).
+**Linux verification**: Run with `LD_PRELOAD` malloc wrapper to assert no malloc calls after `acrt_init()` (except explicit `malloc_stack = true` spawns).
 
 ## Target Platforms
 
@@ -96,8 +96,8 @@ On both platforms, the actor runtime is **single-threaded** with an event loop a
 Actors run until they explicitly yield control. The scheduler reschedules an actor only when:
 
 - The actor calls a blocking I/O primitive (net, file, IPC receive)
-- The actor explicitly yields via `rt_yield()`
-- The actor exits via `rt_exit()`
+- The actor explicitly yields via `acrt_yield()`
+- The actor exits via `acrt_exit()`
 
 There is no preemptive scheduling or time slicing within the actor runtime.
 
@@ -117,13 +117,13 @@ When an actor calls a blocking API, the following contract applies:
 - Scheduler saves actor context and switches to next runnable actor
 
 **Operations that block (actor yields, other actors run):**
-- `rt_ipc_recv()` with timeout > 0 or timeout < 0 (block until message or timeout)
-- `rt_ipc_recv_match()` (block until matching message or timeout)
-- `rt_ipc_request()` (block until reply or timeout)
-- `rt_net_send()`, `rt_net_recv()` (block until at least 1 byte transferred or timeout)
-- `rt_bus_read_wait()` (block until data available or timeout)
+- `acrt_ipc_recv()` with timeout > 0 or timeout < 0 (block until message or timeout)
+- `acrt_ipc_recv_match()` (block until matching message or timeout)
+- `acrt_ipc_request()` (block until reply or timeout)
+- `acrt_net_send()`, `acrt_net_recv()` (block until at least 1 byte transferred or timeout)
+- `acrt_bus_read_wait()` (block until data available or timeout)
 
-**Note:** File I/O (`rt_file_*`) is NOT in this list. See "Scheduler-Stalling Calls" below.
+**Note:** File I/O (`acrt_file_*`) is NOT in this list. See "Scheduler-Stalling Calls" below.
 
 **Mailbox availability while blocked:**
 - Blocked actors **can** receive mailbox messages
@@ -133,8 +133,8 @@ When an actor calls a blocking API, the following contract applies:
 **Unblock conditions:**
 - I/O readiness signaled (network socket becomes readable/writable)
 - Timer expires (for APIs with timeout)
-- Message arrives in mailbox (for `rt_ipc_recv()`, `rt_ipc_recv_match()`, `rt_ipc_request()`)
-- Bus data published (for `rt_bus_read_wait()`)
+- Message arrives in mailbox (for `acrt_ipc_recv()`, `acrt_ipc_recv_match()`, `acrt_ipc_request()`)
+- Bus data published (for `acrt_bus_read_wait()`)
 - **Important**: Mailbox arrival only unblocks actors blocked in IPC receive operations, not actors blocked on network I/O or bus read
 
 **Scheduling phase definition:**
@@ -170,7 +170,7 @@ Each blocking network request has an implicit state: `PENDING` → `COMPLETED` o
 
 **Tie-break rule (deadline check at wake time):**
 - When actor wakes, check: `now >= deadline`?
-- If yes: state = `TIMED_OUT`, return `RT_ERR_TIMEOUT`, **do not perform I/O even if socket is ready**
+- If yes: state = `TIMED_OUT`, return `ACRT_ERR_TIMEOUT`, **do not perform I/O even if socket is ready**
 - If no: state = `COMPLETED`, perform I/O operation, return result
 
 **Rationale:** This avoids the "read data then discard" oddity. The deadline check is deterministic and independent of epoll event ordering.
@@ -181,7 +181,7 @@ Each blocking network request has an implicit state: `PENDING` → `COMPLETED` o
 - If both fire in **same** `epoll_wait()`: Actor wakes, deadline check determines outcome (I/O not performed if timed out)
 
 **Request serialization (network I/O only):**
-- Applies to: `rt_net_accept()`, `rt_net_connect()`, `rt_net_recv()`, `rt_net_send()` with timeouts
+- Applies to: `acrt_net_accept()`, `acrt_net_connect()`, `acrt_net_recv()`, `acrt_net_send()` with timeouts
 - Constraint: **One outstanding network request per actor** (enforced by actor blocking)
 - When timeout occurs: epoll registration cleaned up, any late readiness signal is ignored
 - New request from same actor gets fresh epoll state
@@ -210,7 +210,7 @@ The runtime provides **conditional determinism**, not absolute determinism:
 
 ### Scheduler-Stalling Calls
 
-File I/O operations (`rt_file_read()`, `rt_file_write()`, `rt_file_sync()`) are **synchronous** and stall the entire runtime:
+File I/O operations (`acrt_file_read()`, `acrt_file_write()`, `acrt_file_sync()`) are **synchronous** and stall the entire runtime:
 
 **Behavior:**
 - Calling actor does NOT transition to `ACTOR_STATE_BLOCKED`
@@ -243,10 +243,10 @@ Four priority levels, lower value means higher priority:
 
 | Level | Name | Typical Use |
 |-------|------|-------------|
-| 0 | `RT_PRIO_CRITICAL` | Flight control loop |
-| 1 | `RT_PRIO_HIGH` | Sensor fusion |
-| 2 | `RT_PRIO_NORMAL` | Telemetry |
-| 3 | `RT_PRIO_LOW` | Logging |
+| 0 | `ACRT_PRIO_CRITICAL` | Flight control loop |
+| 1 | `ACRT_PRIO_HIGH` | Sensor fusion |
+| 2 | `ACRT_PRIO_NORMAL` | Telemetry |
+| 3 | `ACRT_PRIO_LOW` | Logging |
 
 The scheduler always picks the highest-priority runnable actor. Within the same priority level, actors are scheduled round-robin.
 
@@ -271,7 +271,7 @@ No use of setjmp/longjmp or ucontext for performance reasons.
 
 The runtime is **completely single-threaded**. All runtime operations execute in a single scheduler thread with an event loop architecture. There are **no I/O worker threads** - all I/O operations are integrated into the scheduler's event loop using platform-specific non-blocking mechanisms.
 
-**Key architectural invariant:** Only one actor executes at any given time. Actors run cooperatively until they explicitly yield (via `rt_yield()`, blocking I/O, or `rt_exit()`). The scheduler then switches to the next runnable actor or waits for I/O events.
+**Key architectural invariant:** Only one actor executes at any given time. Actors run cooperatively until they explicitly yield (via `acrt_yield()`, blocking I/O, or `acrt_exit()`). The scheduler then switches to the next runnable actor or waits for I/O events.
 
 ### Runtime API Thread Safety Contract
 
@@ -279,12 +279,12 @@ The runtime is **completely single-threaded**. All runtime operations execute in
 
 | API Category | Thread Safety | Enforcement |
 |-------------|---------------|-------------|
-| **Actor APIs** (`rt_spawn`, `rt_exit`, etc.) | Single-threaded only | Must call from actor context |
-| **IPC APIs** (`rt_ipc_notify`, `rt_ipc_recv`) | Single-threaded only | Must call from actor context |
-| **Bus APIs** (`rt_bus_publish`, `rt_bus_read`) | Single-threaded only | Must call from actor context |
-| **Timer APIs** (`rt_timer_after`, `rt_timer_every`) | Single-threaded only | Must call from actor context |
-| **File APIs** (`rt_file_read`, `rt_file_write`) | Single-threaded only | Must call from actor context; stalls scheduler |
-| **Network APIs** (`rt_net_recv`, `rt_net_send`) | Single-threaded only | Must call from actor context |
+| **Actor APIs** (`acrt_spawn`, `acrt_exit`, etc.) | Single-threaded only | Must call from actor context |
+| **IPC APIs** (`acrt_ipc_notify`, `acrt_ipc_recv`) | Single-threaded only | Must call from actor context |
+| **Bus APIs** (`acrt_bus_publish`, `acrt_bus_read`) | Single-threaded only | Must call from actor context |
+| **Timer APIs** (`acrt_timer_after`, `acrt_timer_every`) | Single-threaded only | Must call from actor context |
+| **File APIs** (`acrt_file_read`, `acrt_file_write`) | Single-threaded only | Must call from actor context; stalls scheduler |
+| **Network APIs** (`acrt_net_recv`, `acrt_net_send`) | Single-threaded only | Must call from actor context |
 
 **Forbidden from:**
 - Signal handlers (not reentrant)
@@ -309,16 +309,16 @@ void socket_reader_actor(void *arg) {
     int sock = listen_and_accept();
     while (1) {
         size_t received;
-        rt_net_recv(sock, buf, len, &received, -1);  // Blocks in event loop
-        rt_ipc_notify(worker, buf, received);  // Forward to actors
+        acrt_net_recv(sock, buf, len, &received, -1);  // Blocks in event loop
+        acrt_ipc_notify(worker, buf, received);  // Forward to actors
     }
 }
 ```
 
 This pattern is safe because:
 - External thread only touches OS-level socket (thread-safe by OS)
-- `rt_net_recv()` executes in scheduler thread (actor context)
-- `rt_ipc_notify()` executes in scheduler thread (actor context)
+- `acrt_net_recv()` executes in scheduler thread (actor context)
+- `acrt_ipc_notify()` executes in scheduler thread (actor context)
 - No direct runtime state access from external thread
 
 ### Synchronization Primitives
@@ -403,7 +403,7 @@ if (net_event_pending) {
 
 ### Actor Stacks
 
-Each actor has a fixed-size stack allocated at spawn time. Stack size is configurable per actor via `actor_config.stack_size`, with a system-wide default (`RT_DEFAULT_STACK_SIZE`). Different actors can use different stack sizes to optimize memory usage.
+Each actor has a fixed-size stack allocated at spawn time. Stack size is configurable per actor via `actor_config.stack_size`, with a system-wide default (`ACRT_DEFAULT_STACK_SIZE`). Different actors can use different stack sizes to optimize memory usage.
 
 Stack growth/reallocation is not supported. Stack overflow is detected via guard patterns (see "Stack Overflow Detection" section below) with defined, safe behavior.
 
@@ -415,32 +415,32 @@ The runtime uses static allocation for deterministic behavior and suitability fo
 
 **Allocation Strategy:**
 
-- **Actor table:** Static array of `RT_MAX_ACTORS` (64), configured at compile time
+- **Actor table:** Static array of `ACRT_MAX_ACTORS` (64), configured at compile time
 - **Actor stacks:** Hybrid allocation (configurable per actor)
-  - Default: Static arena allocator with `RT_STACK_ARENA_SIZE` (1 MB)
+  - Default: Static arena allocator with `ACRT_STACK_ARENA_SIZE` (1 MB)
     - First-fit allocation with block splitting for variable stack sizes
     - Automatic memory reclamation and reuse when actors exit (coalescing)
     - Supports different stack sizes for different actors
   - Optional: malloc via `actor_config.malloc_stack = true`
 - **IPC pools:** Static pools with O(1) allocation (hot path)
-  - Mailbox entry pool: `RT_MAILBOX_ENTRY_POOL_SIZE` (256)
-  - Message data pool: `RT_MESSAGE_DATA_POOL_SIZE` (256), fixed-size entries of `RT_MAX_MESSAGE_SIZE` bytes
+  - Mailbox entry pool: `ACRT_MAILBOX_ENTRY_POOL_SIZE` (256)
+  - Message data pool: `ACRT_MESSAGE_DATA_POOL_SIZE` (256), fixed-size entries of `ACRT_MAX_MESSAGE_SIZE` bytes
 - **Link/Monitor pools:** Static pools for actor relationships
-  - Link entry pool: `RT_LINK_ENTRY_POOL_SIZE` (128)
-  - Monitor entry pool: `RT_MONITOR_ENTRY_POOL_SIZE` (128)
-- **Timer pool:** Static pool of `RT_TIMER_ENTRY_POOL_SIZE` (64)
+  - Link entry pool: `ACRT_LINK_ENTRY_POOL_SIZE` (128)
+  - Monitor entry pool: `ACRT_MONITOR_ENTRY_POOL_SIZE` (128)
+- **Timer pool:** Static pool of `ACRT_TIMER_ENTRY_POOL_SIZE` (64)
 - **Bus storage:** Static arrays per bus
-  - Bus entries: Pre-allocated array of `RT_MAX_BUS_ENTRIES` (64) per bus
-  - Bus subscribers: Pre-allocated array of `RT_MAX_BUS_SUBSCRIBERS` (32) per bus
+  - Bus entries: Pre-allocated array of `ACRT_MAX_BUS_ENTRIES` (64) per bus
+  - Bus subscribers: Pre-allocated array of `ACRT_MAX_BUS_SUBSCRIBERS` (32) per bus
   - Entry data: Uses shared message pool
 - **I/O sources:** Pool of `io_source` structures for tracking pending I/O operations in the event loop
 
 **Memory Footprint (estimated, 64-bit Linux build, default configuration):**
 
-*Note: Exact sizes are toolchain-dependent. Run `size build/librt.a` for precise numbers. Estimates below are for GCC on x86-64 Linux.*
+*Note: Exact sizes are toolchain-dependent. Run `size build/libacrt.a` for precise numbers. Estimates below are for GCC on x86-64 Linux.*
 
 - Static data (BSS): ~1.2 MB total (includes 1 MB stack arena)
-  - Stack arena: 1 MB (configurable via `RT_STACK_ARENA_SIZE`)
+  - Stack arena: 1 MB (configurable via `ACRT_STACK_ARENA_SIZE`)
   - Actor table: ~10–15 KB
   - Mailbox pool: ~10–15 KB
   - Message pool: 64 KB (256 × 256 bytes, configurable)
@@ -456,29 +456,29 @@ The runtime uses static allocation for deterministic behavior and suitability fo
 
 - Deterministic memory: Footprint calculable at link time
 - Zero heap fragmentation: No malloc after initialization (except explicit `malloc_stack` flag)
-- Predictable allocation: Pool exhaustion returns clear errors (`RT_ERR_NOMEM`)
+- Predictable allocation: Pool exhaustion returns clear errors (`ACRT_ERR_NOMEM`)
 - Suitable for safety-critical certification
 - Predictable timing: O(1) pool allocation for hot paths, bounded arena allocation for cold paths (spawn/exit)
 
 ## Error Handling
 
-All runtime functions return `rt_status`:
+All runtime functions return `acrt_status`:
 
 ```c
 typedef enum {
-    RT_OK = 0,
-    RT_ERR_NOMEM,
-    RT_ERR_INVALID,
-    RT_ERR_TIMEOUT,
-    RT_ERR_CLOSED,
-    RT_ERR_WOULDBLOCK,
-    RT_ERR_IO,
-} rt_status_code;
+    ACRT_OK = 0,
+    ACRT_ERR_NOMEM,
+    ACRT_ERR_INVALID,
+    ACRT_ERR_TIMEOUT,
+    ACRT_ERR_CLOSED,
+    ACRT_ERR_WOULDBLOCK,
+    ACRT_ERR_IO,
+} acrt_status_code;
 
 typedef struct {
-    rt_status_code code;
+    acrt_status_code code;
     const char    *msg;   // string literal or NULL, never heap-allocated
-} rt_status;
+} acrt_status;
 ```
 
 The `msg` field always points to a string literal or is NULL. It is never dynamically allocated, ensuring safe use across concurrent actors.
@@ -486,15 +486,15 @@ The `msg` field always points to a string literal or is NULL. It is never dynami
 Convenience macros:
 
 ```c
-#define RT_SUCCESS ((rt_status){RT_OK, NULL})
-#define RT_FAILED(s) ((s).code != RT_OK)
-#define RT_ERROR(code, msg) ((rt_status){(code), (msg)})
+#define ACRT_SUCCESS ((acrt_status){ACRT_OK, NULL})
+#define ACRT_FAILED(s) ((s).code != ACRT_OK)
+#define ACRT_ERROR(code, msg) ((acrt_status){(code), (msg)})
 ```
 
 Usage example:
 ```c
-if (len > RT_MAX_MESSAGE_SIZE) {
-    return RT_ERROR(RT_ERR_INVALID, "Message too large");
+if (len > ACRT_MAX_MESSAGE_SIZE) {
+    return ACRT_ERROR(ACRT_ERR_INVALID, "Message too large");
 }
 ```
 
@@ -506,7 +506,7 @@ This runtime makes deliberate design choices that favor **determinism, performan
 
 ### 1. Message Lifetime Rule is Sharp and Error-Prone
 
-**Trade-off:** Message payload pointer valid only until next `rt_ipc_recv()` call.
+**Trade-off:** Message payload pointer valid only until next `acrt_ipc_recv()` call.
 
 **Why this design:**
 - Pool reuse: Deterministic O(1) allocation, no fragmentation
@@ -532,7 +532,7 @@ This runtime makes deliberate design choices that favor **determinism, performan
 - Flexibility: Bursty actors can use available pool space
 - Performance: No quota checks on send path
 
-**Consequence:** A single bad actor can cause global `RT_ERR_NOMEM` failures for all IPC sends.
+**Consequence:** A single bad actor can cause global `ACRT_ERR_NOMEM` failures for all IPC sends.
 
 **Supervisors are not optional.** You must design actor hierarchies with supervision and monitoring.
 
@@ -555,7 +555,7 @@ This runtime makes deliberate design choices that favor **determinism, performan
 
 **Keep mailboxes shallow.** The request/reply pattern naturally does this (block waiting for reply).
 
-**Mitigation:** Process messages promptly. Don't let mailbox grow deep. Use `rt_ipc_request()` which blocks until reply.
+**Mitigation:** Process messages promptly. Don't let mailbox grow deep. Use `acrt_ipc_request()` which blocks until reply.
 
 **Acceptable if:** Typical mailbox depth is small (< 20 messages) and request/reply pattern is followed.
 
@@ -570,7 +570,7 @@ This runtime makes deliberate design choices that favor **determinism, performan
 - Flexibility: Pool space shared dynamically based on actual usage
 - Memory efficiency: No wasted dedicated pools
 
-**Consequence:** Misconfigured bus can cause all IPC sends to fail with `RT_ERR_NOMEM`.
+**Consequence:** Misconfigured bus can cause all IPC sends to fail with `ACRT_ERR_NOMEM`.
 
 **Mitigation:** WARNING box in Bus section, size pool for combined load, monitor exhaustion.
 
@@ -604,7 +604,7 @@ typedef uint32_t timer_id;
 #define TIMER_ID_INVALID  ((timer_id)0)
 
 // Wildcard for selective receive filtering
-#define RT_SENDER_ANY     ((actor_id)0xFFFFFFFF)
+#define ACRT_SENDER_ANY     ((actor_id)0xFFFFFFFF)
 
 // Actor entry point
 typedef void (*actor_fn)(void *arg);
@@ -612,7 +612,7 @@ typedef void (*actor_fn)(void *arg);
 // Actor configuration
 typedef struct {
     size_t      stack_size;   // bytes, 0 = default
-    rt_priority priority;
+    acrt_priority priority;
     const char *name;         // for debugging, may be NULL
     bool        malloc_stack; // false = use static arena (default), true = malloc
 } actor_config;
@@ -624,35 +624,35 @@ typedef struct {
 
 ```c
 // Spawn a new actor with default configuration
-actor_id rt_spawn(actor_fn fn, void *arg);
+actor_id acrt_spawn(actor_fn fn, void *arg);
 
 // Spawn with explicit configuration
-actor_id rt_spawn_ex(actor_fn fn, void *arg, const actor_config *cfg);
+actor_id acrt_spawn_ex(actor_fn fn, void *arg, const actor_config *cfg);
 
 // Terminate current actor
-_Noreturn void rt_exit(void);
+_Noreturn void acrt_exit(void);
 ```
 
 **Actor function return behavior:**
 
-Actors **must** call `rt_exit()` to terminate cleanly. If an actor function returns without calling `rt_exit()`, the runtime detects this as a crash:
+Actors **must** call `acrt_exit()` to terminate cleanly. If an actor function returns without calling `acrt_exit()`, the runtime detects this as a crash:
 
-1. Exit reason is set to `RT_EXIT_CRASH`
-2. Linked/monitoring actors receive exit notification with `RT_EXIT_CRASH` reason
+1. Exit reason is set to `ACRT_EXIT_CRASH`
+2. Linked/monitoring actors receive exit notification with `ACRT_EXIT_CRASH` reason
 3. Normal cleanup proceeds (mailbox cleared, resources freed)
-4. An ERROR log is emitted: "Actor N returned without calling rt_exit()"
+4. An ERROR log is emitted: "Actor N returned without calling acrt_exit()"
 
 This crash detection prevents infinite loops and ensures linked actors are notified of the improper termination.
 
 ```c
 // Get current actor's ID
-actor_id rt_self(void);
+actor_id acrt_self(void);
 
 // Yield to scheduler
-void rt_yield(void);
+void acrt_yield(void);
 
 // Check if actor is alive
-bool rt_actor_alive(actor_id id);
+bool acrt_actor_alive(actor_id id);
 ```
 
 ### Linking and Monitoring
@@ -661,32 +661,32 @@ Actors can link to other actors to receive notification when they die:
 
 ```c
 // Bidirectional link: if either dies, the other receives exit message
-rt_status rt_link(actor_id target);
-rt_status rt_link_remove(actor_id target);
+acrt_status acrt_link(actor_id target);
+acrt_status acrt_link_remove(actor_id target);
 
 // Unidirectional monitor: receive notification when target dies
-rt_status rt_monitor(actor_id target, uint32_t *monitor_id);
-rt_status rt_monitor_cancel(uint32_t monitor_id);
+acrt_status acrt_monitor(actor_id target, uint32_t *monitor_id);
+acrt_status acrt_monitor_cancel(uint32_t monitor_id);
 ```
 
 Exit message structure:
 
 ```c
 typedef enum {
-    RT_EXIT_NORMAL,       // Actor called rt_exit()
-    RT_EXIT_CRASH,        // Actor function returned without calling rt_exit()
-    RT_EXIT_CRASH_STACK,  // Stack overflow detected
-    RT_EXIT_KILLED,       // Actor was killed externally
-} rt_exit_reason;
+    ACRT_EXIT_NORMAL,       // Actor called acrt_exit()
+    ACRT_EXIT_CRASH,        // Actor function returned without calling acrt_exit()
+    ACRT_EXIT_CRASH_STACK,  // Stack overflow detected
+    ACRT_EXIT_KILLED,       // Actor was killed externally
+} acrt_exit_reason;
 
 typedef struct {
     actor_id       actor;   // who died
-    rt_exit_reason reason;
-} rt_exit_msg;
+    acrt_exit_reason reason;
+} acrt_exit_msg;
 
 // Check if message is exit notification
-bool rt_is_exit_msg(const rt_message *msg);
-rt_status rt_decode_exit(const rt_message *msg, rt_exit_msg *out);
+bool acrt_is_exit_msg(const acrt_message *msg);
+acrt_status acrt_decode_exit(const acrt_message *msg, acrt_exit_msg *out);
 ```
 
 ## IPC API
@@ -706,7 +706,7 @@ All messages have a 4-byte header prepended to the payload:
 - **class**: Message type (4 bits, 16 possible values)
 - **gen**: Generated flag (1 = runtime-generated tag, 0 = user-provided tag)
 - **tag**: Correlation identifier (27 bits, 134M unique values)
-- **payload**: Application data (up to `RT_MAX_MESSAGE_SIZE - 4` = 252 bytes)
+- **payload**: Application data (up to `ACRT_MAX_MESSAGE_SIZE - 4` = 252 bytes)
 
 **Header overhead:** 4 bytes per message.
 
@@ -714,31 +714,31 @@ All messages have a 4-byte header prepended to the payload:
 
 ```c
 typedef enum {
-    RT_MSG_NOTIFY = 0,   // Fire-and-forget message
-    RT_MSG_REQUEST,       // Request expecting a reply
-    RT_MSG_REPLY,      // Response to a REQUEST
-    RT_MSG_TIMER,      // Timer tick
-    RT_MSG_SYSTEM,     // System notifications (actor death)
+    ACRT_MSG_NOTIFY = 0,   // Fire-and-forget message
+    ACRT_MSG_REQUEST,       // Request expecting a reply
+    ACRT_MSG_REPLY,      // Response to a REQUEST
+    ACRT_MSG_TIMER,      // Timer tick
+    ACRT_MSG_SYSTEM,     // System notifications (actor death)
     // 5-14 reserved for future use
-    RT_MSG_ANY = 15,   // Wildcard for selective receive filtering
-} rt_msg_class;
+    ACRT_MSG_ANY = 15,   // Wildcard for selective receive filtering
+} acrt_msg_class;
 ```
 
 ### Tag System
 
 ```c
-#define RT_TAG_NONE        0            // No tag (for simple NOTIFY messages)
-#define RT_TAG_ANY         0x0FFFFFFF   // Wildcard for selective receive filtering
-#define RT_TAG_GEN_BIT     0x08000000   // Bit 27: distinguishes generated tags
-#define RT_TAG_VALUE_MASK  0x07FFFFFF   // Lower 27 bits: tag value
+#define ACRT_TAG_NONE        0            // No tag (for simple NOTIFY messages)
+#define ACRT_TAG_ANY         0x0FFFFFFF   // Wildcard for selective receive filtering
+#define ACRT_TAG_GEN_BIT     0x08000000   // Bit 27: distinguishes generated tags
+#define ACRT_TAG_VALUE_MASK  0x07FFFFFF   // Lower 27 bits: tag value
 ```
 
 **Tag semantics:**
-- **RT_TAG_NONE**: Used for simple NOTIFY messages where no correlation is needed
-- **RT_TAG_ANY**: Used in `rt_ipc_recv_match()` to match any tag
-- **Generated tags**: Created automatically by `rt_ipc_request()` for request/reply correlation
+- **ACRT_TAG_NONE**: Used for simple NOTIFY messages where no correlation is needed
+- **ACRT_TAG_ANY**: Used in `acrt_ipc_recv_match()` to match any tag
+- **Generated tags**: Created automatically by `acrt_ipc_request()` for request/reply correlation
 
-**Tag generation:** Internal to `rt_ipc_request()`. Global counter increments on each call. Generated tags have `RT_TAG_GEN_BIT` set. Wraps at 2^27 (134M values).
+**Tag generation:** Internal to `acrt_ipc_request()`. Global counter increments on each call. Generated tags have `ACRT_TAG_GEN_BIT` set. Wraps at 2^27 (134M values).
 
 **Namespace separation:** Generated tags (gen=1) and user tags (gen=0) can never collide.
 
@@ -749,10 +749,10 @@ typedef struct {
     actor_id    sender;
     size_t      len;        // Total length including 4-byte header
     const void *data;       // Points to header + payload
-} rt_message;
+} acrt_message;
 ```
 
-**Lifetime rule:** Data is valid until the next successful `rt_ipc_recv()` or `rt_ipc_recv_match()` call. Copy immediately if needed beyond current iteration.
+**Lifetime rule:** Data is valid until the next successful `acrt_ipc_recv()` or `acrt_ipc_recv_match()` call. Copy immediately if needed beyond current iteration.
 
 ### Functions
 
@@ -760,13 +760,13 @@ typedef struct {
 
 ```c
 // Fire-and-forget message (class=NOTIFY, tag=0)
-rt_status rt_ipc_notify(actor_id to, const void *data, size_t len);
+acrt_status acrt_ipc_notify(actor_id to, const void *data, size_t len);
 
 // Receive any message (no filtering)
-// timeout_ms == 0:  non-blocking, returns RT_ERR_WOULDBLOCK if empty
+// timeout_ms == 0:  non-blocking, returns ACRT_ERR_WOULDBLOCK if empty
 // timeout_ms < 0:   block forever
-// timeout_ms > 0:   block up to timeout, returns RT_ERR_TIMEOUT if exceeded
-rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms);
+// timeout_ms > 0:   block up to timeout, returns ACRT_ERR_TIMEOUT if exceeded
+acrt_status acrt_ipc_recv(acrt_message *msg, int32_t timeout_ms);
 ```
 
 #### Selective Receive
@@ -775,36 +775,36 @@ rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms);
 // Receive with filtering on sender, class, and/or tag
 // Blocks until message matches ALL non-wildcard criteria, or timeout
 // Pass NULL for any filter parameter to accept any value
-rt_status rt_ipc_recv_match(const actor_id *from, const rt_msg_class *class,
-                            const uint32_t *tag, rt_message *msg, int32_t timeout_ms);
+acrt_status acrt_ipc_recv_match(const actor_id *from, const acrt_msg_class *class,
+                            const uint32_t *tag, acrt_message *msg, int32_t timeout_ms);
 ```
 
 **Filter semantics:**
-- `from == NULL` or `*from == RT_SENDER_ANY` → match any sender
-- `class == NULL` or `*class == RT_MSG_ANY` → match any class
-- `tag == NULL` or `*tag == RT_TAG_ANY` → match any tag
+- `from == NULL` or `*from == ACRT_SENDER_ANY` → match any sender
+- `class == NULL` or `*class == ACRT_MSG_ANY` → match any class
+- `tag == NULL` or `*tag == ACRT_TAG_ANY` → match any tag
 - Non-wildcard values must match exactly
 
 #### Request/Reply
 
 ```c
 // Send REQUEST, block until REPLY with matching tag, or timeout
-rt_status rt_ipc_request(actor_id to, const void *request, size_t req_len,
-                      rt_message *reply, int32_t timeout_ms);
+acrt_status acrt_ipc_request(actor_id to, const void *request, size_t req_len,
+                      acrt_message *reply, int32_t timeout_ms);
 
 // Reply to a received REQUEST (extracts sender and tag from request automatically)
-rt_status rt_ipc_reply(const rt_message *request, const void *data, size_t len);
+acrt_status acrt_ipc_reply(const acrt_message *request, const void *data, size_t len);
 ```
 
 **Request/reply implementation:**
 ```c
-// rt_ipc_request internally does:
+// acrt_ipc_request internally does:
 // 1. Generate unique tag
 // 2. Send message with class=REQUEST
-// 3. Block on rt_ipc_recv_match() for REPLY with matching tag
+// 3. Block on acrt_ipc_recv_match() for REPLY with matching tag
 // 4. Return reply or timeout error
 
-// rt_ipc_reply internally does:
+// acrt_ipc_reply internally does:
 // 1. Decode sender and tag from request
 // 2. Send message with class=REPLY and same tag
 ```
@@ -814,47 +814,47 @@ rt_status rt_ipc_reply(const rt_message *request, const void *data, size_t len);
 ```c
 // Decode header from received message
 // All output parameters are optional (may be NULL)
-rt_status rt_msg_decode(const rt_message *msg,
-                        rt_msg_class *class,    // out: message class
+acrt_status acrt_msg_decode(const acrt_message *msg,
+                        acrt_msg_class *class,    // out: message class
                         uint32_t *tag,          // out: tag value (with gen bit)
                         const void **payload,   // out: points past 4-byte header
                         size_t *payload_len);   // out: len minus 4-byte header
 ```
 
-### API Contract: rt_ipc_notify()
+### API Contract: acrt_ipc_notify()
 
 **Parameter validation:**
-- If `data == NULL && len > 0`: Returns `RT_ERR_INVALID`
-- If `len > RT_MAX_MESSAGE_SIZE - 4` (252 bytes payload): Returns `RT_ERR_INVALID`
+- If `data == NULL && len > 0`: Returns `ACRT_ERR_INVALID`
+- If `len > ACRT_MAX_MESSAGE_SIZE - 4` (252 bytes payload): Returns `ACRT_ERR_INVALID`
 - Oversized messages are rejected immediately, not truncated
 
 **Behavior when pools are exhausted:**
 
-`rt_ipc_notify()` uses two global pools:
-1. **Mailbox entry pool** (`RT_MAILBOX_ENTRY_POOL_SIZE` = 256)
-2. **Message data pool** (`RT_MESSAGE_DATA_POOL_SIZE` = 256)
+`acrt_ipc_notify()` uses two global pools:
+1. **Mailbox entry pool** (`ACRT_MAILBOX_ENTRY_POOL_SIZE` = 256)
+2. **Message data pool** (`ACRT_MESSAGE_DATA_POOL_SIZE` = 256)
 
 **Fail-fast semantics:**
 
-- **Returns `RT_ERR_NOMEM` immediately** if either pool is exhausted
+- **Returns `ACRT_ERR_NOMEM` immediately** if either pool is exhausted
 - **Does NOT block** waiting for pool space
 - **Does NOT drop** messages silently
 - **Atomic operation:** Either succeeds completely or fails
 
 **Caller responsibilities:**
-- **MUST** check return value and handle `RT_ERR_NOMEM`
+- **MUST** check return value and handle `ACRT_ERR_NOMEM`
 - **MUST** implement backpressure/retry logic if needed
-- **MUST NOT** assume message was delivered if `RT_FAILED(status)`
+- **MUST NOT** assume message was delivered if `ACRT_FAILED(status)`
 
 **Example: Handling pool exhaustion**
 
 ```c
-// Bad: Ignoring RT_ERR_NOMEM
-rt_ipc_notify(target, &data, sizeof(data));  // WRONG
+// Bad: Ignoring ACRT_ERR_NOMEM
+acrt_ipc_notify(target, &data, sizeof(data));  // WRONG
 
 // Good: Check and handle
-rt_status status = rt_ipc_notify(target, &data, sizeof(data));
-if (status.code == RT_ERR_NOMEM) {
+acrt_status status = acrt_ipc_notify(target, &data, sizeof(data));
+if (status.code == ACRT_ERR_NOMEM) {
     // Pool exhausted - implement backpressure
     log_dropped_message(target);
     // Or: backoff and retry
@@ -864,26 +864,26 @@ if (status.code == RT_ERR_NOMEM) {
 ### Message Data Lifetime
 
 **CRITICAL LIFETIME RULE:**
-- **Data is ONLY valid until the next successful `rt_ipc_recv()` or `rt_ipc_recv_match()` call**
+- **Data is ONLY valid until the next successful `acrt_ipc_recv()` or `acrt_ipc_recv_match()` call**
 - **Per actor: only ONE message payload pointer is valid at a time**
 - **Storing `msg.data` across receive iterations causes use-after-free**
 - **If you need the data later, COPY IT IMMEDIATELY**
 
 **Failed recv does NOT invalidate:**
-- If recv returns `RT_ERR_TIMEOUT` or `RT_ERR_WOULDBLOCK`, previous buffer remains valid
+- If recv returns `ACRT_ERR_TIMEOUT` or `ACRT_ERR_WOULDBLOCK`, previous buffer remains valid
 - Only a successful recv invalidates the previous pointer
 
 **Correct pattern:**
 ```c
-rt_message msg;
-rt_ipc_recv(&msg, -1);
+acrt_message msg;
+acrt_ipc_recv(&msg, -1);
 
 // SAFE: Decode and copy immediately
-rt_msg_class class;
+acrt_msg_class class;
 uint32_t tag;
 const void *payload;
 size_t payload_len;
-rt_msg_decode(&msg, &class, &tag, &payload, &payload_len);
+acrt_msg_decode(&msg, &class, &tag, &payload, &payload_len);
 
 char local_copy[256];
 memcpy(local_copy, payload, payload_len);
@@ -891,7 +891,7 @@ memcpy(local_copy, payload, payload_len);
 
 // UNSAFE: Storing pointer across recv calls
 const char *ptr = payload;   // DANGER
-rt_ipc_recv(&msg, -1);       // ptr now INVALID
+acrt_ipc_recv(&msg, -1);       // ptr now INVALID
 ```
 
 ### Mailbox Semantics
@@ -901,8 +901,8 @@ rt_ipc_recv(&msg, -1);       // ptr now INVALID
 Per-actor mailbox limits: **No per-actor quota** - capacity is constrained by global pools
 
 Global pool limits: **Yes** - all actors share:
-- `RT_MAILBOX_ENTRY_POOL_SIZE` (256 default) - mailbox entries
-- `RT_MESSAGE_DATA_POOL_SIZE` (256 default) - message data
+- `ACRT_MAILBOX_ENTRY_POOL_SIZE` (256 default) - mailbox entries
+- `ACRT_MESSAGE_DATA_POOL_SIZE` (256 default) - message data
 
 **Important:** One slow receiver can consume all mailbox entries, starving other actors.
 
@@ -910,7 +910,7 @@ Global pool limits: **Yes** - all actors share:
 
 ### Selective Receive Semantics
 
-`rt_ipc_recv_match()` implements selective receive. This is the key mechanism for building complex protocols like request/reply.
+`acrt_ipc_recv_match()` implements selective receive. This is the key mechanism for building complex protocols like request/reply.
 
 **Blocking behavior:**
 
@@ -926,21 +926,21 @@ Global pool limits: **Yes** - all actors share:
 
 - **Non-matching messages are NOT dropped** — they stay in mailbox
 - **Order preserved** — messages remain in FIFO order
-- **Later retrieval** — non-matching messages retrieved by subsequent `rt_ipc_recv()` calls
+- **Later retrieval** — non-matching messages retrieved by subsequent `acrt_ipc_recv()` calls
 - **Scan complexity** — O(n) where n = mailbox depth
 
 **Example: Waiting for specific reply**
 
 ```c
-// Using rt_ipc_request() for request/reply (recommended - handles tag generation internally)
-rt_message reply;
-rt_ipc_request(server, &request, sizeof(request), &reply, 5000);
+// Using acrt_ipc_request() for request/reply (recommended - handles tag generation internally)
+acrt_message reply;
+acrt_ipc_request(server, &request, sizeof(request), &reply, 5000);
 
 // Or manually using selective receive:
 actor_id from = server;
-rt_msg_class class = RT_MSG_REPLY;
+acrt_msg_class class = ACRT_MSG_REPLY;
 uint32_t expected_tag = 42;  // Known tag from earlier call
-rt_ipc_recv_match(&from, &class, &expected_tag, &reply, 5000);
+acrt_ipc_recv_match(&from, &class, &expected_tag, &reply, 5000);
 
 // During the wait:
 // - NOTIFY messages from other actors: skipped, stay in mailbox
@@ -949,7 +949,7 @@ rt_ipc_recv_match(&from, &class, &expected_tag, &reply, 5000);
 // - REPLY from server with matching tag: returned!
 
 // After returning, skipped messages can be retrieved:
-rt_ipc_recv(&msg, 0);  // Gets first skipped message
+acrt_ipc_recv(&msg, 0);  // Gets first skipped message
 ```
 
 **When selective receive is efficient:**
@@ -990,17 +990,17 @@ rt_ipc_recv(&msg, 0);  // Gets first skipped message
 ```c
 // Single sender - FIFO guaranteed
 void sender_actor(void *arg) {
-    rt_ipc_notify(receiver, &msg1, sizeof(msg1));  // Sent first
-    rt_ipc_notify(receiver, &msg2, sizeof(msg2));  // Sent second
+    acrt_ipc_notify(receiver, &msg1, sizeof(msg1));  // Sent first
+    acrt_ipc_notify(receiver, &msg2, sizeof(msg2));  // Sent second
     // Receiver will see: msg1, then msg2 (guaranteed)
 }
 
 // Multiple senders - order depends on scheduling
 void sender_A(void *arg) {
-    rt_ipc_notify(receiver, &msgA, sizeof(msgA));
+    acrt_ipc_notify(receiver, &msgA, sizeof(msgA));
 }
 void sender_B(void *arg) {
-    rt_ipc_notify(receiver, &msgB, sizeof(msgB));
+    acrt_ipc_notify(receiver, &msgB, sizeof(msgB));
 }
 // Receiver may see: msgA then msgB, OR msgB then msgA
 
@@ -1008,16 +1008,16 @@ void sender_B(void *arg) {
 void request_reply_actor(void *arg) {
     // Start timer
     timer_id t;
-    rt_timer_after(1000000, &t);
+    acrt_timer_after(1000000, &t);
 
     // Do request/reply
-    rt_message reply;
-    rt_ipc_request(server, &req, sizeof(req), &reply, 5000);
+    acrt_message reply;
+    acrt_ipc_request(server, &req, sizeof(req), &reply, 5000);
     // Timer tick arrived during request/reply wait - it's in mailbox
 
     // Now process timer
-    rt_message timer_msg;
-    rt_ipc_recv(&timer_msg, 0);  // Gets the timer tick
+    acrt_message timer_msg;
+    acrt_ipc_recv(&timer_msg, 0);  // Gets the timer tick
 }
 ```
 
@@ -1026,40 +1026,40 @@ void request_reply_actor(void *arg) {
 Timer and system messages use the same mailbox and message format as IPC.
 
 **Timer messages:**
-- Class: `RT_MSG_TIMER`
+- Class: `ACRT_MSG_TIMER`
 - Sender: Actor that owns the timer
 - Tag: `timer_id`
 - Payload: Empty (len = 0 after decoding header)
 
 **System messages (exit notifications):**
-- Class: `RT_MSG_SYSTEM`
+- Class: `ACRT_MSG_SYSTEM`
 - Sender: Actor that died
-- Tag: `RT_TAG_NONE`
-- Payload: `rt_exit_msg` struct
+- Tag: `ACRT_TAG_NONE`
+- Payload: `acrt_exit_msg` struct
 
 **Checking message type:**
 
 ```c
-rt_message msg;
-rt_ipc_recv(&msg, -1);
+acrt_message msg;
+acrt_ipc_recv(&msg, -1);
 
-rt_msg_class class;
+acrt_msg_class class;
 uint32_t tag;
 const void *payload;
 size_t payload_len;
-rt_msg_decode(&msg, &class, &tag, &payload, &payload_len);
+acrt_msg_decode(&msg, &class, &tag, &payload, &payload_len);
 
 switch (class) {
-    case RT_MSG_NOTIFY:
+    case ACRT_MSG_NOTIFY:
         handle_cast(msg.sender, payload, payload_len);
         break;
-    case RT_MSG_REQUEST:
+    case ACRT_MSG_REQUEST:
         handle_call_and_reply(&msg, payload, payload_len);
         break;
-    case RT_MSG_TIMER:
+    case ACRT_MSG_TIMER:
         handle_timer_tick(tag);  // tag is timer_id
         break;
-    case RT_MSG_SYSTEM:
+    case ACRT_MSG_SYSTEM:
         handle_exit_notification(msg.sender, payload);
         break;
     default:
@@ -1071,17 +1071,17 @@ switch (class) {
 
 ```c
 // Returns true if message is a timer tick
-bool rt_msg_is_timer(const rt_message *msg);
+bool acrt_msg_is_timer(const acrt_message *msg);
 ```
 
 ### Query Functions
 
 ```c
 // Check if any message is pending in current actor's mailbox
-bool rt_ipc_pending(void);
+bool acrt_ipc_pending(void);
 
 // Count messages in current actor's mailbox
-size_t rt_ipc_count(void);
+size_t acrt_ipc_count(void);
 ```
 
 **Semantics:**
@@ -1092,11 +1092,11 @@ size_t rt_ipc_count(void);
 ### Pool Exhaustion Behavior
 
 IPC uses two global pools shared by all actors:
-- **Mailbox entry pool**: `RT_MAILBOX_ENTRY_POOL_SIZE` (256 default)
-- **Message data pool**: `RT_MESSAGE_DATA_POOL_SIZE` (256 default)
+- **Mailbox entry pool**: `ACRT_MAILBOX_ENTRY_POOL_SIZE` (256 default)
+- **Message data pool**: `ACRT_MESSAGE_DATA_POOL_SIZE` (256 default)
 
 **When pools are exhausted:**
-- `rt_ipc_notify()` returns `RT_ERR_NOMEM` immediately
+- `acrt_ipc_notify()` returns `ACRT_ERR_NOMEM` immediately
 - Send operation **does NOT block** waiting for space
 - Send operation **does NOT drop** messages automatically
 - Caller **must check** return value and handle failure
@@ -1106,18 +1106,18 @@ IPC uses two global pools shared by all actors:
 **Mitigation strategies:**
 - Size pools appropriately: `1.5× peak concurrent messages`
 - Check return values and implement retry logic or backpressure
-- Use `rt_ipc_request()` for natural backpressure (sender waits for reply)
+- Use `acrt_ipc_request()` for natural backpressure (sender waits for reply)
 - Ensure receivers process messages promptly
 
 **Backoff-retry example:**
 ```c
-rt_status status = rt_ipc_notify(target, data, len);
-if (status.code == RT_ERR_NOMEM) {
+acrt_status status = acrt_ipc_notify(target, data, len);
+if (status.code == ACRT_ERR_NOMEM) {
     // Pool exhausted - backoff before retry
-    rt_message msg;
-    status = rt_ipc_recv(&msg, 10);  // Backoff 10ms
+    acrt_message msg;
+    status = acrt_ipc_recv(&msg, 10);  // Backoff 10ms
 
-    if (!RT_FAILED(status)) {
+    if (!ACRT_FAILED(status)) {
         // Got message during backoff, handle it first
         handle_message(&msg);
     }
@@ -1133,19 +1133,19 @@ Publish-subscribe communication with configurable retention policy.
 
 ```c
 typedef struct {
-    uint8_t  max_subscribers; // max concurrent subscribers (1..RT_MAX_BUS_SUBSCRIBERS)
+    uint8_t  max_subscribers; // max concurrent subscribers (1..ACRT_MAX_BUS_SUBSCRIBERS)
     uint8_t  max_readers;     // consume after N reads, 0 = unlimited (0..max_subscribers)
     uint32_t max_age_ms;      // expire entries after ms, 0 = no expiry
     size_t   max_entries;     // ring buffer capacity
     size_t   max_entry_size;  // max payload bytes per entry
-} rt_bus_config;
+} acrt_bus_config;
 ```
 
 **Configuration constraints (normative):**
 - `max_subscribers`: **Architectural limit of 32 subscribers** (enforced by 32-bit `readers_mask`)
   - Valid range: 1..32
-  - `RT_MAX_BUS_SUBSCRIBERS = 32` is a hard architectural invariant, not a tunable parameter
-  - Attempts to configure `max_subscribers > 32` return `RT_ERR_INVALID`
+  - `ACRT_MAX_BUS_SUBSCRIBERS = 32` is a hard architectural invariant, not a tunable parameter
+  - Attempts to configure `max_subscribers > 32` return `ACRT_ERR_INVALID`
 - `max_readers`: Valid range: 0..max_subscribers
 - Subscriber index assignment is stable for the lifetime of a subscription (affects `readers_mask` bit position)
 
@@ -1153,43 +1153,43 @@ typedef struct {
 
 ```c
 // Create bus
-rt_status rt_bus_create(const rt_bus_config *cfg, bus_id *out);
+acrt_status acrt_bus_create(const acrt_bus_config *cfg, bus_id *out);
 
 // Destroy bus (fails if subscribers exist)
-rt_status rt_bus_destroy(bus_id bus);
+acrt_status acrt_bus_destroy(bus_id bus);
 
 // Publish data
-rt_status rt_bus_publish(bus_id bus, const void *data, size_t len);
+acrt_status acrt_bus_publish(bus_id bus, const void *data, size_t len);
 
 // Subscribe/unsubscribe current actor
-rt_status rt_bus_subscribe(bus_id bus);
-rt_status rt_bus_unsubscribe(bus_id bus);
+acrt_status acrt_bus_subscribe(bus_id bus);
+acrt_status acrt_bus_unsubscribe(bus_id bus);
 
 // Read entry (non-blocking)
-// Returns RT_ERR_WOULDBLOCK if no data available
-rt_status rt_bus_read(bus_id bus, void *buf, size_t max_len, size_t *actual_len);
+// Returns ACRT_ERR_WOULDBLOCK if no data available
+acrt_status acrt_bus_read(bus_id bus, void *buf, size_t max_len, size_t *actual_len);
 
 // Read with blocking
-rt_status rt_bus_read_wait(bus_id bus, void *buf, size_t max_len,
+acrt_status acrt_bus_read_wait(bus_id bus, void *buf, size_t max_len,
                            size_t *actual_len, int32_t timeout_ms);
 
 // Query bus state
-size_t rt_bus_entry_count(bus_id bus);
+size_t acrt_bus_entry_count(bus_id bus);
 ```
 
 **Message size validation:**
 
-`rt_bus_create()`:
-- If `cfg->max_entry_size > RT_MAX_MESSAGE_SIZE` (256 bytes): Returns `RT_ERR_INVALID`
-- Bus entries share the message data pool, which uses fixed-size `RT_MAX_MESSAGE_SIZE` entries
+`acrt_bus_create()`:
+- If `cfg->max_entry_size > ACRT_MAX_MESSAGE_SIZE` (256 bytes): Returns `ACRT_ERR_INVALID`
+- Bus entries share the message data pool, which uses fixed-size `ACRT_MAX_MESSAGE_SIZE` entries
 - This constraint ensures bus entries fit in pool slots
 
-`rt_bus_publish()`:
-- If `len > cfg.max_entry_size`: Returns `RT_ERR_INVALID`
+`acrt_bus_publish()`:
+- If `len > cfg.max_entry_size`: Returns `ACRT_ERR_INVALID`
 - Oversized messages are rejected immediately, not truncated
 - The `max_entry_size` was validated at bus creation time
 
-`rt_bus_read()` / `rt_bus_read_wait()`:
+`acrt_bus_read()` / `acrt_bus_read_wait()`:
 - If message size > `max_len`: Data is **truncated** to fit in buffer
 - `*actual_len` returns the **actual bytes copied** (truncated length), NOT the original message size
 - This is safe buffer overflow protection - caller gets as much data as fits
@@ -1203,12 +1203,12 @@ The bus implements **per-subscriber read cursors** with the following **three co
 
 #### **RULE 1: Subscription Start Position**
 
-**Contract:** `rt_bus_subscribe()` initializes the subscriber's read cursor to **"next publish"** (current `bus->head` write position).
+**Contract:** `acrt_bus_subscribe()` initializes the subscriber's read cursor to **"next publish"** (current `bus->head` write position).
 
 **Guaranteed semantics:**
 - Subscriber **CANNOT** read retained entries published before subscription
-- Subscriber **ONLY** sees entries published **after** `rt_bus_subscribe()` returns
-- First `rt_bus_read()` call returns `RT_ERR_WOULDBLOCK` if no new entries published since subscription
+- Subscriber **ONLY** sees entries published **after** `acrt_bus_subscribe()` returns
+- First `acrt_bus_read()` call returns `ACRT_ERR_WOULDBLOCK` if no new entries published since subscription
 - Implementation: `subscriber.next_read_idx = bus->head`
 
 **Implications:**
@@ -1219,15 +1219,15 @@ The bus implements **per-subscriber read cursors** with the following **three co
 **Example:**
 ```c
 // Bus has retained entries [E1, E2, E3] with head=3
-rt_bus_subscribe(bus);
+acrt_bus_subscribe(bus);
 //   -> subscriber.next_read_idx = 3 (next write position)
 
-rt_bus_read(bus, buf, len, &actual);
-//   -> Returns RT_ERR_WOULDBLOCK (no new data)
+acrt_bus_read(bus, buf, len, &actual);
+//   -> Returns ACRT_ERR_WOULDBLOCK (no new data)
 //   -> E1, E2, E3 are invisible (behind cursor)
 
 // Publisher publishes E4 (head advances to 4)
-rt_bus_read(bus, buf, len, &actual);
+acrt_bus_read(bus, buf, len, &actual);
 //   -> Returns E4 (first entry after subscription)
 ```
 
@@ -1249,12 +1249,12 @@ rt_bus_read(bus, buf, len, &actual);
    - Storage cost: **O(1)** per entry (4 bytes bitmask + 1 byte read_count)
 
 3. **Eviction behavior (buffer full):**
-   - When `rt_bus_publish()` finds buffer full (`count >= max_entries`):
+   - When `acrt_bus_publish()` finds buffer full (`count >= max_entries`):
      - Oldest entry at `bus->tail` is **evicted immediately** (freed from message pool)
      - Tail advances: `bus->tail = (bus->tail + 1) % max_entries`
      - **No check if subscribers have read the evicted entry**
    - If slow subscriber's cursor pointed to evicted entry:
-     - On next `rt_bus_read()`, search starts from **current `bus->tail`** (oldest surviving entry)
+     - On next `acrt_bus_read()`, search starts from **current `bus->tail`** (oldest surviving entry)
      - Subscriber **silently skips** to next available unread entry
      - **No error** returned (appears as normal read)
      - **No signal** of data loss (by design)
@@ -1262,7 +1262,7 @@ rt_bus_read(bus, buf, len, &actual);
 **Implications:**
 - Slow subscribers lose data without notification
 - Fast subscribers never lose data (assuming buffer sized for publish rate)
-- No backpressure mechanism (unlike `rt_ipc_request()` request/reply pattern)
+- No backpressure mechanism (unlike `acrt_ipc_request()` request/reply pattern)
 - Real-time principle: Prefer fresh data over old data
 
 **Example (data loss):**
@@ -1271,19 +1271,19 @@ rt_bus_read(bus, buf, len, &actual);
 // Fast subscriber: next_read_idx=0 (read all, awaiting E4)
 // Slow subscriber: next_read_idx=0 (still at E1, hasn't read any)
 
-rt_bus_publish(bus, &E4, sizeof(E4));
+acrt_bus_publish(bus, &E4, sizeof(E4));
 //   -> Buffer full: Evict E1 at tail=0, free from pool
 //   -> Write E4 at index 0: entries=[E4, E2, E3]
 //   -> tail=1 (E2 is now oldest), head=1 (next write)
 
-// Slow subscriber calls rt_bus_read():
+// Slow subscriber calls acrt_bus_read():
 //   -> Search from tail=1: E2 (unread), E3 (unread), E4 (unread)
 //   -> Returns E2 (first unread)
 //   -> E1 is LOST (no error, silent skip)
 ```
 
 **Eviction does NOT notify slow subscribers:**
-- No `RT_ERR_OVERFLOW` or similar
+- No `ACRT_ERR_OVERFLOW` or similar
 - No special message indicating data loss
 - Application must detect via message sequence numbers if needed
 
@@ -1329,20 +1329,20 @@ if (config.max_readers > 0 && entry->read_count >= config.max_readers) {
 // Bus with max_readers=2
 // Subscribers: A, B, C
 
-rt_bus_publish(bus, &E1, sizeof(E1));
+acrt_bus_publish(bus, &E1, sizeof(E1));
 //   -> E1: readers_mask=0b000, read_count=0
 
 // Subscriber A reads E1
-rt_bus_read(bus, ...);
+acrt_bus_read(bus, ...);
 //   -> E1: readers_mask=0b001, read_count=1 (A's bit set)
 
 // Subscriber A reads again (tries to read E1)
-rt_bus_read(bus, ...);
-//   -> E1 skipped (bit already set), returns RT_ERR_WOULDBLOCK
+acrt_bus_read(bus, ...);
+//   -> E1 skipped (bit already set), returns ACRT_ERR_WOULDBLOCK
 //   -> E1: readers_mask=0b001, read_count=1 (unchanged)
 
 // Subscriber B reads E1
-rt_bus_read(bus, ...);
+acrt_bus_read(bus, ...);
 //   -> E1: readers_mask=0b011, read_count=2 (B's bit set)
 //   -> read_count >= max_readers (2) -> E1 REMOVED, freed from pool
 ```
@@ -1371,7 +1371,7 @@ Entries can be removed by **three mechanisms** (whichever occurs first):
 2. **max_age_ms (time-based expiry):**
    - Entry removed when `(current_time_ms - entry.timestamp_ms) >= max_age_ms`
    - Value `0` = disabled (no time-based expiry)
-   - Checked on every `rt_bus_read()` and `rt_bus_publish()` call
+   - Checked on every `acrt_bus_read()` and `acrt_bus_publish()` call
 
 3. **Buffer full (forced eviction):**
    - Oldest entry at `bus->tail` evicted when `count >= max_entries` on publish
@@ -1398,16 +1398,16 @@ Entries can be removed by **three mechanisms** (whichever occurs first):
 
 **WARNING: Resource Contention Between IPC and Bus**
 
-Bus publishing consumes the same message data pool as IPC (`RT_MESSAGE_DATA_POOL_SIZE`). A misconfigured or high-rate bus can exhaust the message pool and cause **all** IPC sends to fail with `RT_ERR_NOMEM`, potentially starving critical actor communication.
+Bus publishing consumes the same message data pool as IPC (`ACRT_MESSAGE_DATA_POOL_SIZE`). A misconfigured or high-rate bus can exhaust the message pool and cause **all** IPC sends to fail with `ACRT_ERR_NOMEM`, potentially starving critical actor communication.
 
 **Architectural consequences:**
 - Bus auto-evicts oldest entries when its ring buffer fills (graceful degradation)
-- IPC never auto-drops (fails immediately with `RT_ERR_NOMEM`)
+- IPC never auto-drops (fails immediately with `ACRT_ERR_NOMEM`)
 - A single high-rate bus publisher can starve IPC globally
 - No per-subsystem quotas or fairness guarantees
 
 **Design implications:**
-- Size `RT_MESSAGE_DATA_POOL_SIZE` for combined IPC + bus peak load
+- Size `ACRT_MESSAGE_DATA_POOL_SIZE` for combined IPC + bus peak load
 - Use bus retention policies to limit memory consumption
 - Monitor pool exhaustion in critical systems
 - Consider separate message pools if isolation is required (requires code modification)
@@ -1417,33 +1417,33 @@ Bus publishing consumes the same message data pool as IPC (`RT_MESSAGE_DATA_POOL
 The bus can encounter two types of resource limits:
 
 **1. Message Pool Exhaustion** (shared with IPC):
-- Bus uses the global `RT_MESSAGE_DATA_POOL_SIZE` pool (same as IPC)
-- When pool is exhausted, `rt_bus_publish()` returns `RT_ERR_NOMEM` immediately
+- Bus uses the global `ACRT_MESSAGE_DATA_POOL_SIZE` pool (same as IPC)
+- When pool is exhausted, `acrt_bus_publish()` returns `ACRT_ERR_NOMEM` immediately
 - Does NOT block waiting for space
 - Does NOT drop messages automatically in this case
 - Caller must check return value and handle failure
 
 **2. Bus Ring Buffer Full** (per-bus limit):
 - Each bus has its own ring buffer sized via `max_entries` config
-- When ring buffer is full, `rt_bus_publish()` **automatically evicts oldest entry**
+- When ring buffer is full, `acrt_bus_publish()` **automatically evicts oldest entry**
 - This is different from IPC - bus has automatic message dropping
 - Publish succeeds (unless message pool also exhausted)
 - Slow readers may miss messages if buffer wraps
 
 **3. Subscriber Table Full**:
-- Each bus has subscriber limit via `max_subscribers` config (up to `RT_MAX_BUS_SUBSCRIBERS`)
-- When full, `rt_bus_subscribe()` returns `RT_ERR_NOMEM`
+- Each bus has subscriber limit via `max_subscribers` config (up to `ACRT_MAX_BUS_SUBSCRIBERS`)
+- When full, `acrt_bus_subscribe()` returns `ACRT_ERR_NOMEM`
 
 **Key Differences from IPC:**
 - IPC never drops messages automatically (returns error instead)
 - Bus automatically drops oldest entry when ring buffer is full
-- Both share the same message data pool (`RT_MESSAGE_DATA_POOL_SIZE`)
+- Both share the same message data pool (`ACRT_MESSAGE_DATA_POOL_SIZE`)
 
 **Mitigation strategies:**
 - Size message pool appropriately for combined IPC + bus load
 - Configure per-bus `max_entries` based on publish rate vs read rate
 - Use retention policies (`max_readers`, `max_age_ms`) to prevent accumulation
-- Monitor `rt_bus_entry_count()` to detect slow readers
+- Monitor `acrt_bus_entry_count()` to detect slow readers
 
 ## Timer API
 
@@ -1451,19 +1451,19 @@ Timers for periodic and one-shot wake-ups.
 
 ```c
 // One-shot: wake current actor after delay
-rt_status rt_timer_after(uint32_t delay_us, timer_id *out);
+acrt_status acrt_timer_after(uint32_t delay_us, timer_id *out);
 
 // Periodic: wake current actor every interval
-rt_status rt_timer_every(uint32_t interval_us, timer_id *out);
+acrt_status acrt_timer_every(uint32_t interval_us, timer_id *out);
 
 // Cancel timer
-rt_status rt_timer_cancel(timer_id id);
+acrt_status acrt_timer_cancel(timer_id id);
 
-// Check if message is a timer tick (convenience wrapper for rt_msg_decode)
-bool rt_msg_is_timer(const rt_message *msg);
+// Check if message is a timer tick (convenience wrapper for acrt_msg_decode)
+bool acrt_msg_is_timer(const acrt_message *msg);
 ```
 
-Timer wake-ups are delivered as messages with `class == RT_MSG_TIMER`. The tag contains the `timer_id`. The actor receives these in its normal `rt_ipc_recv()` loop and can use `rt_msg_is_timer()` or `rt_msg_decode()` to identify timer messages.
+Timer wake-ups are delivered as messages with `class == ACRT_MSG_TIMER`. The tag contains the `timer_id`. The actor receives these in its normal `acrt_ipc_recv()` loop and can use `acrt_msg_is_timer()` or `acrt_msg_decode()` to identify timer messages.
 
 ### Timer Tick Coalescing (Periodic Timers)
 
@@ -1482,11 +1482,11 @@ Timer wake-ups are delivered as messages with `class == RT_MSG_TIMER`. The tag c
 **Example:**
 ```c
 // 10ms periodic timer, but actor takes 35ms to process
-rt_timer_every(10000, &timer);  // 10ms = 10000us
+acrt_timer_every(10000, &timer);  // 10ms = 10000us
 
 while (1) {
-    rt_ipc_recv(&msg, -1);
-    if (rt_msg_is_timer(&msg)) {
+    acrt_ipc_recv(&msg, -1);
+    if (acrt_msg_is_timer(&msg)) {
         // Even if 35ms passed (3-4 intervals), actor receives ONE tick
         // timerfd read returned expirations=3 or 4, but only one message sent
         do_work();  // Takes 35ms
@@ -1544,7 +1544,7 @@ Platform | Clock Source | API Precision | Actual Precision | Notes
 2. **Timer ID wraparound** (`timer_id` = `uint32_t`):
    - Global counter `g_timer.next_id` increments on each timer creation
    - Wraps at 4,294,967,295 timers
-   - Potential collision: If timer ID wraps and old timer still active, `rt_timer_cancel()` may cancel wrong timer
+   - Potential collision: If timer ID wraps and old timer still active, `acrt_timer_cancel()` may cancel wrong timer
    - **Likelihood**: Extremely rare (requires 4 billion timer creations without runtime restart)
    - **Mitigation**: None needed in practice; runtime typically restarts long before wraparound
 
@@ -1553,7 +1553,7 @@ Platform | Clock Source | API Precision | Actual Precision | Notes
 ```c
 // Maximum safe one-shot timer: ~71 minutes
 uint32_t max_interval = UINT32_MAX;  // 4,294,967,295 us
-rt_timer_after(max_interval, &timer);  // OK, fires after ~71.6 minutes
+acrt_timer_after(max_interval, &timer);  // OK, fires after ~71.6 minutes
 
 // For longer intervals, use periodic timer with counter
 uint32_t seventy_two_min_us = 72 * 60 * 1000000;  // 4.32 billion us
@@ -1561,7 +1561,7 @@ uint32_t seventy_two_min_us = 72 * 60 * 1000000;  // 4.32 billion us
 
 // Correct approach for long intervals:
 uint32_t tick_interval = 60 * 1000000;  // 1 minute
-rt_timer_every(tick_interval, &timer);
+acrt_timer_every(tick_interval, &timer);
 // Count ticks in actor to reach 60 minutes
 ```
 
@@ -1586,34 +1586,34 @@ Non-blocking network I/O with blocking wrappers.
 
 ```c
 // Socket management
-rt_status rt_net_listen(uint16_t port, int *fd_out);
-rt_status rt_net_accept(int listen_fd, int *conn_fd_out, int32_t timeout_ms);
-rt_status rt_net_connect(const char *ip, uint16_t port, int *fd_out, int32_t timeout_ms);
-rt_status rt_net_close(int fd);
+acrt_status acrt_net_listen(uint16_t port, int *fd_out);
+acrt_status acrt_net_accept(int listen_fd, int *conn_fd_out, int32_t timeout_ms);
+acrt_status acrt_net_connect(const char *ip, uint16_t port, int *fd_out, int32_t timeout_ms);
+acrt_status acrt_net_close(int fd);
 
 // Data transfer
-rt_status rt_net_recv(int fd, void *buf, size_t len, size_t *received, int32_t timeout_ms);
-rt_status rt_net_send(int fd, const void *buf, size_t len, size_t *sent, int32_t timeout_ms);
+acrt_status acrt_net_recv(int fd, void *buf, size_t len, size_t *received, int32_t timeout_ms);
+acrt_status acrt_net_send(int fd, const void *buf, size_t len, size_t *sent, int32_t timeout_ms);
 ```
 
 **DNS resolution is out of scope.** The `ip` parameter must be a numeric IPv4 address (e.g., "192.168.1.1"). Hostnames are not supported. Rationale:
 - DNS resolution (`getaddrinfo`, `gethostbyname`) is blocking and would stall the scheduler
 - On STM32 bare metal, DNS typically unavailable or requires complex async plumbing
-- Callers needing DNS should resolve externally before calling `rt_net_connect()`
+- Callers needing DNS should resolve externally before calling `acrt_net_connect()`
 
 All functions with `timeout_ms` parameter support **timeout enforcement**:
 
-- `timeout_ms == 0`: Non-blocking, returns `RT_ERR_WOULDBLOCK` if would block
+- `timeout_ms == 0`: Non-blocking, returns `ACRT_ERR_WOULDBLOCK` if would block
 - `timeout_ms < 0`: Block forever until I/O completes
-- `timeout_ms > 0`: Block up to timeout, returns `RT_ERR_TIMEOUT` if exceeded
+- `timeout_ms > 0`: Block up to timeout, returns `ACRT_ERR_TIMEOUT` if exceeded
 
-**Timeout implementation:** Uses timer-based enforcement (consistent with `rt_ipc_recv`). When timeout expires, a timer message wakes the actor and `RT_ERR_TIMEOUT` is returned. This is essential for handling unreachable hosts, slow connections, and implementing application-level keepalives.
+**Timeout implementation:** Uses timer-based enforcement (consistent with `acrt_ipc_recv`). When timeout expires, a timer message wakes the actor and `ACRT_ERR_TIMEOUT` is returned. This is essential for handling unreachable hosts, slow connections, and implementing application-level keepalives.
 
 On blocking calls, the actor yields to the scheduler. The scheduler's event loop registers the I/O operation with the platform's event notification mechanism (epoll on Linux, interrupt flags on STM32) and dispatches the operation when the socket becomes ready.
 
 ### Completion Semantics
 
-**`rt_net_recv()` - Partial completion:**
+**`acrt_net_recv()` - Partial completion:**
 - Returns successfully when **at least 1 byte** is read (or 0 for EOF/peer closed)
 - Does NOT loop until `len` bytes are received
 - `*received` contains actual bytes read (may be less than `len`)
@@ -1622,14 +1622,14 @@ On blocking calls, the actor yields to the scheduler. The scheduler's event loop
 size_t total = 0;
 while (total < expected_len) {
     size_t n;
-    rt_status s = rt_net_recv(fd, buf + total, expected_len - total, &n, timeout);
-    if (RT_FAILED(s)) return s;
-    if (n == 0) return RT_ERROR(RT_ERR_IO, "Connection closed");
+    acrt_status s = acrt_net_recv(fd, buf + total, expected_len - total, &n, timeout);
+    if (ACRT_FAILED(s)) return s;
+    if (n == 0) return ACRT_ERROR(ACRT_ERR_IO, "Connection closed");
     total += n;
 }
 ```
 
-**`rt_net_send()` - Partial completion:**
+**`acrt_net_send()` - Partial completion:**
 - Returns successfully when **at least 1 byte** is written
 - Does NOT loop until `len` bytes are sent
 - `*sent` contains actual bytes written (may be less than `len`)
@@ -1638,23 +1638,23 @@ while (total < expected_len) {
 size_t total = 0;
 while (total < len) {
     size_t n;
-    rt_status s = rt_net_send(fd, buf + total, len - total, &n, timeout);
-    if (RT_FAILED(s)) return s;
+    acrt_status s = acrt_net_send(fd, buf + total, len - total, &n, timeout);
+    if (ACRT_FAILED(s)) return s;
     total += n;
 }
 ```
 
-**`rt_net_connect()` - Async connect completion:**
+**`acrt_net_connect()` - Async connect completion:**
 - If `connect()` returns `EINPROGRESS`: registers for `EPOLLOUT`, actor yields
 - When socket becomes writable: checks `getsockopt(fd, SOL_SOCKET, SO_ERROR, ...)`
-- If `SO_ERROR == 0`: success, returns `RT_SUCCESS` with connected socket in `*fd_out`
-- If `SO_ERROR != 0`: returns `RT_ERR_IO` with error message, socket is closed
-- If timeout expires before writable: returns `RT_ERR_TIMEOUT`, socket is closed
+- If `SO_ERROR == 0`: success, returns `ACRT_SUCCESS` with connected socket in `*fd_out`
+- If `SO_ERROR != 0`: returns `ACRT_ERR_IO` with error message, socket is closed
+- If timeout expires before writable: returns `ACRT_ERR_TIMEOUT`, socket is closed
 
-**`rt_net_accept()` - Connection ready:**
+**`acrt_net_accept()` - Connection ready:**
 - Waits for `EPOLLIN` on listen socket (incoming connection ready)
 - Calls `accept()` to obtain connected socket
-- Returns `RT_SUCCESS` with new socket in `*conn_fd_out`
+- Returns `ACRT_SUCCESS` with new socket in `*conn_fd_out`
 
 **Rationale for partial completion:**
 - Matches POSIX socket semantics (recv/send may return partial)
@@ -1667,19 +1667,19 @@ while (total < len) {
 File I/O operations.
 
 ```c
-rt_status rt_file_open(const char *path, int flags, int mode, int *fd_out);
-rt_status rt_file_close(int fd);
+acrt_status acrt_file_open(const char *path, int flags, int mode, int *fd_out);
+acrt_status acrt_file_close(int fd);
 
-rt_status rt_file_read(int fd, void *buf, size_t len, size_t *actual);
-rt_status rt_file_pread(int fd, void *buf, size_t len, size_t offset, size_t *actual);
+acrt_status acrt_file_read(int fd, void *buf, size_t len, size_t *actual);
+acrt_status acrt_file_pread(int fd, void *buf, size_t len, size_t offset, size_t *actual);
 
-rt_status rt_file_write(int fd, const void *buf, size_t len, size_t *actual);
-rt_status rt_file_pwrite(int fd, const void *buf, size_t len, size_t offset, size_t *actual);
+acrt_status acrt_file_write(int fd, const void *buf, size_t len, size_t *actual);
+acrt_status acrt_file_pwrite(int fd, const void *buf, size_t len, size_t offset, size_t *actual);
 
-rt_status rt_file_sync(int fd);
+acrt_status acrt_file_sync(int fd);
 ```
 
-The `mode` parameter in `rt_file_open()` specifies file permissions (e.g., 0644) when creating files with `O_CREAT` flag, following POSIX conventions.
+The `mode` parameter in `acrt_file_open()` specifies file permissions (e.g., 0644) when creating files with `O_CREAT` flag, following POSIX conventions.
 
 **File operations block the calling actor until I/O completes.** On embedded systems with local filesystems (FATFS, littlefs), file operations complete quickly (microseconds to milliseconds) and are bounded by hardware characteristics. Timeouts are not provided as hardware failures (dead SD card, flash corruption) cannot be recovered via timeout and require physical intervention.
 
@@ -1687,21 +1687,21 @@ The `mode` parameter in `rt_file_open()` specifies file permissions (e.g., 0644)
 
 The runtime uses **compile-time configuration** for deterministic memory allocation.
 
-### Compile-Time Configuration (`rt_static_config.h`)
+### Compile-Time Configuration (`acrt_static_config.h`)
 
 All resource limits are defined at compile-time and require recompilation to change:
 
 ```c
-#define RT_MAX_ACTORS 64                    // Maximum concurrent actors
-#define RT_STACK_ARENA_SIZE (1*1024*1024)   // Stack arena size (1 MB)
-#define RT_MAX_BUSES 32                     // Maximum concurrent buses
-#define RT_MAILBOX_ENTRY_POOL_SIZE 256      // Mailbox entry pool
-#define RT_MESSAGE_DATA_POOL_SIZE 256       // Message data pool
-#define RT_MAX_MESSAGE_SIZE 256             // Maximum message size
-#define RT_LINK_ENTRY_POOL_SIZE 128         // Link entry pool
-#define RT_MONITOR_ENTRY_POOL_SIZE 128      // Monitor entry pool
-#define RT_TIMER_ENTRY_POOL_SIZE 64         // Timer entry pool
-#define RT_DEFAULT_STACK_SIZE 65536         // Default actor stack size
+#define ACRT_MAX_ACTORS 64                    // Maximum concurrent actors
+#define ACRT_STACK_ARENA_SIZE (1*1024*1024)   // Stack arena size (1 MB)
+#define ACRT_MAX_BUSES 32                     // Maximum concurrent buses
+#define ACRT_MAILBOX_ENTRY_POOL_SIZE 256      // Mailbox entry pool
+#define ACRT_MESSAGE_DATA_POOL_SIZE 256       // Message data pool
+#define ACRT_MAX_MESSAGE_SIZE 256             // Maximum message size
+#define ACRT_LINK_ENTRY_POOL_SIZE 128         // Link entry pool
+#define ACRT_MONITOR_ENTRY_POOL_SIZE 128      // Monitor entry pool
+#define ACRT_TIMER_ENTRY_POOL_SIZE 64         // Timer entry pool
+#define ACRT_DEFAULT_STACK_SIZE 65536         // Default actor stack size
 ```
 
 All runtime structures are **statically allocated** based on these limits. Actor stacks use a static arena allocator by default (configurable via `actor_config.malloc_stack` for malloc). This ensures:
@@ -1714,21 +1714,21 @@ All runtime structures are **statically allocated** based on these limits. Actor
 
 ```c
 // Initialize runtime (call once from main)
-rt_status rt_init(void);
+acrt_status acrt_init(void);
 
-// Run scheduler (blocks until all actors exit or rt_shutdown called)
-void rt_run(void);
+// Run scheduler (blocks until all actors exit or acrt_shutdown called)
+void acrt_run(void);
 
 // Request graceful shutdown
-void rt_shutdown(void);
+void acrt_shutdown(void);
 
-// Cleanup runtime resources (call after rt_run completes)
-void rt_cleanup(void);
+// Cleanup runtime resources (call after acrt_run completes)
+void acrt_cleanup(void);
 ```
 
 ## Actor Death Handling
 
-When an actor dies (via `rt_exit()`, crash, or external kill):
+When an actor dies (via `acrt_exit()`, crash, or external kill):
 
 **Exception:** The exception in this section applies **only when stack corruption prevents safe cleanup** (e.g., guard pattern so corrupted that detection itself is unsafe, or runtime metadata is damaged). When overflow **is detected** via guard checks (see Stack Overflow section), the **normal cleanup path below is used** — links/monitors are notified, mailbox cleared, timers cancelled, resources cleaned up. The guard pattern detection isolates the overflow to the stack area, leaving actor metadata intact for safe cleanup.
 
@@ -1736,9 +1736,9 @@ When an actor dies (via `rt_exit()`, crash, or external kill):
 
 1. **Mailbox cleared:** All pending messages are discarded.
 
-2. **Links notified:** All linked actors receive an exit message (class=`RT_MSG_SYSTEM`, sender=dying actor).
+2. **Links notified:** All linked actors receive an exit message (class=`ACRT_MSG_SYSTEM`, sender=dying actor).
 
-3. **Monitors notified:** All monitoring actors receive an exit message (class=`RT_MSG_SYSTEM`).
+3. **Monitors notified:** All monitoring actors receive an exit message (class=`ACRT_MSG_SYSTEM`).
 
 4. **Bus subscriptions removed:** Actor is unsubscribed from all buses.
 
@@ -1779,20 +1779,20 @@ Exit notifications (steps 2-3 above) are enqueued in recipient mailboxes **durin
 ```c
 // Dying actor sends messages before death
 void actor_A(void *arg) {
-    rt_ipc_notify(B, &msg1, sizeof(msg1));  // Enqueued in B's mailbox
-    rt_ipc_notify(C, &msg2, sizeof(msg2));  // Enqueued in C's mailbox
-    rt_exit();  // Exit notifications sent to links/monitors
+    acrt_ipc_notify(B, &msg1, sizeof(msg1));  // Enqueued in B's mailbox
+    acrt_ipc_notify(C, &msg2, sizeof(msg2));  // Enqueued in C's mailbox
+    acrt_exit();  // Exit notifications sent to links/monitors
 }
-// Linked actor B will receive: msg1, then EXIT(A) (class=RT_MSG_SYSTEM)
+// Linked actor B will receive: msg1, then EXIT(A) (class=ACRT_MSG_SYSTEM)
 // Actor C will receive: msg2 (no exit notification, not linked)
 
 // Messages sent TO dying actor are lost
 void actor_B(void *arg) {
-    rt_ipc_notify(A, &msg, sizeof(msg));  // Enqueued in A's mailbox
+    acrt_ipc_notify(A, &msg, sizeof(msg));  // Enqueued in A's mailbox
 }
 void actor_A(void *arg) {
     // ... does some work ...
-    rt_exit();  // Mailbox cleared, msg from B is discarded
+    acrt_exit();  // Mailbox cleared, msg from B is discarded
 }
 ```
 
@@ -1809,7 +1809,7 @@ void actor_A(void *arg) {
 Pseudocode for the scheduler:
 
 ```
-procedure rt_run():
+procedure acrt_run():
     epoll_fd = epoll_create1(0)
 
     while not shutdown_requested and actors_alive > 0:
@@ -1978,8 +1978,8 @@ The runtime abstracts platform-specific functionality:
 #### **When Overflow IS Detected (Guard Check Succeeds)**
 
 **Guaranteed behavior:**
-1. **Actor terminates** with exit reason `RT_EXIT_CRASH_STACK`
-2. **Links/monitors are notified** (receive exit message with `RT_EXIT_CRASH_STACK`)
+1. **Actor terminates** with exit reason `ACRT_EXIT_CRASH_STACK`
+2. **Links/monitors are notified** (receive exit message with `ACRT_EXIT_CRASH_STACK`)
 3. **Runtime remains stable** (other actors continue running)
 4. **Actor resources cleaned up** (stack freed, mailbox cleared, timers cancelled)
 5. **Error logged:** "Actor N stack overflow detected"
@@ -1992,7 +1992,7 @@ The runtime abstracts platform-specific functionality:
 
 **Caveat:** Without MPU-based stack isolation (future work), there is no hardware guarantee that overflow stays confined. The layout minimizes risk but does not eliminate it.
 
-**Implementation:** Guard patterns checked on every context switch (rt_scheduler.c)
+**Implementation:** Guard patterns checked on every context switch (acrt_scheduler.c)
 
 ---
 

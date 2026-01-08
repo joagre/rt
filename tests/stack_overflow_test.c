@@ -2,9 +2,9 @@
 // Valgrind will report errors - this is expected behavior for this test.
 // Run with: valgrind --error-exitcode=0 ./build/stack_overflow_test
 
-#include "rt_runtime.h"
-#include "rt_ipc.h"
-#include "rt_link.h"
+#include "acrt_runtime.h"
+#include "acrt_ipc.h"
+#include "acrt_link.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -30,47 +30,47 @@ void overflow_actor(void *arg) {
 
     // Yield to trigger guard check
     printf("Overflow actor: Yielding to allow guard check...\n");
-    rt_yield();
+    acrt_yield();
 
     printf("Overflow actor: If you see this, overflow wasn't detected!\n");
-    rt_exit();
+    acrt_exit();
 }
 
 void linked_actor(void *arg) {
     actor_id overflow_id = *(actor_id *)arg;
 
     printf("Linked actor: Linking to overflow actor...\n");
-    rt_link(overflow_id);
+    acrt_link(overflow_id);
 
     // Wait for exit notification
     printf("Linked actor: Waiting for exit notification...\n");
-    rt_message msg;
-    rt_status status = rt_ipc_recv(&msg, -1);
-    if (RT_FAILED(status)) {
+    acrt_message msg;
+    acrt_status status = acrt_ipc_recv(&msg, -1);
+    if (ACRT_FAILED(status)) {
         printf("Linked actor: ✗ FAIL - Failed to receive exit notification\n");
-        rt_exit();
+        acrt_exit();
     }
 
-    if (rt_is_exit_msg(&msg)) {
-        rt_exit_msg exit_info;
-        rt_decode_exit(&msg, &exit_info);
+    if (acrt_is_exit_msg(&msg)) {
+        acrt_exit_msg exit_info;
+        acrt_decode_exit(&msg, &exit_info);
 
         printf("Linked actor: ✓ PASS - Received exit notification from actor %u\n", exit_info.actor);
         printf("Linked actor:   Exit reason: %s\n",
-               exit_info.reason == RT_EXIT_CRASH_STACK ? "RT_EXIT_CRASH_STACK (stack overflow)" :
-               exit_info.reason == RT_EXIT_CRASH ? "RT_EXIT_CRASH" :
-               exit_info.reason == RT_EXIT_NORMAL ? "RT_EXIT_NORMAL" : "UNKNOWN");
+               exit_info.reason == ACRT_EXIT_CRASH_STACK ? "ACRT_EXIT_CRASH_STACK (stack overflow)" :
+               exit_info.reason == ACRT_EXIT_CRASH ? "ACRT_EXIT_CRASH" :
+               exit_info.reason == ACRT_EXIT_NORMAL ? "ACRT_EXIT_NORMAL" : "UNKNOWN");
 
-        if (exit_info.reason == RT_EXIT_CRASH_STACK) {
+        if (exit_info.reason == ACRT_EXIT_CRASH_STACK) {
             printf("Linked actor: ✓ PASS - Correct exit reason for stack overflow\n");
         } else {
-            printf("Linked actor: ✗ FAIL - Expected RT_EXIT_CRASH_STACK, got %d\n", exit_info.reason);
+            printf("Linked actor: ✗ FAIL - Expected ACRT_EXIT_CRASH_STACK, got %d\n", exit_info.reason);
         }
     } else {
         printf("Linked actor: ✗ FAIL - Message is not an exit notification\n");
     }
 
-    rt_exit();
+    acrt_exit();
 }
 
 void witness_actor(void *arg) {
@@ -79,7 +79,7 @@ void witness_actor(void *arg) {
     printf("Witness: Running after overflow actor... runtime still works!\n");
     printf("Witness: ✓ PASS - System continued running despite stack overflow\n");
 
-    rt_exit();
+    acrt_exit();
 }
 
 int main(void) {
@@ -87,32 +87,32 @@ int main(void) {
     printf("Tests that stack overflow is detected and system continues running\n");
     printf("Tests that links/monitors ARE notified (as per spec)\n\n");
 
-    rt_init();
+    acrt_init();
 
     // Spawn actor with small stack (8KB) to make overflow easy
-    actor_config cfg = RT_ACTOR_CONFIG_DEFAULT;
+    actor_config cfg = ACRT_ACTOR_CONFIG_DEFAULT;
     cfg.stack_size = 8 * 1024;  // 8KB stack
-    cfg.priority = RT_PRIO_NORMAL;
+    cfg.priority = ACRT_PRIO_NORMAL;
 
-    actor_id overflow = rt_spawn_ex(overflow_actor, NULL, &cfg);
+    actor_id overflow = acrt_spawn_ex(overflow_actor, NULL, &cfg);
     printf("Main: Spawned overflow actor (ID: %u) with %zu byte stack\n",
            overflow, cfg.stack_size);
 
     // Spawn linked actor to verify exit notification
-    rt_spawn(linked_actor, &overflow);
+    acrt_spawn(linked_actor, &overflow);
     printf("Main: Spawned linked actor\n");
 
     // Spawn witness actor to prove system still works after overflow
-    rt_spawn(witness_actor, NULL);
+    acrt_spawn(witness_actor, NULL);
     printf("Main: Spawned witness actor\n\n");
 
-    rt_run();
-    rt_cleanup();
+    acrt_run();
+    acrt_cleanup();
 
     printf("\n=== Test Complete ===\n");
     printf("Expected behavior:\n");
     printf("  1. Stack overflow detected (ERROR log)\n");
-    printf("  2. Linked actor receives exit notification with RT_EXIT_CRASH_STACK\n");
+    printf("  2. Linked actor receives exit notification with ACRT_EXIT_CRASH_STACK\n");
     printf("  3. Witness actor runs successfully\n");
     printf("  4. No segfault\n");
     printf("Result: PASS if all checks passed\n");

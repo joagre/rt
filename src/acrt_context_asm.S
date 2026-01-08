@@ -1,8 +1,8 @@
 .text
-.globl rt_context_switch_asm
-.type rt_context_switch_asm, @function
+.globl acrt_context_switch_asm
+.type acrt_context_switch_asm, @function
 
-rt_context_switch_asm:
+acrt_context_switch_asm:
     # Save current context (first argument: rdi = from)
     movq %rsp, 0(%rdi)
     movq %rbx, 8(%rdi)
@@ -23,6 +23,6 @@ rt_context_switch_asm:
 
     ret
 
-.size rt_context_switch_asm, .-rt_context_switch_asm
+.size acrt_context_switch_asm, .-acrt_context_switch_asm
 
 .section .note.GNU-stack,"",@progbits

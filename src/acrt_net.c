@@ -1,14 +1,14 @@
-#include "rt_net.h"
-#include "rt_internal.h"
-#include "rt_static_config.h"
-#include "rt_actor.h"
-#include "rt_scheduler.h"
-#include "rt_runtime.h"
-#include "rt_log.h"
-#include "rt_timer.h"
-#include "rt_ipc.h"
-#include "rt_pool.h"
-#include "rt_io_source.h"
+#include "acrt_net.h"
+#include "acrt_internal.h"
+#include "acrt_static_config.h"
+#include "acrt_actor.h"
+#include "acrt_scheduler.h"
+#include "acrt_runtime.h"
+#include "acrt_log.h"
+#include "acrt_timer.h"
+#include "acrt_ipc.h"
+#include "acrt_pool.h"
+#include "acrt_io_source.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,8 +21,8 @@
 #include <fcntl.h>
 
 // Forward declarations for internal functions
-rt_status rt_net_init(void);
-void rt_net_cleanup(void);
+acrt_status acrt_net_init(void);
+void acrt_net_cleanup(void);
 
 // Network operation types (used in io_source.data.net.operation)
 enum {
@@ -33,9 +33,9 @@ enum {
 };
 
 // Static pool for io_source entries
-static io_source g_io_source_pool[RT_IO_SOURCE_POOL_SIZE];
-static bool g_io_source_used[RT_IO_SOURCE_POOL_SIZE];
-static rt_pool g_io_source_pool_mgr;
+static io_source g_io_source_pool[ACRT_IO_SOURCE_POOL_SIZE];
+static bool g_io_source_used[ACRT_IO_SOURCE_POOL_SIZE];
+static acrt_pool g_io_source_pool_mgr;
 
 // Network I/O subsystem state (simplified - no worker thread!)
 static struct {
@@ -52,21 +52,21 @@ static int set_nonblocking(int fd) {
 }
 
 // Handle network event from scheduler (called when socket ready)
-void rt_net_handle_event(io_source *source) {
+void acrt_net_handle_event(io_source *source) {
     net_io_data *net = &source->data.net;
 
     // Get the actor
-    actor *a = rt_actor_get(net->actor);
+    actor *a = acrt_actor_get(net->actor);
     if (!a) {
         // Actor is dead - cleanup
-        int epoll_fd = rt_scheduler_get_epoll_fd();
+        int epoll_fd = acrt_scheduler_get_epoll_fd();
         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, net->fd, NULL);
-        rt_pool_free(&g_io_source_pool_mgr, source);
+        acrt_pool_free(&g_io_source_pool_mgr, source);
         return;
     }
 
     // Perform the actual I/O based on operation type
-    rt_status status = RT_SUCCESS;
+    acrt_status status = ACRT_SUCCESS;
     ssize_t n = 0;
 
     switch (net->operation) {
@@ -79,7 +79,7 @@ void rt_net_handle_event(io_source *source) {
                     // Still not ready - this shouldn't happen with epoll, but handle it
                     return;  // Keep waiting
                 } else {
-                    status = RT_ERROR(RT_ERR_IO, strerror(errno));
+                    status = ACRT_ERROR(ACRT_ERR_IO, strerror(errno));
                 }
             } else {
                 set_nonblocking(conn_fd);
@@ -93,7 +93,7 @@ void rt_net_handle_event(io_source *source) {
             int error = 0;
             socklen_t len = sizeof(error);
             if (getsockopt(net->fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0 || error != 0) {
-                status = RT_ERROR(RT_ERR_IO, error ? strerror(error) : "Connection failed");
+                status = ACRT_ERROR(ACRT_ERR_IO, error ? strerror(error) : "Connection failed");
                 close(net->fd);
             } else {
                 a->io_result_fd = net->fd;
@@ -108,7 +108,7 @@ void rt_net_handle_event(io_source *source) {
                     // Still not ready - shouldn't happen with epoll
                     return;  // Keep waiting
                 } else {
-                    status = RT_ERROR(RT_ERR_IO, strerror(errno));
+                    status = ACRT_ERROR(ACRT_ERR_IO, strerror(errno));
                 }
             } else {
                 a->io_result_nbytes = (size_t)n;
@@ -123,7 +123,7 @@ void rt_net_handle_event(io_source *source) {
                     // Still not ready - shouldn't happen with epoll
                     return;  // Keep waiting
                 } else {
-                    status = RT_ERROR(RT_ERR_IO, strerror(errno));
+                    status = ACRT_ERROR(ACRT_ERR_IO, strerror(errno));
                 }
             } else {
                 a->io_result_nbytes = (size_t)n;
@@ -132,12 +132,12 @@ void rt_net_handle_event(io_source *source) {
         }
 
         default:
-            status = RT_ERROR(RT_ERR_INVALID, "Unknown network operation");
+            status = ACRT_ERROR(ACRT_ERR_INVALID, "Unknown network operation");
             break;
     }
 
     // Remove from epoll (one-shot operation)
-    int epoll_fd = rt_scheduler_get_epoll_fd();
+    int epoll_fd = acrt_scheduler_get_epoll_fd();
     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, net->fd, NULL);
 
     // Store result in actor
@@ -147,55 +147,55 @@ void rt_net_handle_event(io_source *source) {
     a->state = ACTOR_STATE_READY;
 
     // Free io_source
-    rt_pool_free(&g_io_source_pool_mgr, source);
+    acrt_pool_free(&g_io_source_pool_mgr, source);
 }
 
 // Initialize network I/O subsystem
-rt_status rt_net_init(void) {
-    RT_INIT_GUARD(g_net.initialized);
+acrt_status acrt_net_init(void) {
+    ACRT_INIT_GUARD(g_net.initialized);
 
     // Initialize io_source pool
-    rt_pool_init(&g_io_source_pool_mgr, g_io_source_pool, g_io_source_used,
-                 sizeof(io_source), RT_IO_SOURCE_POOL_SIZE);
+    acrt_pool_init(&g_io_source_pool_mgr, g_io_source_pool, g_io_source_used,
+                 sizeof(io_source), ACRT_IO_SOURCE_POOL_SIZE);
 
     g_net.initialized = true;
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }
 
 // Cleanup network I/O subsystem
-void rt_net_cleanup(void) {
-    RT_CLEANUP_GUARD(g_net.initialized);
+void acrt_net_cleanup(void) {
+    ACRT_CLEANUP_GUARD(g_net.initialized);
     g_net.initialized = false;
 }
 
 // Helper: Try non-blocking I/O, add to epoll if would block
-static rt_status try_or_epoll(int fd, uint32_t epoll_events, int operation,
+static acrt_status try_or_epoll(int fd, uint32_t epoll_events, int operation,
                                void *buf, size_t len, int32_t timeout_ms) {
-    RT_REQUIRE_ACTOR_CONTEXT();
-    actor *current = rt_actor_current();
+    ACRT_REQUIRE_ACTOR_CONTEXT();
+    actor *current = acrt_actor_current();
 
     // Non-blocking mode: timeout=0 means "poll once and return immediately"
     if (timeout_ms == 0) {
-        return RT_ERROR(RT_ERR_WOULDBLOCK, "Operation would block");
+        return ACRT_ERROR(ACRT_ERR_WOULDBLOCK, "Operation would block");
     }
 
     // Create timeout timer if needed (timeout > 0)
     // Note: timeout < 0 means "wait forever" (no timer)
     timer_id timeout_timer = TIMER_ID_INVALID;
     if (timeout_ms > 0) {
-        rt_status status = rt_timer_after((uint32_t)timeout_ms * 1000, &timeout_timer);
-        if (RT_FAILED(status)) {
+        acrt_status status = acrt_timer_after((uint32_t)timeout_ms * 1000, &timeout_timer);
+        if (ACRT_FAILED(status)) {
             return status;  // Timer pool exhausted
         }
     }
 
     // Allocate io_source from pool
-    io_source *source = rt_pool_alloc(&g_io_source_pool_mgr);
+    io_source *source = acrt_pool_alloc(&g_io_source_pool_mgr);
     if (!source) {
         if (timeout_timer != TIMER_ID_INVALID) {
-            rt_timer_cancel(timeout_timer);
+            acrt_timer_cancel(timeout_timer);
         }
-        return RT_ERROR(RT_ERR_NOMEM, "io_source pool exhausted");
+        return ACRT_ERROR(ACRT_ERR_NOMEM, "io_source pool exhausted");
     }
 
     // Setup io_source for epoll
@@ -207,29 +207,29 @@ static rt_status try_or_epoll(int fd, uint32_t epoll_events, int operation,
     source->data.net.operation = operation;
 
     // Add to scheduler's epoll
-    int epoll_fd = rt_scheduler_get_epoll_fd();
+    int epoll_fd = acrt_scheduler_get_epoll_fd();
     struct epoll_event ev;
     ev.events = epoll_events;
     ev.data.ptr = source;
 
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) < 0) {
-        rt_pool_free(&g_io_source_pool_mgr, source);
+        acrt_pool_free(&g_io_source_pool_mgr, source);
         if (timeout_timer != TIMER_ID_INVALID) {
-            rt_timer_cancel(timeout_timer);
+            acrt_timer_cancel(timeout_timer);
         }
-        return RT_ERROR(RT_ERR_IO, strerror(errno));
+        return ACRT_ERROR(ACRT_ERR_IO, strerror(errno));
     }
 
     // Block actor until I/O ready
     current->state = ACTOR_STATE_WAITING;
-    rt_yield();
+    acrt_yield();
 
     // When we resume, check for timeout
-    rt_status timeout_status = rt_mailbox_handle_timeout(current, timeout_timer, "Network I/O operation timed out");
-    if (RT_FAILED(timeout_status)) {
+    acrt_status timeout_status = acrt_mailbox_handle_timeout(current, timeout_timer, "Network I/O operation timed out");
+    if (ACRT_FAILED(timeout_status)) {
         // Timeout occurred - cleanup epoll registration
         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
-        rt_pool_free(&g_io_source_pool_mgr, source);
+        acrt_pool_free(&g_io_source_pool_mgr, source);
         return timeout_status;
     }
 
@@ -237,19 +237,19 @@ static rt_status try_or_epoll(int fd, uint32_t epoll_events, int operation,
     return current->io_status;
 }
 
-rt_status rt_net_listen(uint16_t port, int *fd_out) {
+acrt_status acrt_net_listen(uint16_t port, int *fd_out) {
     if (!fd_out) {
-        return RT_ERROR(RT_ERR_INVALID, "Invalid arguments");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid arguments");
     }
 
     if (!g_net.initialized) {
-        return RT_ERROR(RT_ERR_INVALID, "Network I/O subsystem not initialized");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Network I/O subsystem not initialized");
     }
 
     // Create socket (synchronous, doesn't block)
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
-        return RT_ERROR(RT_ERR_IO, strerror(errno));
+        return ACRT_ERROR(ACRT_ERR_IO, strerror(errno));
     }
 
     // Set SO_REUSEADDR to avoid "Address already in use" errors
@@ -262,33 +262,33 @@ rt_status rt_net_listen(uint16_t port, int *fd_out) {
     addr.sin_port = htons(port);
 
     if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        rt_status status = RT_ERROR(RT_ERR_IO, strerror(errno));
+        acrt_status status = ACRT_ERROR(ACRT_ERR_IO, strerror(errno));
         close(fd);
         return status;
     }
 
     if (listen(fd, 5) < 0) {
-        rt_status status = RT_ERROR(RT_ERR_IO, strerror(errno));
+        acrt_status status = ACRT_ERROR(ACRT_ERR_IO, strerror(errno));
         close(fd);
         return status;
     }
 
     set_nonblocking(fd);
     *fd_out = fd;
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }
 
-rt_status rt_net_accept(int listen_fd, int *conn_fd_out, int32_t timeout_ms) {
+acrt_status acrt_net_accept(int listen_fd, int *conn_fd_out, int32_t timeout_ms) {
     if (!conn_fd_out) {
-        return RT_ERROR(RT_ERR_INVALID, "Invalid arguments");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid arguments");
     }
 
     if (!g_net.initialized) {
-        return RT_ERROR(RT_ERR_INVALID, "Network I/O subsystem not initialized");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Network I/O subsystem not initialized");
     }
 
-    RT_REQUIRE_ACTOR_CONTEXT();
-    actor *current = rt_actor_current();
+    ACRT_REQUIRE_ACTOR_CONTEXT();
+    actor *current = acrt_actor_current();
 
     // Try immediate accept with non-blocking
     struct sockaddr_in client_addr;
@@ -299,49 +299,49 @@ rt_status rt_net_accept(int listen_fd, int *conn_fd_out, int32_t timeout_ms) {
         // Success immediately!
         set_nonblocking(conn_fd);
         *conn_fd_out = conn_fd;
-        return RT_SUCCESS;
+        return ACRT_SUCCESS;
     }
 
     if (errno != EAGAIN && errno != EWOULDBLOCK) {
         // Error (not just "would block")
-        return RT_ERROR(RT_ERR_IO, strerror(errno));
+        return ACRT_ERROR(ACRT_ERR_IO, strerror(errno));
     }
 
     // Would block - register interest in epoll and yield
-    rt_status status = try_or_epoll(listen_fd, EPOLLIN, NET_OP_ACCEPT, NULL, 0, timeout_ms);
-    if (RT_FAILED(status)) {
+    acrt_status status = try_or_epoll(listen_fd, EPOLLIN, NET_OP_ACCEPT, NULL, 0, timeout_ms);
+    if (ACRT_FAILED(status)) {
         return status;
     }
 
     // Result stored by event handler
     *conn_fd_out = current->io_result_fd;
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }
 
-rt_status rt_net_connect(const char *ip, uint16_t port, int *fd_out, int32_t timeout_ms) {
+acrt_status acrt_net_connect(const char *ip, uint16_t port, int *fd_out, int32_t timeout_ms) {
     if (!ip || !fd_out) {
-        return RT_ERROR(RT_ERR_INVALID, "Invalid arguments");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid arguments");
     }
 
     if (!g_net.initialized) {
-        return RT_ERROR(RT_ERR_INVALID, "Network I/O subsystem not initialized");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Network I/O subsystem not initialized");
     }
 
-    RT_REQUIRE_ACTOR_CONTEXT();
-    actor *current = rt_actor_current();
+    ACRT_REQUIRE_ACTOR_CONTEXT();
+    actor *current = acrt_actor_current();
 
     // Parse numeric IPv4 address (DNS resolution not supported - would block scheduler)
     struct sockaddr_in serv_addr = {0};
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(port);
     if (inet_pton(AF_INET, ip, &serv_addr.sin_addr) != 1) {
-        return RT_ERROR(RT_ERR_INVALID, "Invalid IPv4 address (hostnames not supported)");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid IPv4 address (hostnames not supported)");
     }
 
     // Create non-blocking socket
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
-        return RT_ERROR(RT_ERR_IO, strerror(errno));
+        return ACRT_ERROR(ACRT_ERR_IO, strerror(errno));
     }
 
     set_nonblocking(fd);
@@ -349,104 +349,104 @@ rt_status rt_net_connect(const char *ip, uint16_t port, int *fd_out, int32_t tim
     // Try non-blocking connect
     if (connect(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         if (errno != EINPROGRESS) {
-            rt_status status = RT_ERROR(RT_ERR_IO, strerror(errno));
+            acrt_status status = ACRT_ERROR(ACRT_ERR_IO, strerror(errno));
             close(fd);
             return status;
         }
 
         // Connection in progress - add to epoll and wait for writable
-        rt_status status = try_or_epoll(fd, EPOLLOUT, NET_OP_CONNECT, NULL, 0, timeout_ms);
-        if (RT_FAILED(status)) {
+        acrt_status status = try_or_epoll(fd, EPOLLOUT, NET_OP_CONNECT, NULL, 0, timeout_ms);
+        if (ACRT_FAILED(status)) {
             close(fd);
             return status;
         }
 
         // Result stored by event handler
         *fd_out = current->io_result_fd;
-        return RT_SUCCESS;
+        return ACRT_SUCCESS;
     }
 
     // Connected immediately (rare but possible on localhost)
     *fd_out = fd;
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }
 
-rt_status rt_net_close(int fd) {
+acrt_status acrt_net_close(int fd) {
     // Close is synchronous and fast
     if (close(fd) < 0) {
-        return RT_ERROR(RT_ERR_IO, strerror(errno));
+        return ACRT_ERROR(ACRT_ERR_IO, strerror(errno));
     }
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }
 
-rt_status rt_net_recv(int fd, void *buf, size_t len, size_t *received, int32_t timeout_ms) {
+acrt_status acrt_net_recv(int fd, void *buf, size_t len, size_t *received, int32_t timeout_ms) {
     if (!buf || !received) {
-        return RT_ERROR(RT_ERR_INVALID, "Invalid arguments");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid arguments");
     }
 
     if (!g_net.initialized) {
-        return RT_ERROR(RT_ERR_INVALID, "Network I/O subsystem not initialized");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Network I/O subsystem not initialized");
     }
 
-    RT_REQUIRE_ACTOR_CONTEXT();
-    actor *current = rt_actor_current();
+    ACRT_REQUIRE_ACTOR_CONTEXT();
+    actor *current = acrt_actor_current();
 
     // Try immediate non-blocking recv
     ssize_t n = recv(fd, buf, len, MSG_DONTWAIT);
     if (n >= 0) {
         // Success immediately!
         *received = (size_t)n;
-        return RT_SUCCESS;
+        return ACRT_SUCCESS;
     }
 
     if (errno != EAGAIN && errno != EWOULDBLOCK) {
         // Error (not just "would block")
-        return RT_ERROR(RT_ERR_IO, strerror(errno));
+        return ACRT_ERROR(ACRT_ERR_IO, strerror(errno));
     }
 
     // Would block - register interest in epoll and yield
-    rt_status status = try_or_epoll(fd, EPOLLIN, NET_OP_RECV, buf, len, timeout_ms);
-    if (RT_FAILED(status)) {
+    acrt_status status = try_or_epoll(fd, EPOLLIN, NET_OP_RECV, buf, len, timeout_ms);
+    if (ACRT_FAILED(status)) {
         return status;
     }
 
     // Result stored by event handler
     *received = current->io_result_nbytes;
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }
 
-rt_status rt_net_send(int fd, const void *buf, size_t len, size_t *sent, int32_t timeout_ms) {
+acrt_status acrt_net_send(int fd, const void *buf, size_t len, size_t *sent, int32_t timeout_ms) {
     if (!buf || !sent) {
-        return RT_ERROR(RT_ERR_INVALID, "Invalid arguments");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid arguments");
     }
 
     if (!g_net.initialized) {
-        return RT_ERROR(RT_ERR_INVALID, "Network I/O subsystem not initialized");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Network I/O subsystem not initialized");
     }
 
-    RT_REQUIRE_ACTOR_CONTEXT();
-    actor *current = rt_actor_current();
+    ACRT_REQUIRE_ACTOR_CONTEXT();
+    actor *current = acrt_actor_current();
 
     // Try immediate non-blocking send
     ssize_t n = send(fd, buf, len, MSG_DONTWAIT);
     if (n >= 0) {
         // Success immediately!
         *sent = (size_t)n;
-        return RT_SUCCESS;
+        return ACRT_SUCCESS;
     }
 
     if (errno != EAGAIN && errno != EWOULDBLOCK) {
         // Error (not just "would block")
-        return RT_ERROR(RT_ERR_IO, strerror(errno));
+        return ACRT_ERROR(ACRT_ERR_IO, strerror(errno));
     }
 
     // Would block - register interest in epoll and yield
-    rt_status status = try_or_epoll(fd, EPOLLOUT, NET_OP_SEND, (void *)buf, len, timeout_ms);
-    if (RT_FAILED(status)) {
+    acrt_status status = try_or_epoll(fd, EPOLLOUT, NET_OP_SEND, (void *)buf, len, timeout_ms);
+    if (ACRT_FAILED(status)) {
         return status;
     }
 
     // Result stored by event handler
     *sent = current->io_result_nbytes;
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }

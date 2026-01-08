@@ -1,4 +1,4 @@
-#include "rt_log.h"
+#include "acrt_log.h"
 #include <stdarg.h>
 #include <time.h>
 #include <string.h>
@@ -26,7 +26,7 @@ static const char *basename_simple(const char *path) {
     return slash ? slash + 1 : path;
 }
 
-void rt_log_write(rt_log_level_t level, const char *file, int line,
+void acrt_log_write(acrt_log_level_t level, const char *file, int line,
                   const char *fmt, ...) {
     // Check if stderr is a terminal for colored output
     static int use_colors = -1;
@@ -42,7 +42,7 @@ void rt_log_write(rt_log_level_t level, const char *file, int line,
     }
 
     // Print file:line for DEBUG and TRACE
-    if (level <= RT_LOG_LEVEL_DEBUG) {
+    if (level <= ACRT_LOG_LEVEL_DEBUG) {
         fprintf(stderr, "%s:%d: ", basename_simple(file), line);
     }
 

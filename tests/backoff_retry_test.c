@@ -1,13 +1,13 @@
-#include "rt_runtime.h"
-#include "rt_ipc.h"
-#include "rt_timer.h"
-#include "rt_static_config.h"
+#include "acrt_runtime.h"
+#include "acrt_ipc.h"
+#include "acrt_timer.h"
+#include "acrt_static_config.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
 
 // Leave room for control messages and timers
-#define MESSAGES_TO_FILL_POOL (RT_MAILBOX_ENTRY_POOL_SIZE / 2)
+#define MESSAGES_TO_FILL_POOL (ACRT_MAILBOX_ENTRY_POOL_SIZE / 2)
 
 typedef struct {
     actor_id receiver;
@@ -23,7 +23,7 @@ typedef struct {
 void receiver_actor(void *arg) {
     (void)arg;
 
-    printf("Receiver: Started (ID: %u), mailbox count: %zu\n", rt_self(), rt_ipc_count());
+    printf("Receiver: Started (ID: %u), mailbox count: %zu\n", acrt_self(), acrt_ipc_count());
     fflush(stdout);
 
     // Debug: Scan messages and show their tags
@@ -33,16 +33,16 @@ void receiver_actor(void *arg) {
     int scanned = 0;
     int found_start = 0;
     int found_done = 0;
-    rt_message msg;
+    acrt_message msg;
 
     while (scanned < 300) {
-        rt_status status = rt_ipc_recv(&msg, 0);  // Non-blocking
-        if (status.code == RT_ERR_WOULDBLOCK) {
+        acrt_status status = acrt_ipc_recv(&msg, 0);  // Non-blocking
+        if (status.code == ACRT_ERR_WOULDBLOCK) {
             break;
         }
-        if (!RT_FAILED(status)) {
+        if (!ACRT_FAILED(status)) {
             uint32_t tag;
-            rt_msg_decode(&msg, NULL, &tag, NULL, NULL);
+            acrt_msg_decode(&msg, NULL, &tag, NULL, NULL);
             if (scanned < 5 || tag == TAG_START || tag == TAG_DONE) {
                 printf("  Message %d: tag=%u\n", scanned, tag);
             }
@@ -58,7 +58,7 @@ void receiver_actor(void *arg) {
             if (scanned % 50 == 0) {
                 printf("Receiver: Processed %d messages, yielding...\n", scanned);
                 fflush(stdout);
-                rt_yield();
+                acrt_yield();
             }
         }
     }
@@ -74,9 +74,9 @@ void receiver_actor(void *arg) {
         fflush(stdout);
 
         uint32_t done_tag = TAG_DONE;
-        rt_status status = rt_ipc_recv_match(NULL, NULL, &done_tag, &msg, 5000);
+        acrt_status status = acrt_ipc_recv_match(NULL, NULL, &done_tag, &msg, 5000);
 
-        if (!RT_FAILED(status)) {
+        if (!ACRT_FAILED(status)) {
             printf("Receiver: Got DONE signal\n");
         } else {
             printf("Receiver: Timeout waiting for DONE (%s)\n",
@@ -86,17 +86,17 @@ void receiver_actor(void *arg) {
 
     printf("Receiver: Exiting\n");
 
-    rt_exit();
+    acrt_exit();
 }
 
 // Internal send with custom tag
-extern rt_status rt_ipc_notify_ex(actor_id to, actor_id sender, rt_msg_class class,
+extern acrt_status acrt_ipc_notify_ex(actor_id to, actor_id sender, acrt_msg_class class,
                                  uint32_t tag, const void *data, size_t len);
 
 void sender_actor(void *arg) {
     test_args *args = (test_args *)arg;
     actor_id receiver = args->receiver;
-    actor_id self = rt_self();
+    actor_id self = acrt_self();
 
     printf("Sender: Started (ID: %u), receiver ID: %u\n", self, receiver);
     fflush(stdout);
@@ -110,9 +110,9 @@ void sender_actor(void *arg) {
 
     for (int i = 0; i < MESSAGES_TO_FILL_POOL; i++) {
         data++;
-        rt_status status = rt_ipc_notify_ex(receiver, self, RT_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
-        if (RT_FAILED(status)) {
-            if (status.code == RT_ERR_NOMEM) {
+        acrt_status status = acrt_ipc_notify_ex(receiver, self, ACRT_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
+        if (ACRT_FAILED(status)) {
+            if (status.code == ACRT_ERR_NOMEM) {
                 printf("Sender: Pool exhausted after %d messages\n", sent_count);
                 break;
             }
@@ -129,16 +129,16 @@ void sender_actor(void *arg) {
     int failed_count = 0;
     for (int i = 0; i < 50; i++) {
         data++;
-        rt_status status = rt_ipc_notify_ex(receiver, self, RT_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
-        if (status.code == RT_ERR_NOMEM) {
+        acrt_status status = acrt_ipc_notify_ex(receiver, self, ACRT_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
+        if (status.code == ACRT_ERR_NOMEM) {
             failed_count++;
-        } else if (!RT_FAILED(status)) {
+        } else if (!ACRT_FAILED(status)) {
             extra_sent++;
         }
     }
 
     if (failed_count > 0) {
-        printf("Sender: ✓ RT_ERR_NOMEM on %d attempts (sent %d more)\n", failed_count, extra_sent);
+        printf("Sender: ✓ ACRT_ERR_NOMEM on %d attempts (sent %d more)\n", failed_count, extra_sent);
     } else {
         printf("Sender: All 50 extra sends succeeded\n");
     }
@@ -146,8 +146,8 @@ void sender_actor(void *arg) {
     // Send START signal
     printf("\nSender: Sending START signal (tag=%d)...\n", TAG_START);
     fflush(stdout);
-    rt_status status = rt_ipc_notify_ex(receiver, self, RT_MSG_NOTIFY, TAG_START, NULL, 0);
-    if (RT_FAILED(status)) {
+    acrt_status status = acrt_ipc_notify_ex(receiver, self, ACRT_MSG_NOTIFY, TAG_START, NULL, 0);
+    if (ACRT_FAILED(status)) {
         printf("Sender: Failed to send START: %s\n", status.msg ? status.msg : "unknown");
     } else {
         printf("Sender: START signal sent successfully\n");
@@ -156,7 +156,7 @@ void sender_actor(void *arg) {
     // Yield to let receiver process
     printf("\nSender: Yielding to receiver...\n");
     fflush(stdout);
-    rt_yield();
+    acrt_yield();
 
     // Retry loop
     printf("Sender: Starting retry loop...\n");
@@ -166,21 +166,21 @@ void sender_actor(void *arg) {
     int retry_count = 0;
 
     for (int attempt = 0; attempt < 30; attempt++) {
-        rt_yield();
+        acrt_yield();
 
         data++;
-        status = rt_ipc_notify_ex(receiver, self, RT_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
+        status = acrt_ipc_notify_ex(receiver, self, ACRT_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
 
-        if (!RT_FAILED(status)) {
+        if (!ACRT_FAILED(status)) {
             printf("Sender: ✓ Send succeeded on attempt %d!\n", attempt + 1);
             send_succeeded = true;
             break;
         }
 
-        if (status.code == RT_ERR_NOMEM) {
+        if (status.code == ACRT_ERR_NOMEM) {
             retry_count++;
-            rt_message msg;
-            rt_ipc_recv(&msg, 5);  // Backoff 5ms
+            acrt_message msg;
+            acrt_ipc_recv(&msg, 5);  // Backoff 5ms
             if (attempt % 10 == 0) {
                 printf("Sender: Attempt %d - pool exhausted\n", attempt + 1);
             }
@@ -192,7 +192,7 @@ void sender_actor(void *arg) {
 
     // Send DONE signal
     printf("\nSender: Sending DONE signal...\n");
-    rt_ipc_notify_ex(receiver, self, RT_MSG_NOTIFY, TAG_DONE, NULL, 0);
+    acrt_ipc_notify_ex(receiver, self, ACRT_MSG_NOTIFY, TAG_DONE, NULL, 0);
 
     if (send_succeeded) {
         printf("\nSender: ✓ Backoff-retry SUCCESS!\n");
@@ -202,28 +202,28 @@ void sender_actor(void *arg) {
         printf("\nSender: ✗ Still failing after %d retries\n", retry_count);
     }
 
-    rt_exit();
+    acrt_exit();
 }
 
 int main(void) {
     printf("=== Backoff-Retry Test ===\n\n");
-    printf("Pool size: RT_MAILBOX_ENTRY_POOL_SIZE = %d\n", RT_MAILBOX_ENTRY_POOL_SIZE);
+    printf("Pool size: ACRT_MAILBOX_ENTRY_POOL_SIZE = %d\n", ACRT_MAILBOX_ENTRY_POOL_SIZE);
     printf("Messages to send: %d\n\n", MESSAGES_TO_FILL_POOL);
     fflush(stdout);
 
-    rt_init();
+    acrt_init();
 
     test_args args = {0};
 
-    args.receiver = rt_spawn(receiver_actor, &args);
+    args.receiver = acrt_spawn(receiver_actor, &args);
     printf("Main: Spawned receiver (ID: %u)\n", args.receiver);
 
-    args.sender = rt_spawn(sender_actor, &args);
+    args.sender = acrt_spawn(sender_actor, &args);
     printf("Main: Spawned sender (ID: %u)\n", args.sender);
     fflush(stdout);
 
-    rt_run();
-    rt_cleanup();
+    acrt_run();
+    acrt_cleanup();
 
     printf("\n=== Test Complete ===\n");
     return 0;

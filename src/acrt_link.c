@@ -1,35 +1,35 @@
-#include "rt_link.h"
-#include "rt_internal.h"
-#include "rt_static_config.h"
-#include "rt_pool.h"
-#include "rt_ipc.h"
-#include "rt_actor.h"
-#include "rt_scheduler.h"
-#include "rt_runtime.h"
-#include "rt_log.h"
+#include "acrt_link.h"
+#include "acrt_internal.h"
+#include "acrt_static_config.h"
+#include "acrt_pool.h"
+#include "acrt_ipc.h"
+#include "acrt_actor.h"
+#include "acrt_scheduler.h"
+#include "acrt_runtime.h"
+#include "acrt_log.h"
 #include <stdlib.h>
 #include <string.h>
 
-// Use shared SLIST_APPEND from rt_internal.h
+// Use shared SLIST_APPEND from acrt_internal.h
 
 
 // Forward declarations
-rt_status rt_link_init(void);
-void rt_link_cleanup(void);
-void rt_link_cleanup_actor(actor_id id);
-static bool send_exit_notification(actor *recipient, actor_id dying_id, rt_exit_reason reason);
+acrt_status acrt_link_init(void);
+void acrt_link_cleanup(void);
+void acrt_link_cleanup_actor(actor_id id);
+static bool send_exit_notification(actor *recipient, actor_id dying_id, acrt_exit_reason reason);
 
 // External function to get actor table
-extern actor_table *rt_actor_get_table(void);
+extern actor_table *acrt_actor_get_table(void);
 
 // Static pools for links and monitors
-static link_entry g_link_pool[RT_LINK_ENTRY_POOL_SIZE];
-static bool g_link_used[RT_LINK_ENTRY_POOL_SIZE];
-static rt_pool g_link_pool_mgr;
+static link_entry g_link_pool[ACRT_LINK_ENTRY_POOL_SIZE];
+static bool g_link_used[ACRT_LINK_ENTRY_POOL_SIZE];
+static acrt_pool g_link_pool_mgr;
 
-static monitor_entry g_monitor_pool[RT_MONITOR_ENTRY_POOL_SIZE];
-static bool g_monitor_used[RT_MONITOR_ENTRY_POOL_SIZE];
-static rt_pool g_monitor_pool_mgr;
+static monitor_entry g_monitor_pool[ACRT_MONITOR_ENTRY_POOL_SIZE];
+static bool g_monitor_used[ACRT_MONITOR_ENTRY_POOL_SIZE];
+static acrt_pool g_monitor_pool_mgr;
 
 // Global state
 static struct {
@@ -38,29 +38,29 @@ static struct {
 } g_link_state = {0};
 
 // Initialize link subsystem
-rt_status rt_link_init(void) {
-    RT_INIT_GUARD(g_link_state.initialized);
+acrt_status acrt_link_init(void) {
+    ACRT_INIT_GUARD(g_link_state.initialized);
 
     // Initialize link and monitor pools
-    rt_pool_init(&g_link_pool_mgr, g_link_pool, g_link_used,
-                 sizeof(link_entry), RT_LINK_ENTRY_POOL_SIZE);
+    acrt_pool_init(&g_link_pool_mgr, g_link_pool, g_link_used,
+                 sizeof(link_entry), ACRT_LINK_ENTRY_POOL_SIZE);
 
-    rt_pool_init(&g_monitor_pool_mgr, g_monitor_pool, g_monitor_used,
-                 sizeof(monitor_entry), RT_MONITOR_ENTRY_POOL_SIZE);
+    acrt_pool_init(&g_monitor_pool_mgr, g_monitor_pool, g_monitor_used,
+                 sizeof(monitor_entry), ACRT_MONITOR_ENTRY_POOL_SIZE);
 
     g_link_state.next_monitor_id = 1;
     g_link_state.initialized = true;
 
-    RT_LOG_DEBUG("Link subsystem initialized");
-    return RT_SUCCESS;
+    ACRT_LOG_DEBUG("Link subsystem initialized");
+    return ACRT_SUCCESS;
 }
 
 // Cleanup link subsystem
-void rt_link_cleanup(void) {
-    RT_CLEANUP_GUARD(g_link_state.initialized);
+void acrt_link_cleanup(void) {
+    ACRT_CLEANUP_GUARD(g_link_state.initialized);
 
     g_link_state.initialized = false;
-    RT_LOG_DEBUG("Link subsystem cleaned up");
+    ACRT_LOG_DEBUG("Link subsystem cleaned up");
 }
 
 // Helper: Check if actor already linked
@@ -74,39 +74,39 @@ static bool is_already_linked(actor *a, actor_id target_id) {
 }
 
 // Create bidirectional link
-rt_status rt_link(actor_id target_id) {
-    RT_REQUIRE_ACTOR_CONTEXT();
-    actor *current = rt_actor_current();
+acrt_status acrt_link(actor_id target_id) {
+    ACRT_REQUIRE_ACTOR_CONTEXT();
+    actor *current = acrt_actor_current();
 
     // Check for self-linking
     if (current->id == target_id) {
-        return RT_ERROR(RT_ERR_INVALID, "Cannot link to self");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Cannot link to self");
     }
 
     // Get target actor
-    actor *target = rt_actor_get(target_id);
+    actor *target = acrt_actor_get(target_id);
     if (!target || target->state == ACTOR_STATE_DEAD) {
-        return RT_ERROR(RT_ERR_INVALID, "Target actor is dead or invalid");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Target actor is dead or invalid");
     }
 
     // Check if already linked
     if (is_already_linked(current, target_id)) {
-        return RT_ERROR(RT_ERR_INVALID, "Already linked to target");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Already linked to target");
     }
 
     // Allocate link entry for current -> target
-    link_entry *current_link = rt_pool_alloc(&g_link_pool_mgr);
+    link_entry *current_link = acrt_pool_alloc(&g_link_pool_mgr);
     if (!current_link) {
-        return RT_ERROR(RT_ERR_NOMEM, "Link pool exhausted");
+        return ACRT_ERROR(ACRT_ERR_NOMEM, "Link pool exhausted");
     }
     current_link->target = target_id;
     current_link->next = NULL;
 
     // Allocate link entry for target -> current
-    link_entry *target_link = rt_pool_alloc(&g_link_pool_mgr);
+    link_entry *target_link = acrt_pool_alloc(&g_link_pool_mgr);
     if (!target_link) {
-        rt_pool_free(&g_link_pool_mgr, current_link);
-        return RT_ERROR(RT_ERR_NOMEM, "Link pool exhausted");
+        acrt_pool_free(&g_link_pool_mgr, current_link);
+        return ACRT_ERROR(ACRT_ERR_NOMEM, "Link pool exhausted");
     }
     target_link->target = current->id;
     target_link->next = NULL;
@@ -117,14 +117,14 @@ rt_status rt_link(actor_id target_id) {
     // Add to target actor's link list
     SLIST_APPEND(target->links, target_link);
 
-    RT_LOG_DEBUG("Actor %u linked to actor %u", current->id, target_id);
-    return RT_SUCCESS;
+    ACRT_LOG_DEBUG("Actor %u linked to actor %u", current->id, target_id);
+    return ACRT_SUCCESS;
 }
 
 // Remove bidirectional link
-rt_status rt_link_remove(actor_id target_id) {
-    RT_REQUIRE_ACTOR_CONTEXT();
-    actor *current = rt_actor_current();
+acrt_status acrt_link_remove(actor_id target_id) {
+    ACRT_REQUIRE_ACTOR_CONTEXT();
+    actor *current = acrt_actor_current();
 
     // Remove from current actor's link list
     link_entry **prev = &current->links;
@@ -134,7 +134,7 @@ rt_status rt_link_remove(actor_id target_id) {
     while (entry) {
         if (entry->target == target_id) {
             *prev = entry->next;
-            rt_pool_free(&g_link_pool_mgr, entry);
+            acrt_pool_free(&g_link_pool_mgr, entry);
             found_current = true;
             break;
         }
@@ -143,11 +143,11 @@ rt_status rt_link_remove(actor_id target_id) {
     }
 
     if (!found_current) {
-        return RT_ERROR(RT_ERR_INVALID, "Not linked to target");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Not linked to target");
     }
 
     // Remove from target actor's link list
-    actor *target = rt_actor_get(target_id);
+    actor *target = acrt_actor_get(target_id);
     if (target && target->state != ACTOR_STATE_DEAD) {
         prev = &target->links;
         entry = target->links;
@@ -155,7 +155,7 @@ rt_status rt_link_remove(actor_id target_id) {
         while (entry) {
             if (entry->target == current->id) {
                 *prev = entry->next;
-                rt_pool_free(&g_link_pool_mgr, entry);
+                acrt_pool_free(&g_link_pool_mgr, entry);
                 break;
             }
             prev = &entry->next;
@@ -163,34 +163,34 @@ rt_status rt_link_remove(actor_id target_id) {
         }
     }
 
-    RT_LOG_DEBUG("Actor %u removed link to actor %u", current->id, target_id);
-    return RT_SUCCESS;
+    ACRT_LOG_DEBUG("Actor %u removed link to actor %u", current->id, target_id);
+    return ACRT_SUCCESS;
 }
 
 // Create unidirectional monitor
-rt_status rt_monitor(actor_id target_id, uint32_t *monitor_id) {
+acrt_status acrt_monitor(actor_id target_id, uint32_t *monitor_id) {
     if (!monitor_id) {
-        return RT_ERROR(RT_ERR_INVALID, "Invalid monitor_id pointer");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid monitor_id pointer");
     }
 
-    RT_REQUIRE_ACTOR_CONTEXT();
-    actor *current = rt_actor_current();
+    ACRT_REQUIRE_ACTOR_CONTEXT();
+    actor *current = acrt_actor_current();
 
     // Check for self-monitoring
     if (current->id == target_id) {
-        return RT_ERROR(RT_ERR_INVALID, "Cannot monitor self");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Cannot monitor self");
     }
 
     // Get target actor
-    actor *target = rt_actor_get(target_id);
+    actor *target = acrt_actor_get(target_id);
     if (!target || target->state == ACTOR_STATE_DEAD) {
-        return RT_ERROR(RT_ERR_INVALID, "Target actor is dead or invalid");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Target actor is dead or invalid");
     }
 
     // Allocate monitor entry from pool
-    monitor_entry *entry = rt_pool_alloc(&g_monitor_pool_mgr);
+    monitor_entry *entry = acrt_pool_alloc(&g_monitor_pool_mgr);
     if (!entry) {
-        return RT_ERROR(RT_ERR_NOMEM, "Monitor pool exhausted");
+        return ACRT_ERROR(ACRT_ERR_NOMEM, "Monitor pool exhausted");
     }
 
     // Generate unique monitor ID
@@ -202,14 +202,14 @@ rt_status rt_monitor(actor_id target_id, uint32_t *monitor_id) {
     SLIST_APPEND(current->monitors, entry);
 
     *monitor_id = entry->ref;
-    RT_LOG_DEBUG("Actor %u monitoring actor %u (ref=%u)", current->id, target_id, entry->ref);
-    return RT_SUCCESS;
+    ACRT_LOG_DEBUG("Actor %u monitoring actor %u (ref=%u)", current->id, target_id, entry->ref);
+    return ACRT_SUCCESS;
 }
 
 // Cancel unidirectional monitor
-rt_status rt_monitor_cancel(uint32_t monitor_id) {
-    RT_REQUIRE_ACTOR_CONTEXT();
-    actor *current = rt_actor_current();
+acrt_status acrt_monitor_cancel(uint32_t monitor_id) {
+    ACRT_REQUIRE_ACTOR_CONTEXT();
+    actor *current = acrt_actor_current();
 
     // Find and remove monitor entry
     monitor_entry **prev = &current->monitors;
@@ -218,70 +218,70 @@ rt_status rt_monitor_cancel(uint32_t monitor_id) {
     while (entry) {
         if (entry->ref == monitor_id) {
             *prev = entry->next;
-            RT_LOG_DEBUG("Actor %u cancelled monitor (id=%u)", current->id, monitor_id);
-            rt_pool_free(&g_monitor_pool_mgr, entry);
-            return RT_SUCCESS;
+            ACRT_LOG_DEBUG("Actor %u cancelled monitor (id=%u)", current->id, monitor_id);
+            acrt_pool_free(&g_monitor_pool_mgr, entry);
+            return ACRT_SUCCESS;
         }
         prev = &entry->next;
         entry = entry->next;
     }
 
-    return RT_ERROR(RT_ERR_INVALID, "Monitor reference not found");
+    return ACRT_ERROR(ACRT_ERR_INVALID, "Monitor reference not found");
 }
 
 // Check if message is an exit notification
-bool rt_is_exit_msg(const rt_message *msg) {
-    if (!msg || !msg->data || msg->len < RT_MSG_HEADER_SIZE) {
+bool acrt_is_exit_msg(const acrt_message *msg) {
+    if (!msg || !msg->data || msg->len < ACRT_MSG_HEADER_SIZE) {
         return false;
     }
 
     // Check message class
-    rt_msg_class class;
-    rt_msg_decode(msg, &class, NULL, NULL, NULL);
+    acrt_msg_class class;
+    acrt_msg_decode(msg, &class, NULL, NULL, NULL);
 
-    return class == RT_MSG_SYSTEM;
+    return class == ACRT_MSG_SYSTEM;
 }
 
 // Decode exit message
-rt_status rt_decode_exit(const rt_message *msg, rt_exit_msg *out) {
+acrt_status acrt_decode_exit(const acrt_message *msg, acrt_exit_msg *out) {
     if (!msg || !out) {
-        return RT_ERROR(RT_ERR_INVALID, "Invalid arguments");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid arguments");
     }
 
-    if (!rt_is_exit_msg(msg)) {
-        return RT_ERROR(RT_ERR_INVALID, "Not an exit message");
+    if (!acrt_is_exit_msg(msg)) {
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Not an exit message");
     }
 
     // Extract payload (after header)
     const void *payload;
     size_t payload_len;
-    rt_status status = rt_msg_decode(msg, NULL, NULL, &payload, &payload_len);
-    if (RT_FAILED(status)) {
+    acrt_status status = acrt_msg_decode(msg, NULL, NULL, &payload, &payload_len);
+    if (ACRT_FAILED(status)) {
         return status;
     }
 
-    if (payload_len != sizeof(rt_exit_msg)) {
-        return RT_ERROR(RT_ERR_INVALID, "Invalid exit message size");
+    if (payload_len != sizeof(acrt_exit_msg)) {
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid exit message size");
     }
 
-    memcpy(out, payload, sizeof(rt_exit_msg));
-    return RT_SUCCESS;
+    memcpy(out, payload, sizeof(acrt_exit_msg));
+    return ACRT_SUCCESS;
 }
 
 // Helper: Send exit notification to an actor
-static bool send_exit_notification(actor *recipient, actor_id dying_id, rt_exit_reason reason) {
+static bool send_exit_notification(actor *recipient, actor_id dying_id, acrt_exit_reason reason) {
     // Build exit message payload
-    rt_exit_msg exit_data = {
+    acrt_exit_msg exit_data = {
         .actor = dying_id,
         .reason = reason
     };
 
-    // Send using rt_ipc_notify_ex with RT_MSG_SYSTEM class
+    // Send using acrt_ipc_notify_ex with ACRT_MSG_SYSTEM class
     // Sender is the dying actor so recipient knows who died
-    rt_status status = rt_ipc_notify_ex(recipient->id, dying_id, RT_MSG_SYSTEM,
-                                       RT_TAG_NONE, &exit_data, sizeof(exit_data));
-    if (RT_FAILED(status)) {
-        RT_LOG_ERROR("Failed to send exit notification: %s", status.msg);
+    acrt_status status = acrt_ipc_notify_ex(recipient->id, dying_id, ACRT_MSG_SYSTEM,
+                                       ACRT_TAG_NONE, &exit_data, sizeof(exit_data));
+    if (ACRT_FAILED(status)) {
+        ACRT_LOG_ERROR("Failed to send exit notification: %s", status.msg);
         return false;
     }
 
@@ -289,14 +289,14 @@ static bool send_exit_notification(actor *recipient, actor_id dying_id, rt_exit_
 }
 
 // Cleanup actor links/monitors and send death notifications
-void rt_link_cleanup_actor(actor_id dying_actor_id) {
+void acrt_link_cleanup_actor(actor_id dying_actor_id) {
     if (!g_link_state.initialized) {
         return;
     }
 
     // Get actor table and find the dying actor WITHOUT state check
-    // (rt_actor_get filters out DEAD actors, but we need to access it here)
-    actor_table *table = rt_actor_get_table();
+    // (acrt_actor_get filters out DEAD actors, but we need to access it here)
+    actor_table *table = acrt_actor_get_table();
     if (!table || !table->actors) {
         return;
     }
@@ -314,7 +314,7 @@ void rt_link_cleanup_actor(actor_id dying_actor_id) {
         return;
     }
 
-    RT_LOG_DEBUG("Cleaning up links/monitors for actor %u (reason=%d)",
+    ACRT_LOG_DEBUG("Cleaning up links/monitors for actor %u (reason=%d)",
                  dying_actor_id, dying->exit_reason);
 
     // Collect all actors that need notification
@@ -323,11 +323,11 @@ void rt_link_cleanup_actor(actor_id dying_actor_id) {
     // Pass 1: Send notifications for bidirectional links
     link_entry *link = dying->links;
     while (link) {
-        actor *linked_actor = rt_actor_get(link->target);
+        actor *linked_actor = acrt_actor_get(link->target);
         if (linked_actor && linked_actor->state != ACTOR_STATE_DEAD) {
             // Send exit notification to linked actor
             if (send_exit_notification(linked_actor, dying_actor_id, dying->exit_reason)) {
-                RT_LOG_TRACE("Sent link exit notification to actor %u", link->target);
+                ACRT_LOG_TRACE("Sent link exit notification to actor %u", link->target);
             }
 
             // Remove reciprocal link from linked actor's list
@@ -336,7 +336,7 @@ void rt_link_cleanup_actor(actor_id dying_actor_id) {
             while (reciprocal) {
                 if (reciprocal->target == dying_actor_id) {
                     *prev = reciprocal->next;
-                    rt_pool_free(&g_link_pool_mgr, reciprocal);
+                    acrt_pool_free(&g_link_pool_mgr, reciprocal);
                     break;
                 }
                 prev = &reciprocal->next;
@@ -345,7 +345,7 @@ void rt_link_cleanup_actor(actor_id dying_actor_id) {
         }
 
         link_entry *next_link = link->next;
-        rt_pool_free(&g_link_pool_mgr, link);
+        acrt_pool_free(&g_link_pool_mgr, link);
         link = next_link;
     }
     dying->links = NULL;
@@ -368,7 +368,7 @@ void rt_link_cleanup_actor(actor_id dying_actor_id) {
                 if (mon->target == dying_actor_id) {
                     // Send exit notification using helper
                     if (send_exit_notification(a, dying_actor_id, dying->exit_reason)) {
-                        RT_LOG_TRACE("Sent monitor exit notification to actor %u (ref=%u)",
+                        ACRT_LOG_TRACE("Sent monitor exit notification to actor %u (ref=%u)",
                                      a->id, mon->ref);
                     }
 
@@ -376,7 +376,7 @@ void rt_link_cleanup_actor(actor_id dying_actor_id) {
                     monitor_entry *to_free = mon;
                     *prev = mon->next;
                     mon = mon->next;
-                    rt_pool_free(&g_monitor_pool_mgr, to_free);
+                    acrt_pool_free(&g_monitor_pool_mgr, to_free);
                 } else {
                     prev = &mon->next;
                     mon = mon->next;
@@ -389,7 +389,7 @@ void rt_link_cleanup_actor(actor_id dying_actor_id) {
     monitor_entry *mon = dying->monitors;
     while (mon) {
         monitor_entry *next_mon = mon->next;
-        rt_pool_free(&g_monitor_pool_mgr, mon);
+        acrt_pool_free(&g_monitor_pool_mgr, mon);
         mon = next_mon;
     }
     dying->monitors = NULL;

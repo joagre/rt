@@ -1,7 +1,7 @@
-#include "rt_pool.h"
+#include "acrt_pool.h"
 #include <string.h>
 
-void rt_pool_init(rt_pool *pool, void *entries, bool *used,
+void acrt_pool_init(acrt_pool *pool, void *entries, bool *used,
                   size_t entry_size, size_t capacity) {
     pool->entries = entries;
     pool->used = used;
@@ -13,7 +13,7 @@ void rt_pool_init(rt_pool *pool, void *entries, bool *used,
     memset(used, 0, capacity * sizeof(bool));
 }
 
-void* rt_pool_alloc(rt_pool *pool) {
+void* acrt_pool_alloc(acrt_pool *pool) {
     // Find first free entry
     for (size_t i = 0; i < pool->capacity; i++) {
         if (!pool->used[i]) {
@@ -29,7 +29,7 @@ void* rt_pool_alloc(rt_pool *pool) {
     return NULL;
 }
 
-void rt_pool_free(rt_pool *pool, void *entry) {
+void acrt_pool_free(acrt_pool *pool, void *entry) {
     if (!entry) {
         return;
     }

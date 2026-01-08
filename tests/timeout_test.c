@@ -1,5 +1,5 @@
-#include "rt_runtime.h"
-#include "rt_ipc.h"
+#include "acrt_runtime.h"
+#include "acrt_ipc.h"
 #include <stdio.h>
 #include <time.h>
 
@@ -15,26 +15,26 @@ void test_timeout_actor(void *arg) {
 
     printf("Test 1: Timeout when no message arrives\n");
     uint64_t start = get_time_ms();
-    rt_message msg;
-    rt_status status = rt_ipc_recv(&msg, 100);  // 100ms timeout
+    acrt_message msg;
+    acrt_status status = acrt_ipc_recv(&msg, 100);  // 100ms timeout
     uint64_t elapsed = get_time_ms() - start;
 
-    if (status.code == RT_ERR_TIMEOUT) {
+    if (status.code == ACRT_ERR_TIMEOUT) {
         printf("  ✓ Got timeout after %lu ms (expected ~100ms)\n", elapsed);
     } else {
         printf("  ✗ Expected timeout, got status=%d\n", status.code);
     }
 
     printf("\nTest 2: Message arrives before timeout\n");
-    actor_id self = rt_self();
+    actor_id self = acrt_self();
     int data = 42;
-    rt_ipc_notify(self, &data, sizeof(data));
+    acrt_ipc_notify(self, &data, sizeof(data));
 
     start = get_time_ms();
-    status = rt_ipc_recv(&msg, 100);  // 100ms timeout
+    status = acrt_ipc_recv(&msg, 100);  // 100ms timeout
     elapsed = get_time_ms() - start;
 
-    if (!RT_FAILED(status)) {
+    if (!ACRT_FAILED(status)) {
         int *received = (int *)msg.data;
         printf("  ✓ Got message before timeout: %d (after %lu ms)\n", *received, elapsed);
     } else {
@@ -48,10 +48,10 @@ void test_timeout_actor(void *arg) {
         printf("  Attempt %d: Backing off 50ms...\n", retry_count + 1);
 
         start = get_time_ms();
-        status = rt_ipc_recv(&msg, 50);  // Backoff 50ms
+        status = acrt_ipc_recv(&msg, 50);  // Backoff 50ms
         elapsed = get_time_ms() - start;
 
-        if (status.code == RT_ERR_TIMEOUT) {
+        if (status.code == ACRT_ERR_TIMEOUT) {
             printf("    Backoff complete after %lu ms, retrying...\n", elapsed);
             retry_count++;
         } else {
@@ -61,13 +61,13 @@ void test_timeout_actor(void *arg) {
     printf("  ✓ Backoff-retry pattern works\n");
 
     printf("\nAll tests passed!\n");
-    rt_exit();
+    acrt_exit();
 }
 
 int main(void) {
-    rt_init();
-    rt_spawn(test_timeout_actor, NULL);
-    rt_run();
-    rt_cleanup();
+    acrt_init();
+    acrt_spawn(test_timeout_actor, NULL);
+    acrt_run();
+    acrt_cleanup();
     return 0;
 }
