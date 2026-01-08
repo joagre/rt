@@ -18,7 +18,7 @@ typedef uint32_t actor_id;
 
 // Message classes (4 bits, stored in header bits 31-28)
 typedef enum {
-    ACRT_MSG_ASYNC   = 0,  // Async message (sender doesn't wait)
+    ACRT_MSG_NOTIFY   = 0,  // Fire-and-forget notification
     ACRT_MSG_REQUEST = 1,  // Request expecting reply
     ACRT_MSG_REPLY   = 2,  // Reply to request
     ACRT_MSG_TIMER   = 3,  // Timer tick

@@ -8,7 +8,7 @@
 // Core Send/Receive
 // -----------------------------------------------------------------------------
 
-// Send an async notification (ACRT_MSG_ASYNC)
+// Send an async notification (ACRT_MSG_NOTIFY)
 // Payload is copied to receiver's mailbox, sender continues immediately.
 // Returns ACRT_ERR_NOMEM if IPC pools exhausted.
 acrt_status acrt_ipc_notify(actor_id to, const void *data, size_t len);

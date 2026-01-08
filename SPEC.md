@@ -714,7 +714,7 @@ All messages have a 4-byte header prepended to the payload:
 
 ```c
 typedef enum {
-    ACRT_MSG_ASYNC = 0,   // Fire-and-forget message
+    ACRT_MSG_NOTIFY = 0,   // Fire-and-forget message
     ACRT_MSG_REQUEST,       // Request expecting a reply
     ACRT_MSG_REPLY,      // Response to a REQUEST
     ACRT_MSG_TIMER,      // Timer tick
@@ -760,7 +760,7 @@ typedef struct {
 #### Basic Messaging
 
 ```c
-// Fire-and-forget message (class=ASYNC, tag=0)
+// Fire-and-forget message (class=NOTIFY, tag=0)
 acrt_status acrt_ipc_notify(actor_id to, const void *data, size_t len);
 
 // Receive any message (no filtering)
@@ -1051,7 +1051,7 @@ size_t payload_len;
 acrt_msg_decode(&msg, &class, &tag, &payload, &payload_len);
 
 switch (class) {
-    case ACRT_MSG_ASYNC:
+    case ACRT_MSG_NOTIFY:
         handle_cast(msg.sender, payload, payload_len);
         break;
     case ACRT_MSG_REQUEST:
