@@ -16,6 +16,31 @@ The runtime uses **statically bounded memory** for deterministic behavior with z
 - **[Full Specification](SPEC.md)** - Complete design and implementation details
 - **[Examples Directory](examples/)** - Working examples (pingpong, bus, echo server, etc.)
 - **[Static Configuration](include/acrt_static_config.h)** - Compile-time memory limits and pool sizes
+- **[Man Pages](man/man3/)** - API reference documentation
+
+## Man Pages
+
+Comprehensive API documentation is available as Unix man pages:
+
+```bash
+# Install man pages
+sudo make install-man                    # Install to /usr/local/share/man/man3/
+make install-man PREFIX=~/.local         # Install to custom prefix
+
+# View man pages (after install)
+man acrt_init      # Runtime initialization
+man acrt_spawn     # Actor lifecycle
+man acrt_ipc       # Message passing
+man acrt_link      # Linking and monitoring
+man acrt_timer     # Timers
+man acrt_bus       # Pub-sub bus
+man acrt_net       # Network I/O
+man acrt_file      # File I/O
+man acrt_types     # Types and compile-time configuration
+
+# View without installing
+man man/man3/acrt_ipc.3
+```
 
 ## Features
 
