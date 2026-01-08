@@ -1,9 +1,4 @@
 // Minimal pilot example - Read sensors and print values using actors
-//
-// Demonstrates:
-// - Webots integration with hive_step()
-// - Sensor data flow through bus
-// - Single actor reading and printing IMU data
 
 #include <webots/robot.h>
 #include <webots/gyro.h>
@@ -52,8 +47,18 @@ int main(void) {
 
     // Enable sensors
     gyro = wb_robot_get_device("gyro");
+    imu = wb_robot_get_device("inertial_unit");
+
+    if (gyro == 0) {
+        printf("Error: gyro device not found\n");
+        return 1;
+    }
+    if (imu == 0) {
+        printf("Error: inertial_unit device not found\n");
+        return 1;
+    }
+
     wb_gyro_enable(gyro, TIME_STEP);
-    imu = wb_robot_get_device("inertial unit");
     wb_inertial_unit_enable(imu, TIME_STEP);
 
     // Initialize runtime and bus
@@ -65,6 +70,8 @@ int main(void) {
     // Spawn actor
     actor_id sensor;
     hive_spawn(sensor_actor, &imu_bus, &sensor);
+
+    printf("Pilot started\n");
 
     // Main loop
     while (wb_robot_step(TIME_STEP) != -1) {
