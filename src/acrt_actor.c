@@ -1,7 +1,7 @@
-#include "rt_actor.h"
-#include "rt_static_config.h"
-#include "rt_ipc.h"
-#include "rt_log.h"
+#include "acrt_actor.h"
+#include "acrt_static_config.h"
+#include "acrt_ipc.h"
+#include "acrt_log.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -28,11 +28,11 @@ typedef struct {
 #define STACK_GUARD_SIZE 8  // sizeof(uint64_t)
 
 // Static arena storage (16-byte aligned)
-static uint8_t g_stack_arena_memory[RT_STACK_ARENA_SIZE] __attribute__((aligned(16)));
+static uint8_t g_stack_arena_memory[ACRT_STACK_ARENA_SIZE] __attribute__((aligned(16)));
 static stack_arena g_stack_arena = {0};
 
 // Static actor storage
-static actor g_actors[RT_MAX_ACTORS];
+static actor g_actors[ACRT_MAX_ACTORS];
 
 // Global actor table
 static actor_table g_actor_table = {0};
@@ -43,11 +43,11 @@ static actor *g_current_actor = NULL;
 // Initialize stack arena
 static void arena_init(void) {
     g_stack_arena.base = g_stack_arena_memory;
-    g_stack_arena.total_size = RT_STACK_ARENA_SIZE;
+    g_stack_arena.total_size = ACRT_STACK_ARENA_SIZE;
 
     // Initialize with one large free block
     arena_block *block = (arena_block *)g_stack_arena.base;
-    block->size = RT_STACK_ARENA_SIZE - sizeof(arena_block);
+    block->size = ACRT_STACK_ARENA_SIZE - sizeof(arena_block);
     block->next = NULL;
     g_stack_arena.free_list = block;
 }
@@ -139,20 +139,20 @@ static void arena_free(void *ptr) {
     }
 }
 
-rt_status rt_actor_init(void) {
+acrt_status acrt_actor_init(void) {
     // Initialize stack arena
     arena_init();
 
     // Use static actor array (already zero-initialized by C)
     g_actor_table.actors = g_actors;
-    g_actor_table.max_actors = RT_MAX_ACTORS;
+    g_actor_table.max_actors = ACRT_MAX_ACTORS;
     g_actor_table.num_actors = 0;
     g_actor_table.next_id = 1; // Start at 1, 0 is ACTOR_ID_INVALID
 
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }
 
-void rt_actor_cleanup(void) {
+void acrt_actor_cleanup(void) {
     if (g_actor_table.actors) {
         // Free all actor stacks and mailboxes
         for (size_t i = 0; i < g_actor_table.max_actors; i++) {
@@ -163,7 +163,7 @@ void rt_actor_cleanup(void) {
                 } else {
                     arena_free(a->stack);
                 }
-                rt_ipc_mailbox_clear(&a->mailbox);
+                acrt_ipc_mailbox_clear(&a->mailbox);
             }
         }
         // Note: g_actor_table.actors points to static g_actors array, so no free() needed
@@ -171,7 +171,7 @@ void rt_actor_cleanup(void) {
     }
 }
 
-actor *rt_actor_get(actor_id id) {
+actor *acrt_actor_get(actor_id id) {
     if (id == ACTOR_ID_INVALID) {
         return NULL;
     }
@@ -186,7 +186,7 @@ actor *rt_actor_get(actor_id id) {
     return NULL;
 }
 
-actor *rt_actor_alloc(actor_fn fn, void *arg, const actor_config *cfg) {
+actor *acrt_actor_alloc(actor_fn fn, void *arg, const actor_config *cfg) {
     if (g_actor_table.num_actors >= g_actor_table.max_actors) {
         return NULL;
     }
@@ -206,7 +206,7 @@ actor *rt_actor_alloc(actor_fn fn, void *arg, const actor_config *cfg) {
     }
 
     // Determine stack size
-    size_t stack_size = cfg->stack_size > 0 ? cfg->stack_size : RT_DEFAULT_STACK_SIZE;
+    size_t stack_size = cfg->stack_size > 0 ? cfg->stack_size : ACRT_DEFAULT_STACK_SIZE;
 
     // Allocate stack (arena or malloc based on config)
     void *stack;
@@ -245,14 +245,14 @@ actor *rt_actor_alloc(actor_fn fn, void *arg, const actor_config *cfg) {
     a->stack_is_malloced = is_malloced;  // Track allocation method
 
     // Initialize receive filters to wildcards (accept any message)
-    a->recv_filter_from = RT_SENDER_ANY;
-    a->recv_filter_class = RT_MSG_ANY;
-    a->recv_filter_tag = RT_TAG_ANY;
+    a->recv_filter_from = ACRT_SENDER_ANY;
+    a->recv_filter_class = ACRT_MSG_ANY;
+    a->recv_filter_tag = ACRT_TAG_ANY;
 
     // Initialize context with usable stack area (excluding guards)
     void *usable_stack = (uint8_t *)stack + STACK_GUARD_SIZE;
     size_t usable_size = stack_size - (2 * STACK_GUARD_SIZE);
-    rt_context_init(&a->ctx, usable_stack, usable_size, fn, arg);
+    acrt_context_init(&a->ctx, usable_stack, usable_size, fn, arg);
 
     g_actor_table.num_actors++;
 
@@ -260,10 +260,10 @@ actor *rt_actor_alloc(actor_fn fn, void *arg, const actor_config *cfg) {
 }
 
 // External cleanup functions
-extern void rt_bus_cleanup_actor(actor_id id);
-extern void rt_link_cleanup_actor(actor_id id);
+extern void acrt_bus_cleanup_actor(actor_id id);
+extern void acrt_link_cleanup_actor(actor_id id);
 
-void rt_actor_free(actor *a) {
+void acrt_actor_free(actor *a) {
     if (!a) {
         return;
     }
@@ -271,10 +271,10 @@ void rt_actor_free(actor *a) {
     // Cleanup links/monitors and send death notifications
     // This happens even on stack overflow - the guard pattern detection means
     // the overflow is localized to the stack, and actor metadata is intact
-    rt_link_cleanup_actor(a->id);
+    acrt_link_cleanup_actor(a->id);
 
     // Cleanup bus subscriptions
-    rt_bus_cleanup_actor(a->id);
+    acrt_bus_cleanup_actor(a->id);
 
     // Free stack
     if (a->stack) {
@@ -288,26 +288,26 @@ void rt_actor_free(actor *a) {
 
     // Free active message
     if (a->active_msg) {
-        rt_ipc_free_active_msg(a->active_msg);
+        acrt_ipc_free_active_msg(a->active_msg);
         a->active_msg = NULL;
     }
 
     // Free mailbox entries
-    rt_ipc_mailbox_clear(&a->mailbox);
+    acrt_ipc_mailbox_clear(&a->mailbox);
 
     a->state = ACTOR_STATE_DEAD;
     g_actor_table.num_actors--;
 }
 
-actor *rt_actor_current(void) {
+actor *acrt_actor_current(void) {
     return g_current_actor;
 }
 
-void rt_actor_set_current(actor *a) {
+void acrt_actor_set_current(actor *a) {
     g_current_actor = a;
 }
 
 // Get actor table (for scheduler)
-actor_table *rt_actor_get_table(void) {
+actor_table *acrt_actor_get_table(void) {
     return &g_actor_table;
 }

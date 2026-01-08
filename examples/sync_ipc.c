@@ -1,7 +1,7 @@
 /*
  * Request/Reply Example - Request/Response Pattern with Blocking Calls
  *
- * This example demonstrates the request/reply pattern using rt_ipc_request/rt_ipc_reply,
+ * This example demonstrates the request/reply pattern using acrt_ipc_request/acrt_ipc_reply,
  * which provides natural backpressure by blocking the caller until a reply.
  *
  * KEY CONCEPTS:
@@ -15,8 +15,8 @@
  * - When sender needs confirmation before proceeding
  */
 
-#include "rt_runtime.h"
-#include "rt_ipc.h"
+#include "acrt_runtime.h"
+#include "acrt_ipc.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -36,31 +36,31 @@ typedef struct {
 static void consumer_actor(void *arg) {
     (void)arg;
 
-    printf("Consumer: Started (ID: %u)\n", rt_self());
+    printf("Consumer: Started (ID: %u)\n", acrt_self());
     printf("Consumer: I process slowly to demonstrate backpressure\n\n");
 
     for (int jobs_processed = 0; jobs_processed < 5; jobs_processed++) {
-        // Wait for work request (RT_MSG_REQUEST)
-        rt_message msg;
-        rt_status status = rt_ipc_recv(&msg, 5000);  // 5 second timeout
+        // Wait for work request (ACRT_MSG_REQUEST)
+        acrt_message msg;
+        acrt_status status = acrt_ipc_recv(&msg, 5000);  // 5 second timeout
 
-        if (status.code == RT_ERR_TIMEOUT) {
+        if (status.code == ACRT_ERR_TIMEOUT) {
             printf("Consumer: Timeout waiting for work, exiting\n");
             break;
         }
 
-        if (RT_FAILED(status)) {
+        if (ACRT_FAILED(status)) {
             printf("Consumer: Receive failed: %s\n", status.msg);
             break;
         }
 
         // Decode the message
-        rt_msg_class class;
+        acrt_msg_class class;
         const void *payload;
         size_t payload_len;
-        rt_msg_decode(&msg, &class, NULL, &payload, &payload_len);
+        acrt_msg_decode(&msg, &class, NULL, &payload, &payload_len);
 
-        if (class != RT_MSG_REQUEST) {
+        if (class != ACRT_MSG_REQUEST) {
             printf("Consumer: Unexpected message class %d, skipping\n", class);
             continue;
         }
@@ -88,8 +88,8 @@ static void consumer_actor(void *arg) {
                req->job_id, result.result);
 
         // Send reply to unblock the caller
-        status = rt_ipc_reply(&msg, &result, sizeof(result));
-        if (RT_FAILED(status)) {
+        status = acrt_ipc_reply(&msg, &result, sizeof(result));
+        if (ACRT_FAILED(status)) {
             printf("Consumer: Failed to send reply: %s\n", status.msg);
         }
 
@@ -97,15 +97,15 @@ static void consumer_actor(void *arg) {
     }
 
     printf("Consumer: Done processing, exiting\n");
-    rt_exit();
+    acrt_exit();
 }
 
 // Fast producer that sends work requests
 static void producer_actor(void *arg) {
     actor_id consumer_id = (actor_id)(uintptr_t)arg;
 
-    printf("Producer: Started (ID: %u)\n", rt_self());
-    printf("Producer: Sending 5 jobs with rt_ipc_request (blocks until reply)\n\n");
+    printf("Producer: Started (ID: %u)\n", acrt_self());
+    printf("Producer: Sending 5 jobs with acrt_ipc_request (blocks until reply)\n\n");
 
     for (int i = 1; i <= 5; i++) {
         work_request req = {
@@ -115,12 +115,12 @@ static void producer_actor(void *arg) {
 
         printf("Producer: Calling consumer with job #%d (will block until reply)...\n", i);
 
-        // Call consumer - this BLOCKS until consumer sends rt_ipc_reply()
-        rt_message reply;
-        rt_status status = rt_ipc_request(consumer_id, &req, sizeof(req), &reply, 10000);
+        // Call consumer - this BLOCKS until consumer sends acrt_ipc_reply()
+        acrt_message reply;
+        acrt_status status = acrt_ipc_request(consumer_id, &req, sizeof(req), &reply, 10000);
 
-        if (RT_FAILED(status)) {
-            if (status.code == RT_ERR_TIMEOUT) {
+        if (ACRT_FAILED(status)) {
+            if (status.code == ACRT_ERR_TIMEOUT) {
                 printf("Producer: Timeout waiting for reply on job #%d\n", i);
             } else {
                 printf("Producer: Call failed: %s\n", status.msg);
@@ -130,14 +130,14 @@ static void producer_actor(void *arg) {
 
         // Decode and display result
         const void *payload;
-        rt_msg_decode(&reply, NULL, NULL, &payload, NULL);
+        acrt_msg_decode(&reply, NULL, NULL, &payload, NULL);
         work_result *result = (work_result *)payload;
 
         printf("Producer: Job #%d completed! Result=%d\n\n", result->job_id, result->result);
     }
 
     printf("Producer: All jobs sent and completed, exiting\n");
-    rt_exit();
+    acrt_exit();
 }
 
 // Demo simple message passing (async notify vs request/reply)
@@ -147,71 +147,71 @@ static void demo_actor(void *arg) {
 
     printf("\n--- Message Passing Patterns Demo ---\n");
 
-    // Pattern 1: Fire-and-forget with rt_ipc_notify()
-    printf("Demo: Fire-and-forget (rt_ipc_notify) - sender continues immediately\n");
+    // Pattern 1: Fire-and-forget with acrt_ipc_notify()
+    printf("Demo: Fire-and-forget (acrt_ipc_notify) - sender continues immediately\n");
     int data = 42;
-    rt_status status = rt_ipc_notify(rt_self(), &data, sizeof(data));
-    if (!RT_FAILED(status)) {
-        rt_message msg;
-        rt_ipc_recv(&msg, 0);
+    acrt_status status = acrt_ipc_notify(acrt_self(), &data, sizeof(data));
+    if (!ACRT_FAILED(status)) {
+        acrt_message msg;
+        acrt_ipc_recv(&msg, 0);
         const void *payload;
-        rt_msg_decode(&msg, NULL, NULL, &payload, NULL);
+        acrt_msg_decode(&msg, NULL, NULL, &payload, NULL);
         printf("Demo: Received self-sent message: %d\n", *(int *)payload);
     }
 
     printf("--- End Demo ---\n\n");
-    rt_exit();
+    acrt_exit();
 }
 
 int main(void) {
     printf("=== Request/Reply Example - Request/Response Pattern ===\n\n");
 
     printf("This example shows:\n");
-    printf("1. Producer sends jobs with rt_ipc_request() (blocks until reply)\n");
-    printf("2. Consumer processes and replies with rt_ipc_reply()\n");
+    printf("1. Producer sends jobs with acrt_ipc_request() (blocks until reply)\n");
+    printf("2. Consumer processes and replies with acrt_ipc_reply()\n");
     printf("3. Producer only proceeds after receiving reply\n\n");
 
-    rt_status status = rt_init();
-    if (RT_FAILED(status)) {
+    acrt_status status = acrt_init();
+    if (ACRT_FAILED(status)) {
         fprintf(stderr, "Failed to initialize runtime: %s\n", status.msg);
         return 1;
     }
 
     // First, run the demo actor
-    actor_id demo = rt_spawn(demo_actor, NULL);
+    actor_id demo = acrt_spawn(demo_actor, NULL);
     if (demo == ACTOR_ID_INVALID) {
         fprintf(stderr, "Failed to spawn demo actor\n");
-        rt_cleanup();
+        acrt_cleanup();
         return 1;
     }
 
     // Spawn consumer first (it will wait for messages)
-    actor_id consumer = rt_spawn(consumer_actor, NULL);
+    actor_id consumer = acrt_spawn(consumer_actor, NULL);
     if (consumer == ACTOR_ID_INVALID) {
         fprintf(stderr, "Failed to spawn consumer\n");
-        rt_cleanup();
+        acrt_cleanup();
         return 1;
     }
 
     // Spawn producer with consumer's ID
-    actor_id producer = rt_spawn(producer_actor, (void *)(uintptr_t)consumer);
+    actor_id producer = acrt_spawn(producer_actor, (void *)(uintptr_t)consumer);
     if (producer == ACTOR_ID_INVALID) {
         fprintf(stderr, "Failed to spawn producer\n");
-        rt_cleanup();
+        acrt_cleanup();
         return 1;
     }
 
     printf("Spawned actors: demo=%u, consumer=%u, producer=%u\n\n", demo, consumer, producer);
 
     // Run scheduler
-    rt_run();
+    acrt_run();
 
     printf("\nScheduler finished\n");
-    rt_cleanup();
+    acrt_cleanup();
 
     printf("\n=== Example completed ===\n");
     printf("\nKey takeaways:\n");
-    printf("- rt_ipc_request() blocks until rt_ipc_reply() is received\n");
+    printf("- acrt_ipc_request() blocks until acrt_ipc_reply() is received\n");
     printf("- Tag-based correlation matches replies to requests\n");
     printf("- Natural backpressure without explicit release calls\n");
     printf("- Simpler than old IPC_SYNC mode\n");

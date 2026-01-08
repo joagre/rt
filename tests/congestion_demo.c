@@ -1,6 +1,6 @@
-#include "rt_runtime.h"
-#include "rt_ipc.h"
-#include "rt_timer.h"
+#include "acrt_runtime.h"
+#include "acrt_ipc.h"
+#include "acrt_timer.h"
 #include <stdio.h>
 #include <stdbool.h>
 
@@ -18,21 +18,21 @@ void worker_actor(void *arg) {
     int processed = 0;
 
     while (true) {
-        rt_message msg;
-        rt_status status = rt_ipc_recv(&msg, 500);  // 500ms timeout
+        acrt_message msg;
+        acrt_status status = acrt_ipc_recv(&msg, 500);  // 500ms timeout
 
-        if (status.code == RT_ERR_TIMEOUT) {
+        if (status.code == ACRT_ERR_TIMEOUT) {
             // No more work
             break;
         }
 
-        if (!RT_FAILED(status)) {
+        if (!ACRT_FAILED(status)) {
             processed++;
         }
     }
 
     printf("Worker %d: Processed %d messages\n", id, processed);
-    rt_exit();
+    acrt_exit();
 }
 
 // Coordinator that distributes work with backoff-retry
@@ -51,9 +51,9 @@ void coordinator_actor(void *arg) {
         for (int w = 0; w < args->worker_count; w++) {
             int data = burst * NUM_WORKERS + w;
 
-            rt_status status = rt_ipc_notify(args->workers[w], &data, sizeof(data));
+            acrt_status status = acrt_ipc_notify(args->workers[w], &data, sizeof(data));
 
-            if (status.code == RT_ERR_NOMEM) {
+            if (status.code == ACRT_ERR_NOMEM) {
                 retry_needed++;
 
                 if (retry_needed == 1) {
@@ -61,31 +61,31 @@ void coordinator_actor(void *arg) {
                 }
 
                 // Backoff-retry pattern
-                rt_message msg;
-                rt_ipc_recv(&msg, 5);  // Backoff 5ms
+                acrt_message msg;
+                acrt_ipc_recv(&msg, 5);  // Backoff 5ms
 
                 // Retry
-                status = rt_ipc_notify(args->workers[w], &data, sizeof(data));
-                if (!RT_FAILED(status)) {
+                status = acrt_ipc_notify(args->workers[w], &data, sizeof(data));
+                if (!ACRT_FAILED(status)) {
                     retry_success++;
                     total_sent++;
                 } else {
                     // Even retry failed - aggressive backoff
-                    rt_ipc_recv(&msg, 20);
-                    status = rt_ipc_notify(args->workers[w], &data, sizeof(data));
-                    if (!RT_FAILED(status)) {
+                    acrt_ipc_recv(&msg, 20);
+                    status = acrt_ipc_notify(args->workers[w], &data, sizeof(data));
+                    if (!ACRT_FAILED(status)) {
                         retry_success++;
                         total_sent++;
                     }
                 }
-            } else if (!RT_FAILED(status)) {
+            } else if (!ACRT_FAILED(status)) {
                 total_sent++;
             }
         }
 
         // Yield periodically to let workers process
         if (burst % 20 == 0) {
-            rt_yield();
+            acrt_yield();
         }
     }
 
@@ -99,7 +99,7 @@ void coordinator_actor(void *arg) {
         printf("  Without retry, %d messages would have been lost\n", retry_needed);
     }
 
-    rt_exit();
+    acrt_exit();
 }
 
 int main(void) {
@@ -107,7 +107,7 @@ int main(void) {
     printf("\nScenario: Coordinator sends bursts to multiple workers\n");
     printf("Expected: Temporary pool exhaustion handled by backoff-retry\n");
 
-    rt_init();
+    acrt_init();
 
     coordinator_args args;
     args.worker_count = NUM_WORKERS;
@@ -116,16 +116,16 @@ int main(void) {
     static int worker_ids[NUM_WORKERS];
     for (int i = 0; i < NUM_WORKERS; i++) {
         worker_ids[i] = i + 1;
-        args.workers[i] = rt_spawn(worker_actor, &worker_ids[i]);
+        args.workers[i] = acrt_spawn(worker_actor, &worker_ids[i]);
     }
     printf("Main: Spawned %d workers\n", NUM_WORKERS);
 
     // Spawn coordinator
-    rt_spawn(coordinator_actor, &args);
+    acrt_spawn(coordinator_actor, &args);
     printf("Main: Spawned coordinator\n");
 
-    rt_run();
-    rt_cleanup();
+    acrt_run();
+    acrt_cleanup();
 
     printf("\n=== Demo Complete ===\n");
     return 0;

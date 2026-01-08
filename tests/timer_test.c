@@ -1,7 +1,7 @@
-#include "rt_runtime.h"
-#include "rt_timer.h"
-#include "rt_ipc.h"
-#include "rt_static_config.h"
+#include "acrt_runtime.h"
+#include "acrt_timer.h"
+#include "acrt_ipc.h"
+#include "acrt_static_config.h"
 #include <stdio.h>
 #include <time.h>
 
@@ -23,25 +23,25 @@ static void run_timer_tests(void *arg) {
     (void)arg;
 
     // ========================================================================
-    // Test 1: One-shot timer (rt_timer_after)
+    // Test 1: One-shot timer (acrt_timer_after)
     // ========================================================================
-    printf("\nTest 1: One-shot timer (rt_timer_after)\n");
+    printf("\nTest 1: One-shot timer (acrt_timer_after)\n");
     {
         timer_id timer;
-        rt_status status = rt_timer_after(100000, &timer);  // 100ms
-        if (RT_FAILED(status)) {
-            TEST_FAIL("rt_timer_after failed");
+        acrt_status status = acrt_timer_after(100000, &timer);  // 100ms
+        if (ACRT_FAILED(status)) {
+            TEST_FAIL("acrt_timer_after failed");
         } else if (timer == TIMER_ID_INVALID) {
             TEST_FAIL("got invalid timer ID");
         } else {
             uint64_t start = time_ms();
-            rt_message msg;
-            status = rt_ipc_recv(&msg, -1);  // Wait indefinitely
+            acrt_message msg;
+            status = acrt_ipc_recv(&msg, -1);  // Wait indefinitely
             uint64_t elapsed = time_ms() - start;
 
-            if (RT_FAILED(status)) {
+            if (ACRT_FAILED(status)) {
                 TEST_FAIL("did not receive timer message");
-            } else if (!rt_msg_is_timer(&msg)) {
+            } else if (!acrt_msg_is_timer(&msg)) {
                 TEST_FAIL("message is not a timer tick");
             } else if (elapsed >= 80 && elapsed <= 200) {
                 printf("    Timer fired after %lu ms (expected ~100ms)\n", (unsigned long)elapsed);
@@ -59,20 +59,20 @@ static void run_timer_tests(void *arg) {
     printf("\nTest 2: Timer cancellation\n");
     {
         timer_id timer;
-        rt_timer_after(100000, &timer);  // 100ms
+        acrt_timer_after(100000, &timer);  // 100ms
 
-        rt_status status = rt_timer_cancel(timer);
-        if (RT_FAILED(status)) {
-            TEST_FAIL("rt_timer_cancel failed");
+        acrt_status status = acrt_timer_cancel(timer);
+        if (ACRT_FAILED(status)) {
+            TEST_FAIL("acrt_timer_cancel failed");
         } else {
-            rt_message msg;
-            status = rt_ipc_recv(&msg, 200);  // 200ms timeout
+            acrt_message msg;
+            status = acrt_ipc_recv(&msg, 200);  // 200ms timeout
 
-            if (status.code == RT_ERR_TIMEOUT) {
+            if (status.code == ACRT_ERR_TIMEOUT) {
                 TEST_PASS("cancelled timer does not fire");
-            } else if (RT_FAILED(status)) {
+            } else if (ACRT_FAILED(status)) {
                 TEST_PASS("cancelled timer does not fire (no message)");
-            } else if (rt_msg_is_timer(&msg)) {
+            } else if (acrt_msg_is_timer(&msg)) {
                 TEST_FAIL("received timer tick after cancellation");
             } else {
                 TEST_PASS("cancelled timer does not fire");
@@ -86,45 +86,45 @@ static void run_timer_tests(void *arg) {
     printf("\nTest 3: Timer sender is the owning actor\n");
     {
         timer_id timer;
-        rt_timer_after(50000, &timer);
+        acrt_timer_after(50000, &timer);
 
-        rt_message msg;
-        rt_status status = rt_ipc_recv(&msg, -1);
+        acrt_message msg;
+        acrt_status status = acrt_ipc_recv(&msg, -1);
 
-        if (RT_FAILED(status)) {
+        if (ACRT_FAILED(status)) {
             TEST_FAIL("did not receive timer message");
-        } else if (msg.sender == rt_self()) {
+        } else if (msg.sender == acrt_self()) {
             TEST_PASS("timer message sender is the owning actor");
         } else {
-            printf("    Sender: %u, expected: %u (self)\n", msg.sender, rt_self());
+            printf("    Sender: %u, expected: %u (self)\n", msg.sender, acrt_self());
             TEST_FAIL("wrong sender ID");
         }
     }
 
     // ========================================================================
-    // Test 4: rt_msg_is_timer correctly identifies timer messages
+    // Test 4: acrt_msg_is_timer correctly identifies timer messages
     // ========================================================================
-    printf("\nTest 4: rt_msg_is_timer identifies timer messages\n");
+    printf("\nTest 4: acrt_msg_is_timer identifies timer messages\n");
     {
         timer_id timer;
-        rt_timer_after(50000, &timer);
+        acrt_timer_after(50000, &timer);
 
-        rt_message msg;
-        rt_status status = rt_ipc_recv(&msg, -1);
+        acrt_message msg;
+        acrt_status status = acrt_ipc_recv(&msg, -1);
 
-        if (!RT_FAILED(status) && rt_msg_is_timer(&msg)) {
-            TEST_PASS("timer message detected by rt_msg_is_timer");
+        if (!ACRT_FAILED(status) && acrt_msg_is_timer(&msg)) {
+            TEST_PASS("timer message detected by acrt_msg_is_timer");
         } else {
             TEST_FAIL("timer message not detected");
         }
 
         // Now test that regular messages are NOT detected as timer ticks
-        actor_id self = rt_self();
+        actor_id self = acrt_self();
         const char *data = "not a timer";
-        rt_ipc_notify(self, data, 12);
+        acrt_ipc_notify(self, data, 12);
 
-        status = rt_ipc_recv(&msg, 100);
-        if (!RT_FAILED(status) && !rt_msg_is_timer(&msg)) {
+        status = acrt_ipc_recv(&msg, 100);
+        if (!ACRT_FAILED(status) && !acrt_msg_is_timer(&msg)) {
             TEST_PASS("regular message NOT detected as timer tick");
         } else {
             TEST_FAIL("could not distinguish regular message");
@@ -136,15 +136,15 @@ static void run_timer_tests(void *arg) {
     // ========================================================================
     printf("\nTest 5: Cancel invalid timer\n");
     {
-        rt_status status = rt_timer_cancel(TIMER_ID_INVALID);
-        if (RT_FAILED(status)) {
+        acrt_status status = acrt_timer_cancel(TIMER_ID_INVALID);
+        if (ACRT_FAILED(status)) {
             TEST_PASS("cancel TIMER_ID_INVALID fails");
         } else {
             TEST_FAIL("cancel TIMER_ID_INVALID should fail");
         }
 
-        status = rt_timer_cancel(9999);
-        if (RT_FAILED(status)) {
+        status = acrt_timer_cancel(9999);
+        if (ACRT_FAILED(status)) {
             TEST_PASS("cancel non-existent timer fails");
         } else {
             TEST_FAIL("cancel non-existent timer should fail");
@@ -159,14 +159,14 @@ static void run_timer_tests(void *arg) {
         timer_id timer;
         uint64_t start = time_ms();
 
-        rt_timer_after(10000, &timer);  // 10ms
+        acrt_timer_after(10000, &timer);  // 10ms
 
-        rt_message msg;
-        rt_status status = rt_ipc_recv(&msg, -1);
+        acrt_message msg;
+        acrt_status status = acrt_ipc_recv(&msg, -1);
 
         uint64_t elapsed = time_ms() - start;
 
-        if (!RT_FAILED(status) && rt_msg_is_timer(&msg)) {
+        if (!ACRT_FAILED(status) && acrt_msg_is_timer(&msg)) {
             printf("    Short timer fired after %lu ms\n", (unsigned long)elapsed);
             TEST_PASS("short delay timer works");
         } else {
@@ -175,35 +175,35 @@ static void run_timer_tests(void *arg) {
     }
 
     // ========================================================================
-    // Test 7: Periodic timer (rt_timer_every)
+    // Test 7: Periodic timer (acrt_timer_every)
     // NOTE: This test may fail due to implementation limitations with
     //       periodic timers not firing after the first one-shot timer completes.
     // ========================================================================
-    printf("\nTest 7: Periodic timer (rt_timer_every)\n");
+    printf("\nTest 7: Periodic timer (acrt_timer_every)\n");
     {
         timer_id timer;
-        rt_status status = rt_timer_every(50000, &timer);  // 50ms interval
-        if (RT_FAILED(status)) {
-            TEST_FAIL("rt_timer_every failed to create timer");
+        acrt_status status = acrt_timer_every(50000, &timer);  // 50ms interval
+        if (ACRT_FAILED(status)) {
+            TEST_FAIL("acrt_timer_every failed to create timer");
         } else {
             int tick_count = 0;
             uint64_t start = time_ms();
 
             // Try to receive 5 ticks
             for (int i = 0; i < 5; i++) {
-                rt_message msg;
-                status = rt_ipc_recv(&msg, 200);  // 200ms timeout per tick
-                if (RT_FAILED(status)) {
+                acrt_message msg;
+                status = acrt_ipc_recv(&msg, 200);  // 200ms timeout per tick
+                if (ACRT_FAILED(status)) {
                     printf("    Tick %d: recv failed (timeout or error)\n", i + 1);
                     break;
                 }
-                if (rt_msg_is_timer(&msg)) {
+                if (acrt_msg_is_timer(&msg)) {
                     tick_count++;
                 }
             }
 
             uint64_t elapsed = time_ms() - start;
-            rt_timer_cancel(timer);
+            acrt_timer_cancel(timer);
 
             if (tick_count >= 5) {
                 printf("    Received %d ticks in %lu ms\n", tick_count, (unsigned long)elapsed);
@@ -224,24 +224,24 @@ static void run_timer_tests(void *arg) {
     {
         timer_id timer1, timer2, timer3;
 
-        rt_status s1 = rt_timer_after(50000, &timer1);   // 50ms
-        rt_status s2 = rt_timer_after(100000, &timer2);  // 100ms
-        rt_status s3 = rt_timer_after(150000, &timer3);  // 150ms
+        acrt_status s1 = acrt_timer_after(50000, &timer1);   // 50ms
+        acrt_status s2 = acrt_timer_after(100000, &timer2);  // 100ms
+        acrt_status s3 = acrt_timer_after(150000, &timer3);  // 150ms
 
-        if (RT_FAILED(s1) || RT_FAILED(s2) || RT_FAILED(s3)) {
+        if (ACRT_FAILED(s1) || ACRT_FAILED(s2) || ACRT_FAILED(s3)) {
             TEST_FAIL("failed to create multiple timers");
         } else {
             int received = 0;
             uint64_t start = time_ms();
 
             for (int i = 0; i < 3; i++) {
-                rt_message msg;
-                rt_status status = rt_ipc_recv(&msg, 300);  // 300ms timeout
-                if (RT_FAILED(status)) {
+                acrt_message msg;
+                acrt_status status = acrt_ipc_recv(&msg, 300);  // 300ms timeout
+                if (ACRT_FAILED(status)) {
                     printf("    Timer %d: recv failed\n", i + 1);
                     continue;
                 }
-                if (rt_msg_is_timer(&msg)) {
+                if (acrt_msg_is_timer(&msg)) {
                     uint64_t elapsed = time_ms() - start;
                     printf("    Timer tick %d received at %lu ms\n", received + 1, (unsigned long)elapsed);
                     received++;
@@ -263,33 +263,33 @@ static void run_timer_tests(void *arg) {
     printf("\nTest 9: Cancel periodic timer\n");
     {
         timer_id timer;
-        rt_status status = rt_timer_every(30000, &timer);  // 30ms interval
-        if (RT_FAILED(status)) {
-            TEST_FAIL("rt_timer_every failed");
+        acrt_status status = acrt_timer_every(30000, &timer);  // 30ms interval
+        if (ACRT_FAILED(status)) {
+            TEST_FAIL("acrt_timer_every failed");
         } else {
             // Try to receive some ticks
             int ticks = 0;
             for (int i = 0; i < 3; i++) {
-                rt_message msg;
-                status = rt_ipc_recv(&msg, 100);  // 100ms timeout
-                if (!RT_FAILED(status) && rt_msg_is_timer(&msg)) {
+                acrt_message msg;
+                status = acrt_ipc_recv(&msg, 100);  // 100ms timeout
+                if (!ACRT_FAILED(status) && acrt_msg_is_timer(&msg)) {
                     ticks++;
                 }
             }
 
             // Cancel the timer
-            status = rt_timer_cancel(timer);
-            if (RT_FAILED(status)) {
-                TEST_FAIL("rt_timer_cancel failed");
+            status = acrt_timer_cancel(timer);
+            if (ACRT_FAILED(status)) {
+                TEST_FAIL("acrt_timer_cancel failed");
             } else {
                 // Wait and ensure no more ticks arrive
-                rt_message msg;
-                status = rt_ipc_recv(&msg, 100);  // 100ms
+                acrt_message msg;
+                status = acrt_ipc_recv(&msg, 100);  // 100ms
 
-                if (status.code == RT_ERR_TIMEOUT) {
+                if (status.code == ACRT_ERR_TIMEOUT) {
                     printf("    Received %d ticks before cancel, then stopped\n", ticks);
                     TEST_PASS("periodic timer stops after cancel");
-                } else if (!RT_FAILED(status) && rt_msg_is_timer(&msg)) {
+                } else if (!ACRT_FAILED(status) && acrt_msg_is_timer(&msg)) {
                     TEST_FAIL("received tick after cancel");
                 } else {
                     TEST_PASS("periodic timer stops after cancel");
@@ -299,25 +299,25 @@ static void run_timer_tests(void *arg) {
     }
 
     // ========================================================================
-    // Test 10: Timer pool exhaustion (RT_TIMER_ENTRY_POOL_SIZE=64)
+    // Test 10: Timer pool exhaustion (ACRT_TIMER_ENTRY_POOL_SIZE=64)
     // ========================================================================
-    printf("\nTest 10: Timer pool exhaustion (RT_TIMER_ENTRY_POOL_SIZE=%d)\n",
-           RT_TIMER_ENTRY_POOL_SIZE);
+    printf("\nTest 10: Timer pool exhaustion (ACRT_TIMER_ENTRY_POOL_SIZE=%d)\n",
+           ACRT_TIMER_ENTRY_POOL_SIZE);
     {
-        timer_id timers[RT_TIMER_ENTRY_POOL_SIZE + 10];
+        timer_id timers[ACRT_TIMER_ENTRY_POOL_SIZE + 10];
         int created = 0;
 
         // Create timers until pool exhaustion
-        for (int i = 0; i < RT_TIMER_ENTRY_POOL_SIZE + 10; i++) {
-            rt_status status = rt_timer_after(10000000, &timers[i]);  // 10 second delay (won't fire)
-            if (RT_FAILED(status)) {
+        for (int i = 0; i < ACRT_TIMER_ENTRY_POOL_SIZE + 10; i++) {
+            acrt_status status = acrt_timer_after(10000000, &timers[i]);  // 10 second delay (won't fire)
+            if (ACRT_FAILED(status)) {
                 printf("    Timer creation failed after %d timers (pool exhausted)\n", created);
                 break;
             }
             created++;
         }
 
-        if (created < RT_TIMER_ENTRY_POOL_SIZE + 10) {
+        if (created < ACRT_TIMER_ENTRY_POOL_SIZE + 10) {
             TEST_PASS("timer pool exhaustion detected");
         } else {
             printf("    Created all %d timers without exhaustion\n", created);
@@ -326,7 +326,7 @@ static void run_timer_tests(void *arg) {
 
         // Cancel all created timers
         for (int i = 0; i < created; i++) {
-            rt_timer_cancel(timers[i]);
+            acrt_timer_cancel(timers[i]);
         }
     }
 
@@ -338,15 +338,15 @@ static void run_timer_tests(void *arg) {
         timer_id timer;
         uint64_t start = time_ms();
 
-        rt_status status = rt_timer_after(0, &timer);  // 0 delay - should fire immediately
-        if (RT_FAILED(status)) {
-            TEST_FAIL("rt_timer_after(0) failed");
+        acrt_status status = acrt_timer_after(0, &timer);  // 0 delay - should fire immediately
+        if (ACRT_FAILED(status)) {
+            TEST_FAIL("acrt_timer_after(0) failed");
         } else {
-            rt_message msg;
-            status = rt_ipc_recv(&msg, 100);  // 100ms timeout
+            acrt_message msg;
+            status = acrt_ipc_recv(&msg, 100);  // 100ms timeout
             uint64_t elapsed = time_ms() - start;
 
-            if (!RT_FAILED(status) && rt_msg_is_timer(&msg)) {
+            if (!ACRT_FAILED(status) && acrt_msg_is_timer(&msg)) {
                 printf("    Zero delay timer fired after %lu ms\n", (unsigned long)elapsed);
                 TEST_PASS("zero delay timer fires immediately");
             } else {
@@ -364,27 +364,27 @@ static void run_timer_tests(void *arg) {
 
         // A zero-interval periodic timer could fire very fast
         // It should either be rejected or treated as minimum interval
-        rt_status status = rt_timer_every(0, &timer);
+        acrt_status status = acrt_timer_every(0, &timer);
 
-        if (RT_FAILED(status)) {
-            TEST_PASS("rt_timer_every(0) is rejected");
+        if (ACRT_FAILED(status)) {
+            TEST_PASS("acrt_timer_every(0) is rejected");
         } else {
             // If accepted, it should fire but not overwhelm the system
             // Receive a few ticks and cancel immediately
             int ticks = 0;
             for (int i = 0; i < 5; i++) {
-                rt_message msg;
-                status = rt_ipc_recv(&msg, 10);  // 10ms timeout
-                if (!RT_FAILED(status) && rt_msg_is_timer(&msg)) {
+                acrt_message msg;
+                status = acrt_ipc_recv(&msg, 10);  // 10ms timeout
+                if (!ACRT_FAILED(status) && acrt_msg_is_timer(&msg)) {
                     ticks++;
                 }
             }
 
-            rt_timer_cancel(timer);
+            acrt_timer_cancel(timer);
 
             if (ticks > 0) {
                 printf("    Zero-interval timer fired %d times in 50ms\n", ticks);
-                TEST_PASS("rt_timer_every(0) handled safely");
+                TEST_PASS("acrt_timer_every(0) handled safely");
             } else {
                 TEST_FAIL("zero-interval timer created but never fired");
             }
@@ -396,31 +396,31 @@ static void run_timer_tests(void *arg) {
     printf("Failed: %d\n", tests_failed);
     printf("\n%s\n", tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
 
-    rt_exit();
+    acrt_exit();
 }
 
 int main(void) {
-    printf("=== Timer (rt_timer) Test Suite ===\n");
+    printf("=== Timer (acrt_timer) Test Suite ===\n");
 
-    rt_status status = rt_init();
-    if (RT_FAILED(status)) {
+    acrt_status status = acrt_init();
+    if (ACRT_FAILED(status)) {
         fprintf(stderr, "Failed to initialize runtime: %s\n",
                 status.msg ? status.msg : "unknown error");
         return 1;
     }
 
-    actor_config cfg = RT_ACTOR_CONFIG_DEFAULT;
+    actor_config cfg = ACRT_ACTOR_CONFIG_DEFAULT;
     cfg.stack_size = 128 * 1024;
 
-    actor_id runner = rt_spawn_ex(run_timer_tests, NULL, &cfg);
+    actor_id runner = acrt_spawn_ex(run_timer_tests, NULL, &cfg);
     if (runner == ACTOR_ID_INVALID) {
         fprintf(stderr, "Failed to spawn test runner\n");
-        rt_cleanup();
+        acrt_cleanup();
         return 1;
     }
 
-    rt_run();
-    rt_cleanup();
+    acrt_run();
+    acrt_cleanup();
 
     return tests_failed > 0 ? 1 : 0;
 }

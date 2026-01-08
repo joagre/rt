@@ -1,23 +1,23 @@
-#include "rt_bus.h"
-#include "rt_internal.h"
-#include "rt_static_config.h"
-#include "rt_pool.h"
-#include "rt_actor.h"
-#include "rt_scheduler.h"
-#include "rt_runtime.h"
-#include "rt_log.h"
+#include "acrt_bus.h"
+#include "acrt_internal.h"
+#include "acrt_static_config.h"
+#include "acrt_pool.h"
+#include "acrt_actor.h"
+#include "acrt_scheduler.h"
+#include "acrt_runtime.h"
+#include "acrt_log.h"
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
 
-// External IPC pools (defined in rt_ipc.c)
-extern rt_pool g_message_pool_mgr;
+// External IPC pools (defined in acrt_ipc.c)
+extern acrt_pool g_message_pool_mgr;
 
 // Forward declarations
-rt_status rt_bus_init(void);
-void rt_bus_cleanup(void);
-void rt_bus_cleanup_actor(actor_id id);
+acrt_status acrt_bus_init(void);
+void acrt_bus_cleanup(void);
+void acrt_bus_cleanup_actor(actor_id id);
 
 // Bus entry in ring buffer
 typedef struct {
@@ -40,7 +40,7 @@ typedef struct {
 // Bus structure
 typedef struct {
     bus_id           id;
-    rt_bus_config    config;
+    acrt_bus_config    config;
     bus_entry       *entries;         // Ring buffer (dynamically allocated)
     size_t           head;             // Write position
     size_t           tail;             // Oldest entry position
@@ -51,9 +51,9 @@ typedef struct {
 } bus_t;
 
 // Static bus storage
-static bus_t g_buses[RT_MAX_BUSES];
-static bus_entry g_bus_entries[RT_MAX_BUSES][RT_MAX_BUS_ENTRIES];
-static bus_subscriber g_bus_subscribers[RT_MAX_BUSES][RT_MAX_BUS_SUBSCRIBERS];
+static bus_t g_buses[ACRT_MAX_BUSES];
+static bus_entry g_bus_entries[ACRT_MAX_BUSES][ACRT_MAX_BUS_ENTRIES];
+static bus_subscriber g_bus_subscribers[ACRT_MAX_BUSES][ACRT_MAX_BUS_SUBSCRIBERS];
 
 // Bus table
 static struct {
@@ -115,7 +115,7 @@ static void expire_old_entries(bus_t *bus) {
         }
 
         // Expire this entry
-        rt_msg_pool_free(entry->data);
+        acrt_msg_pool_free(entry->data);
         entry->valid = false;
         bus->tail = (bus->tail + 1) % bus->config.max_entries;
         bus->count--;
@@ -123,20 +123,20 @@ static void expire_old_entries(bus_t *bus) {
 }
 
 // Initialize bus subsystem
-rt_status rt_bus_init(void) {
-    RT_INIT_GUARD(g_bus_table.initialized);
+acrt_status acrt_bus_init(void) {
+    ACRT_INIT_GUARD(g_bus_table.initialized);
 
     // Use static bus array (already zero-initialized)
     g_bus_table.buses = g_buses;
-    g_bus_table.max_buses = RT_MAX_BUSES;
+    g_bus_table.max_buses = ACRT_MAX_BUSES;
     g_bus_table.next_id = 1;
     g_bus_table.initialized = true;
 
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }
 
 // Cleanup bus subsystem
-void rt_bus_cleanup(void) {
+void acrt_bus_cleanup(void) {
     if (!g_bus_table.initialized) {
         return;
     }
@@ -148,7 +148,7 @@ void rt_bus_cleanup(void) {
             // Free all entry data from pool
             for (size_t j = 0; j < bus->config.max_entries; j++) {
                 if (bus->entries[j].valid) {
-                    rt_msg_pool_free(bus->entries[j].data);
+                    acrt_msg_pool_free(bus->entries[j].data);
                 }
             }
             // Note: bus->entries and bus->subscribers point to static arrays, no free needed
@@ -163,7 +163,7 @@ void rt_bus_cleanup(void) {
 }
 
 // Cleanup actor bus subscriptions (called when actor dies)
-void rt_bus_cleanup_actor(actor_id id) {
+void acrt_bus_cleanup_actor(actor_id id) {
     if (!g_bus_table.initialized) {
         return;
     }
@@ -179,37 +179,37 @@ void rt_bus_cleanup_actor(actor_id id) {
             if (bus->subscribers[j].active && bus->subscribers[j].id == id) {
                 bus->subscribers[j].active = false;
                 bus->num_subscribers--;
-                RT_LOG_DEBUG("Actor %u unsubscribed from bus %u (cleanup)", id, bus->id);
+                ACRT_LOG_DEBUG("Actor %u unsubscribed from bus %u (cleanup)", id, bus->id);
             }
         }
     }
 }
 
 // Create bus
-rt_status rt_bus_create(const rt_bus_config *cfg, bus_id *out) {
+acrt_status acrt_bus_create(const acrt_bus_config *cfg, bus_id *out) {
     if (!cfg || !out) {
-        return RT_ERROR(RT_ERR_INVALID, "Invalid arguments");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid arguments");
     }
 
     if (!g_bus_table.initialized) {
-        return RT_ERROR(RT_ERR_INVALID, "Bus subsystem not initialized");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Bus subsystem not initialized");
     }
 
     if (cfg->max_entries == 0 || cfg->max_entry_size == 0 || cfg->max_subscribers == 0) {
-        return RT_ERROR(RT_ERR_INVALID, "Invalid bus configuration");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid bus configuration");
     }
 
     // Validate against compile-time limits
-    if (cfg->max_entries > RT_MAX_BUS_ENTRIES) {
-        return RT_ERROR(RT_ERR_INVALID, "max_entries exceeds RT_MAX_BUS_ENTRIES");
+    if (cfg->max_entries > ACRT_MAX_BUS_ENTRIES) {
+        return ACRT_ERROR(ACRT_ERR_INVALID, "max_entries exceeds ACRT_MAX_BUS_ENTRIES");
     }
 
-    if (cfg->max_subscribers > RT_MAX_BUS_SUBSCRIBERS) {
-        return RT_ERROR(RT_ERR_INVALID, "max_subscribers exceeds RT_MAX_BUS_SUBSCRIBERS");
+    if (cfg->max_subscribers > ACRT_MAX_BUS_SUBSCRIBERS) {
+        return ACRT_ERROR(ACRT_ERR_INVALID, "max_subscribers exceeds ACRT_MAX_BUS_SUBSCRIBERS");
     }
 
-    if (cfg->max_entry_size > RT_MAX_MESSAGE_SIZE) {
-        return RT_ERROR(RT_ERR_INVALID, "max_entry_size exceeds RT_MAX_MESSAGE_SIZE");
+    if (cfg->max_entry_size > ACRT_MAX_MESSAGE_SIZE) {
+        return ACRT_ERROR(ACRT_ERR_INVALID, "max_entry_size exceeds ACRT_MAX_MESSAGE_SIZE");
     }
 
     // Find free slot
@@ -224,7 +224,7 @@ rt_status rt_bus_create(const rt_bus_config *cfg, bus_id *out) {
     }
 
     if (!bus) {
-        return RT_ERROR(RT_ERR_NOMEM, "Bus table full");
+        return ACRT_ERROR(ACRT_ERR_NOMEM, "Bus table full");
     }
 
     // Initialize bus using static arrays
@@ -240,65 +240,65 @@ rt_status rt_bus_create(const rt_bus_config *cfg, bus_id *out) {
     bus->active = true;
 
     *out = bus->id;
-    RT_LOG_DEBUG("Created bus %u (max_entries=%zu, max_entry_size=%zu, max_subscribers=%zu)",
+    ACRT_LOG_DEBUG("Created bus %u (max_entries=%zu, max_entry_size=%zu, max_subscribers=%zu)",
                  bus->id, cfg->max_entries, cfg->max_entry_size, cfg->max_subscribers);
 
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }
 
 // Destroy bus
-rt_status rt_bus_destroy(bus_id id) {
+acrt_status acrt_bus_destroy(bus_id id) {
     bus_t *bus = find_bus(id);
     if (!bus) {
-        return RT_ERROR(RT_ERR_INVALID, "Bus not found");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Bus not found");
     }
 
     if (bus->num_subscribers > 0) {
-        return RT_ERROR(RT_ERR_INVALID, "Cannot destroy bus with active subscribers");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Cannot destroy bus with active subscribers");
     }
 
     // Free all entry data from pool
     for (size_t i = 0; i < bus->config.max_entries; i++) {
         if (bus->entries[i].valid) {
-            rt_msg_pool_free(bus->entries[i].data);
+            acrt_msg_pool_free(bus->entries[i].data);
         }
     }
 
     // Note: bus->entries and bus->subscribers point to static arrays, no free needed
     bus->active = false;
 
-    RT_LOG_DEBUG("Destroyed bus %u", id);
-    return RT_SUCCESS;
+    ACRT_LOG_DEBUG("Destroyed bus %u", id);
+    return ACRT_SUCCESS;
 }
 
 // Publish data
-rt_status rt_bus_publish(bus_id id, const void *data, size_t len) {
+acrt_status acrt_bus_publish(bus_id id, const void *data, size_t len) {
     if (!data || len == 0) {
-        return RT_ERROR(RT_ERR_INVALID, "Invalid data");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid data");
     }
 
     bus_t *bus = find_bus(id);
     if (!bus) {
-        return RT_ERROR(RT_ERR_INVALID, "Bus not found");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Bus not found");
     }
 
     if (len > bus->config.max_entry_size) {
-        return RT_ERROR(RT_ERR_INVALID, "Data exceeds max entry size");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Data exceeds max entry size");
     }
 
     // Expire old entries
     expire_old_entries(bus);
 
     // Validate message size against pool limit
-    if (len > RT_MAX_MESSAGE_SIZE) {
-        return RT_ERROR(RT_ERR_INVALID, "Message exceeds RT_MAX_MESSAGE_SIZE");
+    if (len > ACRT_MAX_MESSAGE_SIZE) {
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Message exceeds ACRT_MAX_MESSAGE_SIZE");
     }
 
     // If buffer is full, evict oldest entry
     if (bus->count >= bus->config.max_entries) {
         bus_entry *oldest = &bus->entries[bus->tail];
         if (oldest->valid) {
-            rt_msg_pool_free(oldest->data);
+            acrt_msg_pool_free(oldest->data);
         }
         oldest->valid = false;
         bus->tail = (bus->tail + 1) % bus->config.max_entries;
@@ -306,9 +306,9 @@ rt_status rt_bus_publish(bus_id id, const void *data, size_t len) {
     }
 
     // Allocate from message pool and copy data
-    message_data_entry *msg_data = rt_pool_alloc(&g_message_pool_mgr);
+    message_data_entry *msg_data = acrt_pool_alloc(&g_message_pool_mgr);
     if (!msg_data) {
-        return RT_ERROR(RT_ERR_NOMEM, "Message pool exhausted");
+        return ACRT_ERROR(ACRT_ERR_NOMEM, "Message pool exhausted");
     }
     memcpy(msg_data->data, data, len);
     void *entry_data = msg_data->data;
@@ -325,36 +325,36 @@ rt_status rt_bus_publish(bus_id id, const void *data, size_t len) {
     bus->head = (bus->head + 1) % bus->config.max_entries;
     bus->count++;
 
-    RT_LOG_TRACE("Published %zu bytes to bus %u (count=%zu)", len, id, bus->count);
+    ACRT_LOG_TRACE("Published %zu bytes to bus %u (count=%zu)", len, id, bus->count);
 
     // Wake up any blocked subscribers
     for (size_t i = 0; i < bus->config.max_subscribers; i++) {
         bus_subscriber *sub = &bus->subscribers[i];
         if (sub->active && sub->blocked) {
-            actor *a = rt_actor_get(sub->id);
+            actor *a = acrt_actor_get(sub->id);
             if (a && a->state == ACTOR_STATE_WAITING) {
                 a->state = ACTOR_STATE_READY;
-                RT_LOG_TRACE("Woke blocked subscriber %u on bus %u", sub->id, id);
+                ACRT_LOG_TRACE("Woke blocked subscriber %u on bus %u", sub->id, id);
             }
         }
     }
 
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }
 
 // Subscribe current actor
-rt_status rt_bus_subscribe(bus_id id) {
+acrt_status acrt_bus_subscribe(bus_id id) {
     bus_t *bus = find_bus(id);
     if (!bus) {
-        return RT_ERROR(RT_ERR_INVALID, "Bus not found");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Bus not found");
     }
 
-    RT_REQUIRE_ACTOR_CONTEXT();
-    actor *current = rt_actor_current();
+    ACRT_REQUIRE_ACTOR_CONTEXT();
+    actor *current = acrt_actor_current();
 
     // Check if already subscribed
     if (find_subscriber(bus, current->id) >= 0) {
-        return RT_ERROR(RT_ERR_INVALID, "Already subscribed");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Already subscribed");
     }
 
     // Find free subscriber slot
@@ -367,7 +367,7 @@ rt_status rt_bus_subscribe(bus_id id) {
     }
 
     if (!sub) {
-        return RT_ERROR(RT_ERR_NOMEM, "Subscriber table full");
+        return ACRT_ERROR(ACRT_ERR_NOMEM, "Subscriber table full");
     }
 
     // Initialize subscriber
@@ -377,51 +377,51 @@ rt_status rt_bus_subscribe(bus_id id) {
     sub->blocked = false;
     bus->num_subscribers++;
 
-    RT_LOG_DEBUG("Actor %u subscribed to bus %u", current->id, id);
+    ACRT_LOG_DEBUG("Actor %u subscribed to bus %u", current->id, id);
 
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }
 
 // Unsubscribe current actor
-rt_status rt_bus_unsubscribe(bus_id id) {
+acrt_status acrt_bus_unsubscribe(bus_id id) {
     bus_t *bus = find_bus(id);
     if (!bus) {
-        return RT_ERROR(RT_ERR_INVALID, "Bus not found");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Bus not found");
     }
 
-    RT_REQUIRE_ACTOR_CONTEXT();
-    actor *current = rt_actor_current();
+    ACRT_REQUIRE_ACTOR_CONTEXT();
+    actor *current = acrt_actor_current();
 
     int sub_idx = find_subscriber(bus, current->id);
     if (sub_idx < 0) {
-        return RT_ERROR(RT_ERR_INVALID, "Not subscribed");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Not subscribed");
     }
 
     bus->subscribers[sub_idx].active = false;
     bus->num_subscribers--;
 
-    RT_LOG_DEBUG("Actor %u unsubscribed from bus %u", current->id, id);
+    ACRT_LOG_DEBUG("Actor %u unsubscribed from bus %u", current->id, id);
 
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }
 
 // Read entry (non-blocking)
-rt_status rt_bus_read(bus_id id, void *buf, size_t max_len, size_t *actual_len) {
+acrt_status acrt_bus_read(bus_id id, void *buf, size_t max_len, size_t *actual_len) {
     if (!buf || !actual_len) {
-        return RT_ERROR(RT_ERR_INVALID, "Invalid arguments");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid arguments");
     }
 
     bus_t *bus = find_bus(id);
     if (!bus) {
-        return RT_ERROR(RT_ERR_INVALID, "Bus not found");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Bus not found");
     }
 
-    RT_REQUIRE_ACTOR_CONTEXT();
-    actor *current = rt_actor_current();
+    ACRT_REQUIRE_ACTOR_CONTEXT();
+    actor *current = acrt_actor_current();
 
     int sub_idx = find_subscriber(bus, current->id);
     if (sub_idx < 0) {
-        return RT_ERROR(RT_ERR_INVALID, "Not subscribed");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Not subscribed");
     }
 
     bus_subscriber *sub = &bus->subscribers[sub_idx];
@@ -453,7 +453,7 @@ rt_status rt_bus_read(bus_id id, void *buf, size_t max_len, size_t *actual_len) 
     }
 
     if (!entry) {
-        return RT_ERROR(RT_ERR_WOULDBLOCK, "No data available");
+        return ACRT_ERROR(ACRT_ERR_WOULDBLOCK, "No data available");
     }
 
     // Copy data (truncate to buffer size to prevent overflow)
@@ -468,11 +468,11 @@ rt_status rt_bus_read(bus_id id, void *buf, size_t max_len, size_t *actual_len) 
     // Update subscriber's next read position
     sub->next_read_idx = (idx + 1) % bus->config.max_entries;
 
-    RT_LOG_TRACE("Actor %u read %zu bytes from bus %u", current->id, copy_len, id);
+    ACRT_LOG_TRACE("Actor %u read %zu bytes from bus %u", current->id, copy_len, id);
 
     // Check if entry should be removed (max_readers)
     if (bus->config.max_readers > 0 && entry->read_count >= bus->config.max_readers) {
-        rt_msg_pool_free(entry->data);
+        acrt_msg_pool_free(entry->data);
         entry->valid = false;
         entry->data = NULL;
 
@@ -484,41 +484,41 @@ rt_status rt_bus_read(bus_id id, void *buf, size_t max_len, size_t *actual_len) 
             }
         }
 
-        RT_LOG_TRACE("Bus %u entry consumed by %u readers", id, entry->read_count);
+        ACRT_LOG_TRACE("Bus %u entry consumed by %u readers", id, entry->read_count);
     }
 
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }
 
 // Read with blocking
-rt_status rt_bus_read_wait(bus_id id, void *buf, size_t max_len,
+acrt_status acrt_bus_read_wait(bus_id id, void *buf, size_t max_len,
                            size_t *actual_len, int32_t timeout_ms) {
     if (!buf || !actual_len) {
-        return RT_ERROR(RT_ERR_INVALID, "Invalid arguments");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid arguments");
     }
 
     bus_t *bus = find_bus(id);
     if (!bus) {
-        return RT_ERROR(RT_ERR_INVALID, "Bus not found");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Bus not found");
     }
 
-    RT_REQUIRE_ACTOR_CONTEXT();
-    actor *current = rt_actor_current();
+    ACRT_REQUIRE_ACTOR_CONTEXT();
+    actor *current = acrt_actor_current();
 
     int sub_idx = find_subscriber(bus, current->id);
     if (sub_idx < 0) {
-        return RT_ERROR(RT_ERR_INVALID, "Not subscribed");
+        return ACRT_ERROR(ACRT_ERR_INVALID, "Not subscribed");
     }
 
     bus_subscriber *sub = &bus->subscribers[sub_idx];
 
     // Try non-blocking read first
-    rt_status status = rt_bus_read(id, buf, max_len, actual_len);
-    if (!RT_FAILED(status)) {
+    acrt_status status = acrt_bus_read(id, buf, max_len, actual_len);
+    if (!ACRT_FAILED(status)) {
         return status;
     }
 
-    if (status.code != RT_ERR_WOULDBLOCK) {
+    if (status.code != ACRT_ERR_WOULDBLOCK) {
         return status;  // Real error, not just no data
     }
 
@@ -528,15 +528,15 @@ rt_status rt_bus_read_wait(bus_id id, void *buf, size_t max_len,
     }
 
     // Block until data is available or timeout expires
-    // Mark subscriber as blocked so rt_bus_publish can wake us
+    // Mark subscriber as blocked so acrt_bus_publish can wake us
     sub->blocked = true;
     current->state = ACTOR_STATE_WAITING;
 
     // Create timeout timer if needed
     timer_id timeout_timer = TIMER_ID_INVALID;
     if (timeout_ms > 0) {
-        rt_status timer_status = rt_timer_after((uint32_t)timeout_ms * 1000, &timeout_timer);
-        if (RT_FAILED(timer_status)) {
+        acrt_status timer_status = acrt_timer_after((uint32_t)timeout_ms * 1000, &timeout_timer);
+        if (ACRT_FAILED(timer_status)) {
             sub->blocked = false;
             current->state = ACTOR_STATE_READY;
             return timer_status;
@@ -544,25 +544,25 @@ rt_status rt_bus_read_wait(bus_id id, void *buf, size_t max_len,
     }
 
     // Yield to scheduler - will resume when woken by publish or timeout
-    rt_scheduler_yield();
+    acrt_scheduler_yield();
 
     // Woken up - clear blocked flag
     sub->blocked = false;
 
     // Check for timeout
     if (timeout_timer != TIMER_ID_INVALID) {
-        rt_status timeout_status = rt_mailbox_handle_timeout(current, timeout_timer, "Bus read timeout");
-        if (RT_FAILED(timeout_status)) {
+        acrt_status timeout_status = acrt_mailbox_handle_timeout(current, timeout_timer, "Bus read timeout");
+        if (ACRT_FAILED(timeout_status)) {
             return timeout_status;
         }
     }
 
     // Try to read again
-    return rt_bus_read(id, buf, max_len, actual_len);
+    return acrt_bus_read(id, buf, max_len, actual_len);
 }
 
 // Query bus state
-size_t rt_bus_entry_count(bus_id id) {
+size_t acrt_bus_entry_count(bus_id id) {
     bus_t *bus = find_bus(id);
     if (!bus) {
         return 0;

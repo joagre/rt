@@ -1,5 +1,5 @@
-#ifndef RT_STATIC_CONFIG_H
-#define RT_STATIC_CONFIG_H
+#ifndef ACRT_STATIC_CONFIG_H
+#define ACRT_STATIC_CONFIG_H
 
 #include <stddef.h>
 
@@ -14,20 +14,20 @@
 // -----------------------------------------------------------------------------
 
 // Maximum number of concurrent actors
-#ifndef RT_MAX_ACTORS
-#define RT_MAX_ACTORS 64
+#ifndef ACRT_MAX_ACTORS
+#define ACRT_MAX_ACTORS 64
 #endif
 
 // Default stack size for actors (can be overridden per actor)
-#ifndef RT_DEFAULT_STACK_SIZE
-#define RT_DEFAULT_STACK_SIZE 65536
+#ifndef ACRT_DEFAULT_STACK_SIZE
+#define ACRT_DEFAULT_STACK_SIZE 65536
 #endif
 
 // Stack arena size for actor stacks (when malloc_stack = false)
 // Should be sized for peak actor count × average stack size
 // Example: 20 actors × 64KB = 1.3 MB (with overhead)
-#ifndef RT_STACK_ARENA_SIZE
-#define RT_STACK_ARENA_SIZE (1 * 1024 * 1024)  // 1 MB default
+#ifndef ACRT_STACK_ARENA_SIZE
+#define ACRT_STACK_ARENA_SIZE (1 * 1024 * 1024)  // 1 MB default
 #endif
 
 // -----------------------------------------------------------------------------
@@ -36,19 +36,19 @@
 
 // Size of global mailbox entry pool (shared by all actors)
 // Each send consumes one entry until message is received
-#ifndef RT_MAILBOX_ENTRY_POOL_SIZE
-#define RT_MAILBOX_ENTRY_POOL_SIZE 256
+#ifndef ACRT_MAILBOX_ENTRY_POOL_SIZE
+#define ACRT_MAILBOX_ENTRY_POOL_SIZE 256
 #endif
 
 // Size of global message data pool (for message payloads)
 // Messages are allocated from this pool
-#ifndef RT_MESSAGE_DATA_POOL_SIZE
-#define RT_MESSAGE_DATA_POOL_SIZE 256
+#ifndef ACRT_MESSAGE_DATA_POOL_SIZE
+#define ACRT_MESSAGE_DATA_POOL_SIZE 256
 #endif
 
 // Maximum message size (bytes, includes 4-byte header)
-#ifndef RT_MAX_MESSAGE_SIZE
-#define RT_MAX_MESSAGE_SIZE 256
+#ifndef ACRT_MAX_MESSAGE_SIZE
+#define ACRT_MAX_MESSAGE_SIZE 256
 #endif
 
 // -----------------------------------------------------------------------------
@@ -56,18 +56,18 @@
 // -----------------------------------------------------------------------------
 
 // Maximum number of buses in the system
-#ifndef RT_MAX_BUSES
-#define RT_MAX_BUSES 32
+#ifndef ACRT_MAX_BUSES
+#define ACRT_MAX_BUSES 32
 #endif
 
 // Maximum entries per bus (ring buffer size)
-#ifndef RT_MAX_BUS_ENTRIES
-#define RT_MAX_BUS_ENTRIES 64
+#ifndef ACRT_MAX_BUS_ENTRIES
+#define ACRT_MAX_BUS_ENTRIES 64
 #endif
 
 // Maximum subscribers per bus
-#ifndef RT_MAX_BUS_SUBSCRIBERS
-#define RT_MAX_BUS_SUBSCRIBERS 32
+#ifndef ACRT_MAX_BUS_SUBSCRIBERS
+#define ACRT_MAX_BUS_SUBSCRIBERS 32
 #endif
 
 // -----------------------------------------------------------------------------
@@ -75,15 +75,15 @@
 // -----------------------------------------------------------------------------
 
 // Size of global link entry pool
-// Each rt_link() call consumes two entries (bidirectional)
-#ifndef RT_LINK_ENTRY_POOL_SIZE
-#define RT_LINK_ENTRY_POOL_SIZE 128
+// Each acrt_link() call consumes two entries (bidirectional)
+#ifndef ACRT_LINK_ENTRY_POOL_SIZE
+#define ACRT_LINK_ENTRY_POOL_SIZE 128
 #endif
 
 // Size of global monitor entry pool
-// Each rt_monitor() call consumes one entry
-#ifndef RT_MONITOR_ENTRY_POOL_SIZE
-#define RT_MONITOR_ENTRY_POOL_SIZE 128
+// Each acrt_monitor() call consumes one entry
+#ifndef ACRT_MONITOR_ENTRY_POOL_SIZE
+#define ACRT_MONITOR_ENTRY_POOL_SIZE 128
 #endif
 
 // -----------------------------------------------------------------------------
@@ -91,9 +91,9 @@
 // -----------------------------------------------------------------------------
 
 // Size of global timer entry pool
-// Each rt_timer_after() or rt_timer_every() consumes one entry
-#ifndef RT_TIMER_ENTRY_POOL_SIZE
-#define RT_TIMER_ENTRY_POOL_SIZE 64
+// Each acrt_timer_after() or acrt_timer_every() consumes one entry
+#ifndef ACRT_TIMER_ENTRY_POOL_SIZE
+#define ACRT_TIMER_ENTRY_POOL_SIZE 64
 #endif
 
 // -----------------------------------------------------------------------------
@@ -102,13 +102,13 @@
 
 // Size of io_source pool for tracking pending I/O operations in event loop
 // Each pending network I/O operation consumes one io_source until completed
-// Defined in rt_io_source.h: RT_IO_SOURCE_POOL_SIZE = 128
+// Defined in acrt_io_source.h: ACRT_IO_SOURCE_POOL_SIZE = 128
 
 // -----------------------------------------------------------------------------
 // Timing Constants
 // -----------------------------------------------------------------------------
 
 // Microseconds per second (constant for time conversions)
-#define RT_USEC_PER_SEC 1000000
+#define ACRT_USEC_PER_SEC 1000000
 
-#endif // RT_STATIC_CONFIG_H
+#endif // ACRT_STATIC_CONFIG_H

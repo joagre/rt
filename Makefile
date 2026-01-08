@@ -19,7 +19,7 @@ OBJS := $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o) $(ASM_SRCS:$(SRC_DIR)/%.S=$(BUIL
 DEPS := $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.d)
 
 # Library
-LIB := $(BUILD_DIR)/librt.a
+LIB := $(BUILD_DIR)/libacrt.a
 
 # Examples
 EXAMPLE_SRCS := $(wildcard $(EXAMPLES_DIR)/*.c)
@@ -57,15 +57,15 @@ $(LIB): $(OBJS)
 
 # Build examples
 $(BUILD_DIR)/%: $(EXAMPLES_DIR)/%.c $(LIB)
-	$(CC) $(CFLAGS) $(CPPFLAGS) $< -o $@ -L$(BUILD_DIR) -lrt $(LDLIBS)
+	$(CC) $(CFLAGS) $(CPPFLAGS) $< -o $@ -L$(BUILD_DIR) -lacrt $(LDLIBS)
 
 # Build benchmarks
 $(BUILD_DIR)/%: $(BENCHMARKS_DIR)/%.c $(LIB)
-	$(CC) $(CFLAGS) $(CPPFLAGS) $< -o $@ -L$(BUILD_DIR) -lrt $(LDLIBS)
+	$(CC) $(CFLAGS) $(CPPFLAGS) $< -o $@ -L$(BUILD_DIR) -lacrt $(LDLIBS)
 
 # Build tests
 $(BUILD_DIR)/%: $(TESTS_DIR)/%.c $(LIB)
-	$(CC) $(CFLAGS) $(CPPFLAGS) $< -o $@ -L$(BUILD_DIR) -lrt $(LDLIBS)
+	$(CC) $(CFLAGS) $(CPPFLAGS) $< -o $@ -L$(BUILD_DIR) -lacrt $(LDLIBS)
 
 # Run benchmarks
 .PHONY: bench

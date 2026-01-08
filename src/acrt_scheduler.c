@@ -1,10 +1,10 @@
-#include "rt_scheduler.h"
-#include "rt_static_config.h"
-#include "rt_actor.h"
-#include "rt_context.h"
-#include "rt_link.h"
-#include "rt_log.h"
-#include "rt_internal.h"
+#include "acrt_scheduler.h"
+#include "acrt_static_config.h"
+#include "acrt_actor.h"
+#include "acrt_context.h"
+#include "acrt_link.h"
+#include "acrt_log.h"
+#include "acrt_internal.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -13,18 +13,18 @@
 #include <unistd.h>
 
 // External function to get actor table
-extern actor_table *rt_actor_get_table(void);
+extern actor_table *acrt_actor_get_table(void);
 
-// Stack overflow detection (must match rt_actor.c)
+// Stack overflow detection (must match acrt_actor.c)
 #define STACK_GUARD_PATTERN 0xDEADBEEFCAFEBABEULL
 #define STACK_GUARD_SIZE 8
 
 // Scheduler state
 static struct {
-    rt_context scheduler_ctx;
+    acrt_context scheduler_ctx;
     bool       shutdown_requested;
     bool       initialized;
-    size_t     last_run_idx[RT_PRIO_COUNT];  // Last run actor index for each priority
+    size_t     last_run_idx[ACRT_PRIO_COUNT];  // Last run actor index for each priority
     int        epoll_fd;                      // Event loop file descriptor
 } g_scheduler = {0};
 
@@ -40,7 +40,7 @@ static bool check_stack_guard(actor *a) {
     return (*guard_low == STACK_GUARD_PATTERN && *guard_high == STACK_GUARD_PATTERN);
 }
 
-rt_status rt_scheduler_init(void) {
+acrt_status acrt_scheduler_init(void) {
     g_scheduler.shutdown_requested = false;
     g_scheduler.initialized = true;
 
@@ -48,13 +48,13 @@ rt_status rt_scheduler_init(void) {
     g_scheduler.epoll_fd = epoll_create1(0);
     if (g_scheduler.epoll_fd < 0) {
         g_scheduler.initialized = false;
-        return RT_ERROR(RT_ERR_IO, "Failed to create epoll");
+        return ACRT_ERROR(ACRT_ERR_IO, "Failed to create epoll");
     }
 
-    return RT_SUCCESS;
+    return ACRT_SUCCESS;
 }
 
-void rt_scheduler_cleanup(void) {
+void acrt_scheduler_cleanup(void) {
     if (g_scheduler.epoll_fd >= 0) {
         close(g_scheduler.epoll_fd);
         g_scheduler.epoll_fd = -1;
@@ -64,13 +64,13 @@ void rt_scheduler_cleanup(void) {
 
 // Find next runnable actor (priority-based round-robin)
 static actor *find_next_runnable(void) {
-    actor_table *table = rt_actor_get_table();
+    actor_table *table = acrt_actor_get_table();
     if (!table || !table->actors) {
         return NULL;
     }
 
     // Search by priority level
-    for (rt_priority prio = RT_PRIO_CRITICAL; prio < RT_PRIO_COUNT; prio++) {
+    for (acrt_priority prio = ACRT_PRIO_CRITICAL; prio < ACRT_PRIO_COUNT; prio++) {
         // Round-robin within priority level - start from after last run actor
         size_t start_idx = (g_scheduler.last_run_idx[prio] + 1) % table->max_actors;
 
@@ -80,29 +80,29 @@ static actor *find_next_runnable(void) {
 
             if (a->state == ACTOR_STATE_READY && a->priority == prio) {
                 g_scheduler.last_run_idx[prio] = idx;
-                RT_LOG_TRACE("Scheduler: Found runnable actor %u (prio=%d)", a->id, prio);
+                ACRT_LOG_TRACE("Scheduler: Found runnable actor %u (prio=%d)", a->id, prio);
                 return a;
             }
         }
     }
 
-    RT_LOG_TRACE("Scheduler: No runnable actors found");
+    ACRT_LOG_TRACE("Scheduler: No runnable actors found");
     return NULL;
 }
 
-void rt_scheduler_run(void) {
+void acrt_scheduler_run(void) {
     if (!g_scheduler.initialized) {
-        RT_LOG_ERROR("Scheduler not initialized");
+        ACRT_LOG_ERROR("Scheduler not initialized");
         return;
     }
 
-    actor_table *table = rt_actor_get_table();
+    actor_table *table = acrt_actor_get_table();
     if (!table) {
-        RT_LOG_ERROR("Actor table not initialized");
+        ACRT_LOG_ERROR("Actor table not initialized");
         return;
     }
 
-    RT_LOG_INFO("Scheduler started");
+    ACRT_LOG_INFO("Scheduler started");
 
     while (!g_scheduler.shutdown_requested && table->num_actors > 0) {
         // Find next runnable actor
@@ -110,27 +110,27 @@ void rt_scheduler_run(void) {
 
         if (next) {
             // Switch to actor
-            RT_LOG_TRACE("Scheduler: Switching to actor %u", next->id);
+            ACRT_LOG_TRACE("Scheduler: Switching to actor %u", next->id);
             next->state = ACTOR_STATE_RUNNING;
-            rt_actor_set_current(next);
+            acrt_actor_set_current(next);
 
             // Context switch to actor
-            rt_context_switch(&g_scheduler.scheduler_ctx, &next->ctx);
+            acrt_context_switch(&g_scheduler.scheduler_ctx, &next->ctx);
 
             // Check for stack overflow
             if (!check_stack_guard(next)) {
-                RT_LOG_ERROR("Actor %u stack overflow detected", next->id);
-                next->exit_reason = RT_EXIT_CRASH_STACK;
+                ACRT_LOG_ERROR("Actor %u stack overflow detected", next->id);
+                next->exit_reason = ACRT_EXIT_CRASH_STACK;
                 next->state = ACTOR_STATE_DEAD;
             }
 
             // Actor has yielded or exited
-            RT_LOG_TRACE("Scheduler: Actor %u yielded, state=%d", next->id, next->state);
-            rt_actor_set_current(NULL);
+            ACRT_LOG_TRACE("Scheduler: Actor %u yielded, state=%d", next->id, next->state);
+            acrt_actor_set_current(NULL);
 
             // If actor is dead, free its resources
             if (next->state == ACTOR_STATE_DEAD) {
-                rt_actor_free(next);
+                acrt_actor_free(next);
             }
             // If actor is still running, mark as ready
             else if (next->state == ACTOR_STATE_RUNNING) {
@@ -150,37 +150,37 @@ void rt_scheduler_run(void) {
                 io_source *source = events[i].data.ptr;
 
                 if (source->type == IO_SOURCE_TIMER) {
-                    rt_timer_handle_event(source);
+                    acrt_timer_handle_event(source);
                 } else if (source->type == IO_SOURCE_NETWORK) {
-                    rt_net_handle_event(source);
+                    acrt_net_handle_event(source);
                 }
                 // Future: IO_SOURCE_WAKEUP
             }
         }
     }
 
-    RT_LOG_INFO("Scheduler stopped");
+    ACRT_LOG_INFO("Scheduler stopped");
 }
 
-void rt_scheduler_shutdown(void) {
+void acrt_scheduler_shutdown(void) {
     g_scheduler.shutdown_requested = true;
 }
 
-void rt_scheduler_yield(void) {
-    actor *current = rt_actor_current();
+void acrt_scheduler_yield(void) {
+    actor *current = acrt_actor_current();
     if (!current) {
-        RT_LOG_ERROR("yield called outside actor context");
+        ACRT_LOG_ERROR("yield called outside actor context");
         return;
     }
 
     // Switch back to scheduler
-    rt_context_switch(&current->ctx, &g_scheduler.scheduler_ctx);
+    acrt_context_switch(&current->ctx, &g_scheduler.scheduler_ctx);
 }
 
-bool rt_scheduler_should_stop(void) {
+bool acrt_scheduler_should_stop(void) {
     return g_scheduler.shutdown_requested;
 }
 
-int rt_scheduler_get_epoll_fd(void) {
+int acrt_scheduler_get_epoll_fd(void) {
     return g_scheduler.epoll_fd;
 }

@@ -1,7 +1,7 @@
-#ifndef RT_IO_SOURCE_H
-#define RT_IO_SOURCE_H
+#ifndef ACRT_IO_SOURCE_H
+#define ACRT_IO_SOURCE_H
 
-#include "rt_types.h"
+#include "acrt_types.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -35,6 +35,6 @@ typedef struct io_source {
 } io_source;
 
 // Pool for io_source allocation
-#define RT_IO_SOURCE_POOL_SIZE 128
+#define ACRT_IO_SOURCE_POOL_SIZE 128
 
-#endif // RT_IO_SOURCE_H
+#endif // ACRT_IO_SOURCE_H

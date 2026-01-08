@@ -1,8 +1,8 @@
-#ifndef RT_ACTOR_H
-#define RT_ACTOR_H
+#ifndef ACRT_ACTOR_H
+#define ACRT_ACTOR_H
 
-#include "rt_types.h"
-#include "rt_context.h"
+#include "acrt_types.h"
+#include "acrt_context.h"
 
 // Actor states
 typedef enum {
@@ -45,11 +45,11 @@ typedef struct monitor_entry {
 typedef struct {
     actor_id       id;
     actor_state    state;
-    rt_priority    priority;
+    acrt_priority    priority;
     const char    *name;
 
     // Context and stack
-    rt_context     ctx;
+    acrt_context     ctx;
     void          *stack;
     size_t         stack_size;
     bool           stack_is_malloced; // true if malloc'd, false if from pool
@@ -62,18 +62,18 @@ typedef struct {
 
     // For selective receive: filters to match against
     actor_id       recv_filter_from;
-    rt_msg_class   recv_filter_class;
+    acrt_msg_class   recv_filter_class;
     uint32_t       recv_filter_tag;
 
     // For I/O completion results
-    rt_status      io_status;
+    acrt_status      io_status;
     int            io_result_fd;      // For file_open
     size_t         io_result_nbytes;  // For file read/write
 
     // Links and monitors
     link_entry    *links;        // Bidirectional links to other actors
     monitor_entry *monitors;     // Actors we are monitoring (unidirectional)
-    rt_exit_reason exit_reason;  // Why this actor exited
+    acrt_exit_reason exit_reason;  // Why this actor exited
 } actor;
 
 // Actor table - global storage for all actors
@@ -85,24 +85,24 @@ typedef struct {
 } actor_table;
 
 // Initialize actor subsystem
-rt_status rt_actor_init(void);
+acrt_status acrt_actor_init(void);
 
 // Cleanup actor subsystem
-void rt_actor_cleanup(void);
+void acrt_actor_cleanup(void);
 
 // Get actor by ID
-actor *rt_actor_get(actor_id id);
+actor *acrt_actor_get(actor_id id);
 
 // Allocate a new actor
-actor *rt_actor_alloc(actor_fn fn, void *arg, const actor_config *cfg);
+actor *acrt_actor_alloc(actor_fn fn, void *arg, const actor_config *cfg);
 
 // Free an actor
-void rt_actor_free(actor *a);
+void acrt_actor_free(actor *a);
 
 // Get current actor (must be called from within an actor)
-actor *rt_actor_current(void);
+actor *acrt_actor_current(void);
 
 // Set current actor (used by scheduler)
-void rt_actor_set_current(actor *a);
+void acrt_actor_set_current(actor *a);
 
-#endif // RT_ACTOR_H
+#endif // ACRT_ACTOR_H
