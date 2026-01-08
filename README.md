@@ -280,7 +280,7 @@ if (acrt_is_exit_msg(&msg)) {
 
 ### IPC
 
-- `acrt_ipc_notify(to, data, len)` - Fire-and-forget notification (fire-and-forget)
+- `acrt_ipc_notify(to, data, len)` - Fire-and-forget notification
 - `acrt_ipc_recv(msg, timeout)` - Receive any message
 - `acrt_ipc_recv_match(from, class, tag, msg, timeout)` - Selective receive with filtering
 - `acrt_ipc_request(to, req, len, reply, timeout)` - Blocking request/reply
