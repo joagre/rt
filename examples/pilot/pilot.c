@@ -1,22 +1,23 @@
 // Pilot example - Quadcopter hover using actor runtime with Webots
 //
 // Demonstrates altitude-hold hover control for a Crazyflie quadcopter
-// using the hive actor runtime. Three actors work together:
+// using the hive actor runtime. Four actors work together:
 //
+//   sensor_actor   - Reads hardware sensors → IMU bus
 //   altitude_actor - Outer loop: altitude PID → thrust command
 //   attitude_actor - Inner loop: rate PIDs → motor commands
 //   motor_actor    - Safety layer: watchdog, limits → hardware
 //
 // Data flows through buses:
 //
-//   IMU Bus ──► Altitude Actor ──► Thrust Bus ──► Attitude Actor ──► Motor Bus
-//       │                                              │                  │
-//       └──────────────────────────────────────────────┘                  │
-//                                                                         ▼
-//                                                                   Motor Actor
-//                                                                         │
-//                                                                         ▼
-//                                                                    Hardware
+//   Sensor Actor ──► IMU Bus ──► Altitude Actor ──► Thrust Bus ─┐
+//                        │                                      │
+//                        │       ┌──────────────────────────────┘
+//                        │       │
+//                        └──► Attitude Actor ──► Motor Bus ──► Motor Actor
+//                                                                   │
+//                                                                   ▼
+//                                                              Hardware
 //
 // To port to real hardware, replace the platform layer functions.
 
@@ -31,6 +32,7 @@
 
 #include "types.h"
 #include "config.h"
+#include "sensor_actor.h"
 #include "altitude_actor.h"
 #include "attitude_actor.h"
 #include "motor_actor.h"
@@ -124,22 +126,21 @@ int main(void) {
     hive_bus_create(&cfg, &g_motor_bus);
 
     // Initialize and spawn actors
+    sensor_actor_init(g_imu_bus, platform_read_imu);
     altitude_actor_init(g_imu_bus, g_thrust_bus);
     attitude_actor_init(g_imu_bus, g_thrust_bus, g_motor_bus);
     motor_actor_init(g_motor_bus, platform_write_motors);
 
-    actor_id altitude, attitude, motor;
-    hive_spawn(motor_actor, NULL, &motor);
-    hive_spawn(attitude_actor, NULL, &attitude);
+    actor_id sensor, altitude, attitude, motor;
+    hive_spawn(sensor_actor, NULL, &sensor);
     hive_spawn(altitude_actor, NULL, &altitude);
+    hive_spawn(attitude_actor, NULL, &attitude);
+    hive_spawn(motor_actor, NULL, &motor);
 
-    printf("Pilot: 3 actors (altitude, attitude, motor)\n");
+    printf("Pilot: 4 actors (sensor, altitude, attitude, motor)\n");
 
-    // Main loop: read sensors, run actors
+    // Main loop: just run actors, sensor actor handles IMU reading
     while (wb_robot_step(TIME_STEP_MS) != -1) {
-        imu_data_t imu;
-        platform_read_imu(&imu);
-        hive_bus_publish(g_imu_bus, &imu, sizeof(imu));
         hive_step();
     }
 
