@@ -861,6 +861,28 @@ acrt_status acrt_ipc_reply(const acrt_message *request, const void *data, size_t
 // 2. Send message with class=REPLY and same tag
 ```
 
+**Error conditions for `acrt_ipc_request()`:**
+- `ACRT_ERR_TIMEOUT`: No reply received within timeout (including when target died)
+- `ACRT_ERR_NOMEM`: Pool exhausted when sending request
+- `ACRT_ERR_INVALID`: Invalid target actor ID or NULL request with non-zero length
+
+**Target death handling:** If the caller has linked to or is monitoring the target actor, and the target dies before replying, an EXIT message arrives in the caller's mailbox. Since `acrt_ipc_request()` internally uses `acrt_ipc_recv_match()` waiting for a REPLY, the EXIT message does not match and remains queued. The function returns `ACRT_ERR_TIMEOUT` when the timeout expires. The caller should check for pending EXIT messages to determine if the timeout was due to target death:
+
+```c
+acrt_message reply;
+acrt_status status = acrt_ipc_request(target, &req, sizeof(req), &reply, 5000);
+if (status.code == ACRT_ERR_TIMEOUT) {
+    // Check if target died
+    acrt_message msg;
+    if (acrt_ipc_recv(&msg, 0).code == ACRT_OK && msg.class == ACRT_MSG_EXIT) {
+        acrt_exit_msg *exit_info = (acrt_exit_msg *)msg.data;
+        if (exit_info->actor == target) {
+            // Target died - handle accordingly
+        }
+    }
+}
+```
+
 #### Message Decoding (Optional)
 
 Since `acrt_message` now provides pre-decoded `class`, `tag`, and direct `data` pointer, `acrt_msg_decode()` is **rarely needed**. It remains available for backwards compatibility:
