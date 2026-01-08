@@ -22,6 +22,57 @@ typedef struct {
 #define DATA_TO_MSG_ENTRY(data_ptr) \
     ((message_data_entry*)((char*)(data_ptr) - offsetof(message_data_entry, data)))
 
+// -----------------------------------------------------------------------------
+// Shared Linked List Macros
+// -----------------------------------------------------------------------------
+
+// Remove entry from singly-linked list using pointer-to-pointer pattern
+// Usage: SLIST_REMOVE(head, entry_to_remove)
+#define SLIST_REMOVE(head, entry_to_remove) \
+    do { \
+        __typeof__(head) *_prev = &(head); \
+        while (*_prev && *_prev != (entry_to_remove)) { \
+            _prev = &(*_prev)->next; \
+        } \
+        if (*_prev) { \
+            *_prev = (*_prev)->next; \
+        } \
+    } while(0)
+
+// Append entry to singly-linked list
+// Usage: SLIST_APPEND(head, new_entry)
+#define SLIST_APPEND(head, new_entry) \
+    do { \
+        (new_entry)->next = NULL; \
+        if (head) { \
+            __typeof__(head) _last = head; \
+            while (_last->next) _last = _last->next; \
+            _last->next = (new_entry); \
+        } else { \
+            (head) = (new_entry); \
+        } \
+    } while(0)
+
+// Find and remove entry matching condition from singly-linked list
+// Returns the removed entry or NULL if not found
+// Usage: entry = SLIST_FIND_REMOVE(head, entry->field == value)
+#define SLIST_FIND_REMOVE(head, condition, removed_entry) \
+    do { \
+        __typeof__(head) *_prev = &(head); \
+        __typeof__(head) _curr = (head); \
+        (removed_entry) = NULL; \
+        while (_curr) { \
+            __typeof__(head) entry = _curr; /* for use in condition */ \
+            if (condition) { \
+                *_prev = _curr->next; \
+                (removed_entry) = _curr; \
+                break; \
+            } \
+            _prev = &_curr->next; \
+            _curr = _curr->next; \
+        } \
+    } while(0)
+
 // Initialization guard macro - early return if already initialized
 // Used by: All subsystem init functions
 #define RT_INIT_GUARD(initialized_flag) \
@@ -50,6 +101,10 @@ typedef struct {
     } while(0)
 
 // Internal helper functions (implemented in rt_ipc.c)
+
+// Free message data back to the shared message pool
+// Handles NULL safely. Used by: IPC, bus, link subsystems
+void rt_msg_pool_free(void *data);
 
 // Add mailbox entry to actor's mailbox and wake if blocked
 // Used by: timer, link subsystems (via rt_ipc_send_ex)

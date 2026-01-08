@@ -65,15 +65,21 @@ rt_status rt_ipc_init(void) {
 // Internal Helpers
 // -----------------------------------------------------------------------------
 
+// Free message data back to the shared message pool
+// This is the single point for freeing message pool entries (DRY principle)
+void rt_msg_pool_free(void *data) {
+    if (data) {
+        message_data_entry *msg_data = DATA_TO_MSG_ENTRY(data);
+        rt_pool_free(&g_message_pool_mgr, msg_data);
+    }
+}
+
 // Free a mailbox entry and its associated data buffer
 void rt_ipc_free_entry(mailbox_entry *entry) {
     if (!entry) {
         return;
     }
-    if (entry->data) {
-        message_data_entry *msg_data = DATA_TO_MSG_ENTRY(entry->data);
-        rt_pool_free(&g_message_pool_mgr, msg_data);
-    }
+    rt_msg_pool_free(entry->data);
     rt_pool_free(&g_mailbox_pool_mgr, entry);
 }
 
