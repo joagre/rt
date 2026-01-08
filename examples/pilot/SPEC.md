@@ -12,10 +12,14 @@ A quadcopter autopilot example using the actor runtime with Webots simulator.
 
 ## Goals
 
-1. **Demonstrate actor runtime** in a realistic embedded application
-2. **Hover control** - maintain stable altitude and attitude
-3. **Clean architecture** - portable control code with platform abstraction
-4. **Webots integration** - Use `hive_step()` per simulation step
+1. **Showcase the actor runtime** - demonstrate benefits of actor-based design for embedded systems
+2. **Improve the runtime** - if problems arise (latency, scheduling), fix the runtime, don't work around it
+3. **Beautiful code** - show how an autopilot can be elegantly written using actors
+4. **Hover control** - maintain stable altitude and attitude
+5. **Clean architecture** - portable control code with platform abstraction
+6. **Webots integration** - use `hive_step()` per simulation step
+
+The pilot serves dual purposes: a real-world stress test that exposes runtime weaknesses, and a showcase of clean actor-based embedded design.
 
 ## Non-Goals (Future Work)
 
