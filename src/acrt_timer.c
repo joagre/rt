@@ -229,3 +229,20 @@ acrt_status acrt_timer_cancel(timer_id id) {
 
     return ACRT_ERROR(ACRT_ERR_INVALID, "Timer not found");
 }
+
+acrt_status acrt_sleep(uint32_t delay_us) {
+    // Create one-shot timer
+    timer_id timer;
+    acrt_status s = acrt_timer_after(delay_us, &timer);
+    if (ACRT_FAILED(s)) {
+        return s;
+    }
+
+    // Wait specifically for THIS timer message
+    // Other messages remain in mailbox (selective receive)
+    acrt_msg_class class = ACRT_MSG_TIMER;
+    uint32_t tag = timer;
+    acrt_message msg;
+
+    return acrt_ipc_recv_match(NULL, &class, &tag, &msg, -1);
+}

@@ -1,7 +1,7 @@
 .\" Man page for timer functions
 .TH ACRT_TIMER 3 "January 2025" "ACRT 1.0" "Actor Runtime Manual"
 .SH NAME
-acrt_timer_after, acrt_timer_every, acrt_timer_cancel \- actor timers
+acrt_timer_after, acrt_timer_every, acrt_timer_cancel, acrt_sleep \- actor timers
 .SH SYNOPSIS
 .nf
 .B #include <acrt_timer.h>
@@ -9,6 +9,7 @@ acrt_timer_after, acrt_timer_every, acrt_timer_cancel \- actor timers
 .BI "acrt_status acrt_timer_after(uint32_t " delay_us ", timer_id *" out ");"
 .BI "acrt_status acrt_timer_every(uint32_t " interval_us ", timer_id *" out ");"
 .BI "acrt_status acrt_timer_cancel(timer_id " id ");"
+.BI "acrt_status acrt_sleep(uint32_t " delay_us ");"
 .fi
 .SH DESCRIPTION
 These functions provide one-shot and periodic timers for actors. Timer
@@ -34,6 +35,15 @@ and tag set to the timer ID.
 .BR acrt_timer_cancel ()
 cancels a timer. One-shot timers that have already fired cannot be cancelled
 (they no longer exist). Periodic timers can be cancelled at any time.
+.SS Sleeping
+.BR acrt_sleep ()
+suspends the calling actor for
+.I delay_us
+microseconds. Unlike a naive implementation using
+.BR acrt_ipc_recv ()
+with a timeout, this function uses selective receive to wait only for the
+internal timer message. Other messages arriving during the sleep remain in the
+mailbox and are not lost.
 .SS Timer Messages
 Timer messages have:
 .IP \(bu 2
@@ -164,6 +174,24 @@ int main(void) {
     acrt_run();
     acrt_cleanup();
     return 0;
+}
+.fi
+.SS Sleep Example
+.nf
+void worker(void *arg) {
+    (void)arg;
+
+    printf("Working...\\n");
+    acrt_sleep(500000);  /* Sleep 500ms - messages not lost */
+    printf("Done sleeping\\n");
+
+    /* Any messages received during sleep are still in mailbox */
+    acrt_message msg;
+    while (acrt_ipc_recv(&msg, 0).code == ACRT_OK) {
+        printf("Got message from %u\\n", msg.sender);
+    }
+
+    acrt_exit();
 }
 .fi
 .SH SEE ALSO

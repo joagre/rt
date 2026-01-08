@@ -326,6 +326,7 @@ if (msg.class == ACRT_MSG_EXIT) {
 - `acrt_timer_after(delay_us, out)` - Create one-shot timer
 - `acrt_timer_every(interval_us, out)` - Create periodic timer
 - `acrt_timer_cancel(id)` - Cancel a timer
+- `acrt_sleep(delay_us)` - Sleep without losing messages (uses selective receive)
 - `acrt_msg_is_timer(msg)` - Check if message is a timer tick (also in IPC)
 
 ### File I/O
