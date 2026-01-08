@@ -11,6 +11,11 @@ SRC_DIR := src
 INC_DIR := include
 BUILD_DIR := build
 EXAMPLES_DIR := examples
+MAN_DIR := man
+
+# Installation directories
+PREFIX ?= /usr/local
+MANPREFIX ?= $(PREFIX)/share/man
 
 # Source files
 SRCS := $(wildcard $(SRC_DIR)/*.c)
@@ -104,6 +109,19 @@ run-fileio: $(BUILD_DIR)/fileio
 run-echo: $(BUILD_DIR)/echo
 	./$(BUILD_DIR)/echo
 
+# Install man pages
+.PHONY: install-man
+install-man:
+	@echo "Installing man pages to $(MANPREFIX)/man3/"
+	install -d $(MANPREFIX)/man3
+	install -m 644 $(MAN_DIR)/man3/*.3 $(MANPREFIX)/man3/
+
+# Uninstall man pages
+.PHONY: uninstall-man
+uninstall-man:
+	@echo "Removing man pages from $(MANPREFIX)/man3/"
+	rm -f $(MANPREFIX)/man3/acrt_*.3
+
 # Help
 .PHONY: help
 help:
@@ -112,6 +130,8 @@ help:
 	@echo "  clean             - Remove build artifacts"
 	@echo "  test              - Build and run all tests"
 	@echo "  bench             - Build and run benchmark suite"
+	@echo "  install-man       - Install man pages to $(MANPREFIX)/man3"
+	@echo "  uninstall-man     - Remove installed man pages"
 	@echo "  run-pingpong      - Build and run ping-pong example"
 	@echo "  run-fileio        - Build and run file I/O example"
 	@echo "  run-echo          - Build and run echo server/client example"
