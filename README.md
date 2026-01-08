@@ -168,12 +168,11 @@ acrt_ipc_recv(&msg, -1);   // -1=block forever
 acrt_ipc_recv(&msg, 0);    // 0=non-blocking (returns ACRT_ERR_WOULDBLOCK if empty)
 acrt_ipc_recv(&msg, 100);  // 100=timeout after 100ms (returns ACRT_ERR_TIMEOUT if no message)
 
-// Decode message header
-acrt_msg_class class;
-uint32_t tag;
-const void *payload;
-size_t payload_len;
-acrt_msg_decode(&msg, &class, &tag, &payload, &payload_len);
+// Direct access to pre-decoded fields - no acrt_msg_decode() needed
+my_data *data = (my_data *)msg.data;  // Direct payload access
+if (msg.class == ACRT_MSG_REQUEST) {
+    // Handle request...
+}
 ```
 
 ### Timers
@@ -186,10 +185,8 @@ acrt_timer_every(200000, &periodic); // Periodic, 200ms
 acrt_message msg;
 acrt_ipc_recv(&msg, -1);
 if (acrt_msg_is_timer(&msg)) {
-    // Handle timer tick - tag contains timer_id
-    uint32_t tag;
-    acrt_msg_decode(&msg, NULL, &tag, NULL, NULL);
-    printf("Timer %u fired\n", tag);
+    // Handle timer tick - msg.tag contains timer_id
+    printf("Timer %u fired\n", msg.tag);
 }
 acrt_timer_cancel(periodic);
 ```
@@ -281,11 +278,10 @@ if (acrt_is_exit_msg(&msg)) {
 ### IPC
 
 - `acrt_ipc_notify(to, data, len)` - Fire-and-forget notification
-- `acrt_ipc_recv(msg, timeout)` - Receive any message
+- `acrt_ipc_recv(msg, timeout)` - Receive any message (pre-decoded: `msg.class`, `msg.tag`, `msg.data`)
 - `acrt_ipc_recv_match(from, class, tag, msg, timeout)` - Selective receive with filtering
 - `acrt_ipc_request(to, req, len, reply, timeout)` - Blocking request/reply
 - `acrt_ipc_reply(request, data, len)` - Reply to a REQUEST message
-- `acrt_msg_decode(msg, class, tag, payload, len)` - Decode message header
 - `acrt_msg_is_timer(msg)` - Check if message is a timer tick
 - `acrt_ipc_pending()` - Check if messages are available
 - `acrt_ipc_count()` - Get number of pending messages

@@ -46,15 +46,13 @@ static void timer_actor(void *arg) {
         }
 
         if (acrt_msg_is_timer(&msg)) {
-            // Timer ID is encoded in the message tag
-            uint32_t tick_id;
-            acrt_msg_decode(&msg, NULL, &tick_id, NULL, NULL);
-            printf("Timer tick from timer ID: %u\n", tick_id);
+            // Timer ID is directly available in msg.tag
+            printf("Timer tick from timer ID: %u\n", msg.tag);
 
-            if (tick_id == oneshot) {
+            if (msg.tag == oneshot) {
                 printf("One-shot timer fired!\n");
                 oneshot_received = true;
-            } else if (tick_id == periodic) {
+            } else if (msg.tag == periodic) {
                 periodic_count++;
                 printf("Periodic timer tick #%d\n", periodic_count);
 

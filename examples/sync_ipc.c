@@ -54,18 +54,13 @@ static void consumer_actor(void *arg) {
             break;
         }
 
-        // Decode the message
-        acrt_msg_class class;
-        const void *payload;
-        size_t payload_len;
-        acrt_msg_decode(&msg, &class, NULL, &payload, &payload_len);
-
-        if (class != ACRT_MSG_REQUEST) {
-            printf("Consumer: Unexpected message class %d, skipping\n", class);
+        // Direct access to pre-decoded fields - no acrt_msg_decode() needed
+        if (msg.class != ACRT_MSG_REQUEST) {
+            printf("Consumer: Unexpected message class %d, skipping\n", msg.class);
             continue;
         }
 
-        work_request *req = (work_request *)payload;
+        work_request *req = (work_request *)msg.data;
         printf("Consumer: Received job #%d (data=%d) from producer %u\n",
                req->job_id, req->data, msg.sender);
 
@@ -128,10 +123,8 @@ static void producer_actor(void *arg) {
             break;
         }
 
-        // Decode and display result
-        const void *payload;
-        acrt_msg_decode(&reply, NULL, NULL, &payload, NULL);
-        work_result *result = (work_result *)payload;
+        // Direct payload access - no decode needed
+        work_result *result = (work_result *)reply.data;
 
         printf("Producer: Job #%d completed! Result=%d\n\n", result->job_id, result->result);
     }
@@ -154,9 +147,8 @@ static void demo_actor(void *arg) {
     if (!ACRT_FAILED(status)) {
         acrt_message msg;
         acrt_ipc_recv(&msg, 0);
-        const void *payload;
-        acrt_msg_decode(&msg, NULL, NULL, &payload, NULL);
-        printf("Demo: Received self-sent message: %d\n", *(int *)payload);
+        // Direct payload access - no decode needed
+        printf("Demo: Received self-sent message: %d\n", *(int *)msg.data);
     }
 
     printf("--- End Demo ---\n\n");

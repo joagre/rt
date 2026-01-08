@@ -747,10 +747,25 @@ typedef enum {
 
 ```c
 typedef struct {
-    actor_id    sender;
-    size_t      len;        // Total length including 4-byte header
-    const void *data;       // Points to header + payload
+    actor_id       sender;       // Sender actor ID
+    acrt_msg_class class;        // Message class (pre-decoded)
+    uint32_t       tag;          // Message tag (pre-decoded)
+    size_t         len;          // Payload length (excludes 4-byte header)
+    const void    *data;         // Payload pointer (past header)
 } acrt_message;
+```
+
+The message struct provides **direct access to all fields** - no `acrt_msg_decode()` call required:
+
+```c
+acrt_message msg;
+acrt_ipc_recv(&msg, -1);
+
+// Direct access - no boilerplate
+my_data *payload = (my_data *)msg.data;
+if (msg.class == ACRT_MSG_REQUEST) {
+    acrt_ipc_reply(&msg, &response, sizeof(response));
+}
 ```
 
 **Lifetime rule:** Data is valid until the next successful `acrt_ipc_recv()` or `acrt_ipc_recv_match()` call. Copy immediately if needed beyond current iteration.
@@ -829,16 +844,26 @@ acrt_status acrt_ipc_reply(const acrt_message *request, const void *data, size_t
 // 2. Send message with class=REPLY and same tag
 ```
 
-#### Message Decoding
+#### Message Decoding (Optional)
+
+Since `acrt_message` now provides pre-decoded `class`, `tag`, and direct `data` pointer, `acrt_msg_decode()` is **rarely needed**. It remains available for backwards compatibility:
 
 ```c
-// Decode header from received message
+// Returns pre-decoded values from acrt_message struct
 // All output parameters are optional (may be NULL)
 acrt_status acrt_msg_decode(const acrt_message *msg,
-                        acrt_msg_class *class,    // out: message class
-                        uint32_t *tag,          // out: tag value (with gen bit)
-                        const void **payload,   // out: points past 4-byte header
-                        size_t *payload_len);   // out: len minus 4-byte header
+                        acrt_msg_class *class,    // out: msg->class
+                        uint32_t *tag,            // out: msg->tag
+                        const void **payload,     // out: msg->data
+                        size_t *payload_len);     // out: msg->len
+```
+
+**Preferred pattern (direct access):**
+```c
+acrt_message msg;
+acrt_ipc_recv(&msg, -1);
+my_data *data = (my_data *)msg.data;  // Direct payload access
+if (msg.class == ACRT_MSG_REQUEST) { ... }
 ```
 
 ### API Contract: acrt_ipc_notify()
@@ -903,19 +928,14 @@ if (status.code == ACRT_ERR_NOMEM) {
 acrt_message msg;
 acrt_ipc_recv(&msg, -1);
 
-// SAFE: Decode and copy immediately
-acrt_msg_class class;
-uint32_t tag;
-const void *payload;
-size_t payload_len;
-acrt_msg_decode(&msg, &class, &tag, &payload, &payload_len);
-
+// SAFE: Direct access and copy immediately
 char local_copy[256];
-memcpy(local_copy, payload, payload_len);
+memcpy(local_copy, msg.data, msg.len);
 // local_copy is safe to use indefinitely
+// msg.class and msg.tag also available directly
 
 // UNSAFE: Storing pointer across recv calls
-const char *ptr = payload;   // DANGER
+const char *ptr = msg.data;   // DANGER
 acrt_ipc_recv(&msg, -1);       // ptr now INVALID
 ```
 
@@ -1062,30 +1082,25 @@ Timer and system messages use the same mailbox and message format as IPC.
 - Tag: `ACRT_TAG_NONE`
 - Payload: `acrt_exit_msg` struct
 
-**Checking message type:**
+**Checking message type (direct access - no decode needed):**
 
 ```c
 acrt_message msg;
 acrt_ipc_recv(&msg, -1);
 
-acrt_msg_class class;
-uint32_t tag;
-const void *payload;
-size_t payload_len;
-acrt_msg_decode(&msg, &class, &tag, &payload, &payload_len);
-
-switch (class) {
+// Direct access to pre-decoded fields
+switch (msg.class) {
     case ACRT_MSG_NOTIFY:
-        handle_cast(msg.sender, payload, payload_len);
+        handle_cast(msg.sender, msg.data, msg.len);
         break;
     case ACRT_MSG_REQUEST:
-        handle_call_and_reply(&msg, payload, payload_len);
+        handle_call_and_reply(&msg, msg.data, msg.len);
         break;
     case ACRT_MSG_TIMER:
-        handle_timer_tick(tag);  // tag is timer_id
+        handle_timer_tick(msg.tag);  // tag is timer_id
         break;
     case ACRT_MSG_EXIT:
-        handle_exit_notification(msg.sender, payload);
+        handle_exit_notification(msg.sender, msg.data);
         break;
     default:
         break;

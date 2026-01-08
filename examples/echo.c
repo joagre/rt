@@ -100,9 +100,8 @@ static void server_actor(void *arg) {
     if (ACRT_FAILED(status)) {
         printf("Server: Timeout waiting for client done message\n");
     } else {
-        const void *payload;
-        acrt_msg_decode(&done_msg, NULL, NULL, &payload, NULL);
-        coord_msg *coord = (coord_msg *)payload;
+        // Direct payload access - no decode needed
+        coord_msg *coord = (coord_msg *)done_msg.data;
         if (coord->type == MSG_CLIENT_DONE) {
             printf("Server: Received done notification from client via IPC\n");
         }
@@ -137,11 +136,9 @@ static void client_actor(void *arg) {
         acrt_exit();
     }
 
-    // Get server ID from message sender
+    // Direct payload access - no decode needed
     actor_id server_id = msg.sender;
-    const void *payload;
-    acrt_msg_decode(&msg, NULL, NULL, &payload, NULL);
-    coord_msg *coord = (coord_msg *)payload;
+    coord_msg *coord = (coord_msg *)msg.data;
     if (coord->type == MSG_SERVER_READY) {
         printf("Client: Received server ready notification via IPC (from actor %u)\n", server_id);
     }
