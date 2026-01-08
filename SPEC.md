@@ -716,7 +716,7 @@ All messages have a 4-byte header prepended to the payload:
 typedef enum {
     RT_MSG_NOTIFY = 0,   // Fire-and-forget message
     RT_MSG_REQUEST,       // Request expecting a reply
-    RT_MSG_REPLY,      // Response to a CALL
+    RT_MSG_REPLY,      // Response to a REQUEST
     RT_MSG_TIMER,      // Timer tick
     RT_MSG_SYSTEM,     // System notifications (actor death)
     // 5-14 reserved for future use
@@ -727,14 +727,14 @@ typedef enum {
 ### Tag System
 
 ```c
-#define RT_TAG_NONE        0            // No tag (for simple CAST messages)
+#define RT_TAG_NONE        0            // No tag (for simple NOTIFY messages)
 #define RT_TAG_ANY         0x0FFFFFFF   // Wildcard for selective receive filtering
 #define RT_TAG_GEN_BIT     0x08000000   // Bit 27: distinguishes generated tags
 #define RT_TAG_VALUE_MASK  0x07FFFFFF   // Lower 27 bits: tag value
 ```
 
 **Tag semantics:**
-- **RT_TAG_NONE**: Used for simple CAST messages where no correlation is needed
+- **RT_TAG_NONE**: Used for simple NOTIFY messages where no correlation is needed
 - **RT_TAG_ANY**: Used in `rt_ipc_recv_match()` to match any tag
 - **Generated tags**: Created automatically by `rt_ipc_request()` for RPC correlation
 
@@ -759,7 +759,7 @@ typedef struct {
 #### Basic Messaging
 
 ```c
-// Fire-and-forget message (class=CAST, tag=0)
+// Fire-and-forget message (class=NOTIFY, tag=0)
 rt_status rt_ipc_notify(actor_id to, const void *data, size_t len);
 
 // Receive any message (no filtering)
@@ -788,11 +788,11 @@ rt_status rt_ipc_recv_match(const actor_id *from, const rt_msg_class *class,
 #### RPC (Request/Reply)
 
 ```c
-// Send CALL, block until REPLY with matching tag, or timeout
+// Send REQUEST, block until REPLY with matching tag, or timeout
 rt_status rt_ipc_request(actor_id to, const void *request, size_t req_len,
                       rt_message *reply, int32_t timeout_ms);
 
-// Reply to a received CALL (extracts sender and tag from request automatically)
+// Reply to a received REQUEST (extracts sender and tag from request automatically)
 rt_status rt_ipc_reply(const rt_message *request, const void *data, size_t len);
 ```
 
@@ -800,7 +800,7 @@ rt_status rt_ipc_reply(const rt_message *request, const void *data, size_t len);
 ```c
 // rt_ipc_request internally does:
 // 1. Generate unique tag
-// 2. Send message with class=CALL
+// 2. Send message with class=REQUEST
 // 3. Block on rt_ipc_recv_match() for REPLY with matching tag
 // 4. Return reply or timeout error
 
@@ -943,7 +943,7 @@ uint32_t expected_tag = 42;  // Known tag from earlier call
 rt_ipc_recv_match(&from, &class, &expected_tag, &reply, 5000);
 
 // During the wait:
-// - CAST messages from other actors: skipped, stay in mailbox
+// - NOTIFY messages from other actors: skipped, stay in mailbox
 // - TIMER messages: skipped, stay in mailbox
 // - REPLY from server with wrong tag: skipped
 // - REPLY from server with matching tag: returned!
@@ -960,7 +960,7 @@ rt_ipc_recv(&msg, 0);  // Gets first skipped message
 **When selective receive is less efficient:**
 
 - Deep mailbox with many non-matching messages
-- Example: 100 pending CASTs while waiting for specific REPLY → scans 100 messages
+- Example: 100 pending NOTIFYs while waiting for specific REPLY → scans 100 messages
 
 **Mitigation:** Process messages promptly. Don't let mailbox grow deep. The RPC pattern naturally keeps mailbox shallow because you block waiting for reply.
 
@@ -983,7 +983,7 @@ rt_ipc_recv(&msg, 0);  // Gets first skipped message
 **Selective receive and ordering:**
 - Selective receive can retrieve messages out of FIFO order
 - Non-matching messages are skipped but not reordered
-- Example: Mailbox has [CAST, TIMER, REPLY]. Filtering for REPLY returns REPLY first.
+- Example: Mailbox has [NOTIFY, TIMER, REPLY]. Filtering for REPLY returns REPLY first.
 
 **Consequences:**
 

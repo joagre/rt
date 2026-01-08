@@ -425,7 +425,7 @@ rt_status rt_ipc_reply(const rt_message *request, const void *data, size_t len) 
     uint32_t req_tag;
     decode_header(header, &req_class, &req_tag);
 
-    // Verify this is a CALL message
+    // Verify this is a REQUEST message
     if (req_class != RT_MSG_REQUEST) {
         return RT_ERROR(RT_ERR_INVALID, "Can only reply to RT_MSG_REQUEST messages");
     }

@@ -25,7 +25,7 @@ The runtime uses **statically bounded memory** for deterministic behavior with z
 - Stack overflow detection with guard patterns (16-byte overhead per actor)
 - Actor lifecycle management (spawn, exit)
 - Erlang-style IPC with selective receive and RPC (request/reply)
-- Message classes: CAST (fire-and-forget), CALL/REPLY (RPC), TIMER, SYSTEM
+- Message classes: NOTIFY (fire-and-forget), REQUEST/REPLY (RPC), TIMER, SYSTEM
 - Actor linking and monitoring (bidirectional links, unidirectional monitors)
 - Exit notifications with exit reasons (normal, crash, stack overflow, killed)
 - Timers (one-shot and periodic with timerfd/epoll)
@@ -137,17 +137,17 @@ cfg.stack_size = 128 * 1024;
 cfg.malloc_stack = false;     // false=arena (default), true=malloc
 actor_id worker = rt_spawn_ex(worker_actor, &args, &cfg);
 
-// Send fire-and-forget message (RT_MSG_NOTIFY)
+// Notify (fire-and-forget message)
 int data = 42;
 rt_status status = rt_ipc_notify(target, &data, sizeof(data));
 if (RT_FAILED(status)) {
     // Pool exhausted: RT_MAILBOX_ENTRY_POOL_SIZE or RT_MESSAGE_DATA_POOL_SIZE
-    // Send does NOT block or drop - caller must handle RT_ERR_NOMEM
+    // Notify does NOT block or drop - caller must handle RT_ERR_NOMEM
 
     // Backoff and retry pattern:
     rt_message msg;
     rt_ipc_recv(&msg, 10);  // Backoff 10ms (returns timeout or message)
-    // Retry send...
+    // Retry notify...
 }
 
 // RPC pattern: Send request and wait for reply
@@ -157,7 +157,7 @@ if (RT_FAILED(status)) {
     // RT_ERR_TIMEOUT if no reply, RT_ERR_NOMEM if pool exhausted
 }
 
-// Reply to a CALL message (in receiver actor)
+// Reply to a REQUEST message (in receiver actor)
 rt_ipc_reply(&msg, &response, sizeof(response));
 
 // Receive messages
@@ -274,11 +274,11 @@ if (rt_is_exit_msg(&msg)) {
 
 ### IPC
 
-- `rt_ipc_notify(to, data, len)` - Send fire-and-forget message (RT_MSG_NOTIFY)
+- `rt_ipc_notify(to, data, len)` - Fire-and-forget notification
 - `rt_ipc_recv(msg, timeout)` - Receive any message
 - `rt_ipc_recv_match(from, class, tag, msg, timeout)` - Selective receive with filtering
-- `rt_ipc_request(to, req, len, reply, timeout)` - Blocking RPC (send CALL, wait for REPLY)
-- `rt_ipc_reply(request, data, len)` - Reply to a CALL message
+- `rt_ipc_request(to, req, len, reply, timeout)` - Blocking RPC (request and wait for reply)
+- `rt_ipc_reply(request, data, len)` - Reply to a REQUEST message
 - `rt_msg_decode(msg, class, tag, payload, len)` - Decode message header
 - `rt_msg_is_timer(msg)` - Check if message is a timer tick
 - `rt_ipc_pending()` - Check if messages are available

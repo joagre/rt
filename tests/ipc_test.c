@@ -237,7 +237,7 @@ static void rpc_server_actor(void *arg) {
         rt_exit();
     }
 
-    // Decode call and verify it's a CALL message
+    // Decode and verify it's a REQUEST message
     rt_msg_class class;
     const void *payload;
     rt_msg_decode(&msg, &class, NULL, &payload, NULL);
