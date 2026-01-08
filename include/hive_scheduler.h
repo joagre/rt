@@ -13,6 +13,11 @@ void hive_scheduler_cleanup(void);
 // Run scheduler (blocks until all actors exit or shutdown requested)
 void hive_scheduler_run(void);
 
+// Run each ready actor once (for external event loop integration, e.g., Webots)
+// Polls for I/O events (non-blocking), then gives each READY actor one execution slot.
+// Returns: HIVE_OK if at least one actor ran, HIVE_ERR_WOULDBLOCK if no actors were ready
+hive_status hive_scheduler_step(void);
+
 // Request shutdown
 void hive_scheduler_shutdown(void);
 

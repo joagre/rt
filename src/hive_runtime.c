@@ -99,6 +99,10 @@ void hive_run(void) {
     hive_scheduler_run();
 }
 
+hive_status hive_step(void) {
+    return hive_scheduler_step();
+}
+
 void hive_shutdown(void) {
     hive_scheduler_shutdown();
 }

@@ -9,6 +9,12 @@ hive_status hive_init(void);
 // Run scheduler (blocks until all actors exit or hive_shutdown called)
 void hive_run(void);
 
+// Run each ready actor once (for external event loop integration, e.g., Webots)
+// Polls for I/O events (non-blocking), then gives each READY actor one execution slot.
+// Actors run in priority order. Each actor runs until it yields or exits.
+// Returns: HIVE_OK if at least one actor ran, HIVE_ERR_WOULDBLOCK if no actors were ready
+hive_status hive_step(void);
+
 // Request graceful shutdown
 void hive_shutdown(void);
 

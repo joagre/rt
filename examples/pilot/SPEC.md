@@ -7,7 +7,7 @@ A quadcopter autopilot example using the actor runtime with Webots simulator.
 1. **Demonstrate actor runtime** in a realistic embedded application
 2. **Hover control** - maintain stable altitude and attitude
 3. **Clean architecture** - show how actors decompose a control system
-4. **Webots integration** - Option A: `rt_run_until_idle()` per simulation step
+4. **Webots integration** - Use `hive_step()` per simulation step
 
 ## Non-Goals (Future Work)
 
@@ -37,7 +37,7 @@ A quadcopter autopilot example using the actor runtime with Webots simulator.
 │                                                                   │
 │   1. wb_robot_step(TIME_STEP)                                     │
 │   2. Read Webots sensors → publish to buses                       │
-│   3. rt_run_until_idle()  → run all ready actors                  │
+│   3. hive_step()          → run each actor once                   │
 │   4. Read motor commands from bus → write to Webots               │
 │                                                                   │
 └───────────────────────────────────────────────────────────────────┘
@@ -83,7 +83,7 @@ The main loop is controlled by Webots, not the actor runtime:
 ```
 initialize:
     wb_robot_init()
-    rt_init()
+    hive_init()
     create buses (imu_bus, setpoint_bus, motor_bus)
     spawn actors (attitude_actor, setpoint_actor)
 
@@ -96,8 +96,8 @@ loop:
            - Publish sensor data to imu_bus
 
         2. RUN ACTORS
-           - Call rt_run_until_idle()
-           - All ready actors execute until blocked/idle
+           - Call hive_step()
+           - Each ready actor runs once (in priority order)
            - Attitude actor reads IMU, computes PIDs, publishes motor commands
 
         3. WRITE ACTUATORS
@@ -105,7 +105,7 @@ loop:
            - Write to Webots motor devices
 
 cleanup:
-    rt_cleanup()
+    hive_cleanup()
     wb_robot_cleanup()
 ```
 
@@ -482,28 +482,28 @@ examples/pilot/
 
 ## Runtime API Extension
 
-### rt_run_until_idle()
+### hive_step()
 
-New API needed for simulation integration:
+API for simulation integration (implemented):
 
 **Signature:**
-```
-rt_status rt_run_until_idle(void);
+```c
+hive_status hive_step(void);
 ```
 
 **Behavior:**
 1. Poll for I/O events (non-blocking, timeout=0)
-2. Run all runnable actors until none are runnable
+2. Run each READY actor exactly once (in priority order)
 3. Return immediately (do not block on epoll)
 
 **Returns:**
-- `RT_SUCCESS` - at least one actor executed
-- `RT_ERR_WOULDBLOCK` - no actors were runnable (idle)
+- `HIVE_OK` - at least one actor executed
+- `HIVE_ERR_WOULDBLOCK` - no actors were ready
 
 **Does NOT:**
 - Block waiting for I/O events
 - Advance simulation time
-- Call epoll_wait with timeout > 0
+- Run an actor more than once per call (even if it yields and becomes READY again)
 
 ---
 
