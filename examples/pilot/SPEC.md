@@ -8,6 +8,7 @@ A quadcopter autopilot example using the actor runtime with Webots simulator.
 - Altitude-hold hover with attitude stabilization
 - Step 1: Motor actor (safety, watchdog)
 - Step 2: Separate altitude actor (outer/inner loop split)
+- Step 3: Sensor actor (hardware abstraction)
 
 ## Goals
 
@@ -29,7 +30,7 @@ A quadcopter autopilot example using the actor runtime with Webots simulator.
 
 ## Architecture Overview
 
-Three actors connected via buses:
+Four actors connected via buses:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -50,6 +51,12 @@ Three actors connected via buses:
 ┌─────────────────────────────────────────────────────────────────────┐
 │                          ACTOR RUNTIME                              │
 │                                                                     │
+│  ┌─────────────────┐                                               │
+│  │  SENSOR ACTOR   │                                               │
+│  │ (platform_read) │                                               │
+│  └────────┬────────┘                                               │
+│           │                                                        │
+│           ▼                                                        │
 │  ┌───────────┐     ┌─────────────────┐     ┌───────────────────┐   │
 │  │  IMU Bus  │────►│ ALTITUDE ACTOR  │────►│   Thrust Bus      │   │
 │  │           │     │ (altitude PID)  │     │                   │   │
@@ -250,6 +257,7 @@ The following code is hardware-independent:
 ```
 examples/pilot/
     pilot.c              # Main loop, platform layer, bus setup
+    sensor_actor.c/h     # Hardware sensor reading → IMU bus
     altitude_actor.c/h   # Outer loop: altitude PID → thrust
     attitude_actor.c/h   # Inner loop: rate PIDs → motor commands
     motor_actor.c/h      # Safety: watchdog, limits → hardware
@@ -360,22 +368,16 @@ IMU Bus ──► Altitude Actor ──► Thrust Bus ──► Attitude Actor �
 
 **Benefits:** Clear separation, different rates possible, easier tuning.
 
-### Step 3: Sensor Actor
+### Step 3: Sensor Actor ✓
 
 Move sensor reading from main loop into actor.
 
-**Before:**
-```
-Main Loop: read sensors ──► IMU Bus
-```
-
-**After:**
 ```
 Main Loop: hive_step() only
-Sensor Actor: read sensors ──► IMU Bus
+Sensor Actor: platform_read_imu() ──► IMU Bus
 ```
 
-**Note:** Requires careful handling of Webots timing integration.
+**Benefits:** Main loop is now just `hive_step()`, all logic in actors.
 
 ### Step 4: Estimator Actor
 
