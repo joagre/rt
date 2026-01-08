@@ -90,12 +90,12 @@ All runtime functions return `acrt_status` with a code and optional string liter
 
 ### IPC Message Format
 All messages have a 4-byte header prepended to payload:
-- **class** (4 bits): Message type (NOTIFY, REQUEST, REPLY, TIMER, SYSTEM)
+- **class** (4 bits): Message type (ASYNC, REQUEST, REPLY, TIMER, EXIT)
 - **gen** (1 bit): Generated tag flag (1 = runtime-generated, 0 = user-provided)
 - **tag** (27 bits): Correlation identifier for request/reply
 
 ### IPC API
-- **`acrt_ipc_notify(to, data, len)`**: Fire-and-forget notification (class=NOTIFY)
+- **`acrt_ipc_notify(to, data, len)`**: Async message (class=ASYNC)
 - **`acrt_ipc_recv(msg, timeout)`**: Receive any message
 - **`acrt_ipc_recv_match(from, class, tag, msg, timeout)`**: Selective receive with filtering
 - **`acrt_ipc_request(to, req, len, reply, timeout)`**: Blocking request/reply (send REQUEST, wait for REPLY)

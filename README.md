@@ -199,9 +199,10 @@ acrt_timer_cancel(periodic);
 ```c
 // File operations (block until complete)
 int fd;
+size_t bytes_written, bytes_read;
 acrt_file_open("test.txt", O_RDWR | O_CREAT, 0644, &fd);
-acrt_file_write(fd, data, len, &written);
-acrt_file_read(fd, buffer, sizeof(buffer), &nread);
+acrt_file_write(fd, data, len, &bytes_written);
+acrt_file_read(fd, buffer, sizeof(buffer), &bytes_read);
 acrt_file_close(fd);
 
 // Network server
@@ -237,7 +238,8 @@ if (ACRT_FAILED(status)) {
 }
 
 sensor_data received;
-acrt_bus_read_wait(bus, &received, sizeof(received), &actual_len, -1);
+size_t bytes_read;
+acrt_bus_read_wait(bus, &received, sizeof(received), &bytes_read, -1);
 ```
 
 ### Linking and Monitoring
@@ -306,12 +308,12 @@ if (acrt_is_exit_msg(&msg)) {
 
 ### File I/O
 
-- `acrt_file_open(path, flags, mode, out_fd)` - Open file
+- `acrt_file_open(path, flags, mode, fd_out)` - Open file
 - `acrt_file_close(fd)` - Close file
-- `acrt_file_read(fd, buf, count, out_bytes)` - Read from file
-- `acrt_file_pread(fd, buf, count, offset, out_bytes)` - Read from file at offset
-- `acrt_file_write(fd, buf, count, out_bytes)` - Write to file
-- `acrt_file_pwrite(fd, buf, count, offset, out_bytes)` - Write to file at offset
+- `acrt_file_read(fd, buf, len, bytes_read)` - Read from file
+- `acrt_file_pread(fd, buf, len, offset, bytes_read)` - Read from file at offset
+- `acrt_file_write(fd, buf, len, bytes_written)` - Write to file
+- `acrt_file_pwrite(fd, buf, len, offset, bytes_written)` - Write to file at offset
 - `acrt_file_sync(fd)` - Sync file to disk
 
 **Note:** File operations block until complete. No timeout parameter.
@@ -321,8 +323,8 @@ if (acrt_is_exit_msg(&msg)) {
 - `acrt_net_listen(port, out_fd)` - Create TCP listening socket (backlog hardcoded to 5)
 - `acrt_net_accept(listen_fd, out_fd, timeout_ms)` - Accept incoming connection
 - `acrt_net_connect(ip, port, out_fd, timeout_ms)` - Connect to remote server (numeric IPv4 only)
-- `acrt_net_send(fd, buf, len, out_sent, timeout_ms)` - Send data
-- `acrt_net_recv(fd, buf, len, out_recv, timeout_ms)` - Receive data
+- `acrt_net_send(fd, buf, len, sent, timeout_ms)` - Send data
+- `acrt_net_recv(fd, buf, len, received, timeout_ms)` - Receive data
 - `acrt_net_close(fd)` - Close socket
 
 ### Bus (Pub-Sub)
@@ -332,8 +334,8 @@ if (acrt_is_exit_msg(&msg)) {
 - `acrt_bus_subscribe(bus)` - Subscribe current actor to bus
 - `acrt_bus_unsubscribe(bus)` - Unsubscribe current actor from bus
 - `acrt_bus_publish(bus, data, len)` - Publish data to bus (non-blocking)
-- `acrt_bus_read(bus, buf, len, out_len)` - Read next message (non-blocking)
-- `acrt_bus_read_wait(bus, buf, len, out_len, timeout_ms)` - Read next message (blocking)
+- `acrt_bus_read(bus, buf, len, bytes_read)` - Read next message (non-blocking)
+- `acrt_bus_read_wait(bus, buf, len, bytes_read, timeout_ms)` - Read next message (blocking)
 - `acrt_bus_entry_count(bus)` - Get number of entries in bus
 
 ## Implementation Details
