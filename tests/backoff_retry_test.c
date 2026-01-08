@@ -89,16 +89,11 @@ void receiver_actor(void *arg) {
     hive_exit();
 }
 
-// Internal send with custom tag
-extern hive_status hive_ipc_notify_ex(actor_id to, actor_id sender, hive_msg_class class,
-                                 uint32_t tag, const void *data, size_t len);
-
 void sender_actor(void *arg) {
     test_args *args = (test_args *)arg;
     actor_id receiver = args->receiver;
-    actor_id self = hive_self();
 
-    printf("Sender: Started (ID: %u), receiver ID: %u\n", self, receiver);
+    printf("Sender: Started (ID: %u), receiver ID: %u\n", hive_self(), receiver);
     fflush(stdout);
 
     printf("\nSender: Filling pool with %d data messages (tag=%d)...\n", MESSAGES_TO_FILL_POOL, TAG_DATA);
@@ -110,7 +105,7 @@ void sender_actor(void *arg) {
 
     for (int i = 0; i < MESSAGES_TO_FILL_POOL; i++) {
         data++;
-        hive_status status = hive_ipc_notify_ex(receiver, self, HIVE_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
+        hive_status status = hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
         if (HIVE_FAILED(status)) {
             if (status.code == HIVE_ERR_NOMEM) {
                 printf("Sender: Pool exhausted after %d messages\n", sent_count);
@@ -129,7 +124,7 @@ void sender_actor(void *arg) {
     int failed_count = 0;
     for (int i = 0; i < 50; i++) {
         data++;
-        hive_status status = hive_ipc_notify_ex(receiver, self, HIVE_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
+        hive_status status = hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
         if (status.code == HIVE_ERR_NOMEM) {
             failed_count++;
         } else if (!HIVE_FAILED(status)) {
@@ -146,7 +141,7 @@ void sender_actor(void *arg) {
     // Send START signal
     printf("\nSender: Sending START signal (tag=%d)...\n", TAG_START);
     fflush(stdout);
-    hive_status status = hive_ipc_notify_ex(receiver, self, HIVE_MSG_NOTIFY, TAG_START, NULL, 0);
+    hive_status status = hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY, TAG_START, NULL, 0);
     if (HIVE_FAILED(status)) {
         printf("Sender: Failed to send START: %s\n", status.msg ? status.msg : "unknown");
     } else {
@@ -169,7 +164,7 @@ void sender_actor(void *arg) {
         hive_yield();
 
         data++;
-        status = hive_ipc_notify_ex(receiver, self, HIVE_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
+        status = hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
 
         if (!HIVE_FAILED(status)) {
             printf("Sender: ✓ Send succeeded on attempt %d!\n", attempt + 1);
@@ -192,7 +187,7 @@ void sender_actor(void *arg) {
 
     // Send DONE signal
     printf("\nSender: Sending DONE signal...\n");
-    hive_ipc_notify_ex(receiver, self, HIVE_MSG_NOTIFY, TAG_DONE, NULL, 0);
+    hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY, TAG_DONE, NULL, 0);
 
     if (send_succeeded) {
         printf("\nSender: ✓ Backoff-retry SUCCESS!\n");

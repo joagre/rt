@@ -305,6 +305,7 @@ if (msg.class == HIVE_MSG_EXIT) {
 ### IPC
 
 - `hive_ipc_notify(to, data, len)` - Fire-and-forget notification
+- `hive_ipc_notify_ex(to, class, tag, data, len)` - Send with explicit class and tag
 - `hive_ipc_recv(msg, timeout)` - Receive any message (pre-decoded: `msg.class`, `msg.tag`, `msg.data`)
 - `hive_ipc_recv_match(from, class, tag, msg, timeout)` - Selective receive with filtering
 - `hive_ipc_request(to, req, len, reply, timeout)` - Blocking request/reply
