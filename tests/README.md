@@ -140,27 +140,6 @@ Realistic scenario demonstrating congestion handling.
 
 ---
 
-#### `sync_sender_death_test.c`
-Tests IPC_SYNC behavior when sender dies before receiver processes message.
-
-**Tests:**
-- Sender sends IPC_SYNC message (copied to pinned runtime buffer)
-- Sender exits immediately (stack would be freed)
-- Receiver accesses message data after sender has died
-- Verifies data integrity (pinned buffer prevents use-after-free)
-
----
-
-#### `sync_receiver_death_test.c`
-Tests IPC_SYNC behavior when receiver crashes without releasing.
-
-**Tests:**
-- Sender blocks on IPC_SYNC send
-- Receiver receives message and crashes without rt_ipc_release()
-- Sender is unblocked with RT_ERR_CLOSED
-
----
-
 ### Linking and Monitoring Tests
 
 ---
