@@ -10,17 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Helper macro: Append entry to linked list
-#define APPEND_TO_LIST(head, new_entry) \
-    do { \
-        if (head) { \
-            __typeof__(head) _last = head; \
-            while (_last->next) _last = _last->next; \
-            _last->next = new_entry; \
-        } else { \
-            head = new_entry; \
-        } \
-    } while(0)
+// Use shared SLIST_APPEND from rt_internal.h
 
 
 // Forward declarations
@@ -122,10 +112,10 @@ rt_status rt_link(actor_id target_id) {
     target_link->next = NULL;
 
     // Add to current actor's link list
-    APPEND_TO_LIST(current->links, current_link);
+    SLIST_APPEND(current->links, current_link);
 
     // Add to target actor's link list
-    APPEND_TO_LIST(target->links, target_link);
+    SLIST_APPEND(target->links, target_link);
 
     RT_LOG_DEBUG("Actor %u linked to actor %u", current->id, target_id);
     return RT_SUCCESS;
@@ -209,7 +199,7 @@ rt_status rt_monitor(actor_id target_id, uint32_t *monitor_ref) {
     entry->next = NULL;
 
     // Add to current actor's monitor list
-    APPEND_TO_LIST(current->monitors, entry);
+    SLIST_APPEND(current->monitors, entry);
 
     *monitor_ref = entry->ref;
     RT_LOG_DEBUG("Actor %u monitoring actor %u (ref=%u)", current->id, target_id, entry->ref);

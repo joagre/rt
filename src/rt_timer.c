@@ -40,17 +40,12 @@ static struct {
     timer_id    next_id;
 } g_timer = {0};
 
-// Helper macro: Remove entry from linked list using pointer-to-pointer
-#define REMOVE_FROM_LIST(head, entry_to_remove) \
-    do { \
-        __typeof__(head) *_prev = &(head); \
-        while (*_prev && *_prev != (entry_to_remove)) { \
-            _prev = &(*_prev)->next; \
-        } \
-        if (*_prev) { \
-            *_prev = (*_prev)->next; \
-        } \
-    } while(0)
+// Helper: Close timer fd and remove from epoll
+static void timer_close_fd(timer_entry *entry) {
+    int epoll_fd = rt_scheduler_get_epoll_fd();
+    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, entry->fd, NULL);
+    close(entry->fd);
+}
 
 // Forward declarations for internal functions
 rt_status rt_timer_init(void);
@@ -69,10 +64,8 @@ void rt_timer_handle_event(io_source *source) {
     actor *a = rt_actor_get(entry->owner);
     if (!a) {
         // Actor is dead - cleanup timer
-        int epoll_fd = rt_scheduler_get_epoll_fd();
-        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, entry->fd, NULL);
-        close(entry->fd);
-        REMOVE_FROM_LIST(g_timer.timers, entry);
+        timer_close_fd(entry);
+        SLIST_REMOVE(g_timer.timers, entry);
         rt_pool_free(&g_timer_pool_mgr, entry);
         return;
     }
@@ -90,10 +83,8 @@ void rt_timer_handle_event(io_source *source) {
 
     // If one-shot, cleanup
     if (!entry->periodic) {
-        int epoll_fd = rt_scheduler_get_epoll_fd();
-        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, entry->fd, NULL);
-        close(entry->fd);
-        REMOVE_FROM_LIST(g_timer.timers, entry);
+        timer_close_fd(entry);
+        SLIST_REMOVE(g_timer.timers, entry);
         rt_pool_free(&g_timer_pool_mgr, entry);
     }
 }
@@ -119,12 +110,10 @@ void rt_timer_cleanup(void) {
     RT_CLEANUP_GUARD(g_timer.initialized);
 
     // Clean up all active timers
-    int epoll_fd = rt_scheduler_get_epoll_fd();
     timer_entry *entry = g_timer.timers;
     while (entry) {
         timer_entry *next = entry->next;
-        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, entry->fd, NULL);
-        close(entry->fd);
+        timer_close_fd(entry);
         rt_pool_free(&g_timer_pool_mgr, entry);
         entry = next;
     }
@@ -204,7 +193,7 @@ static rt_status create_timer(uint32_t interval_us, bool periodic, timer_id *out
     ev.data.ptr = &entry->source;
 
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, tfd, &ev) < 0) {
-        REMOVE_FROM_LIST(g_timer.timers, entry);
+        SLIST_REMOVE(g_timer.timers, entry);
         close(tfd);
         rt_pool_free(&g_timer_pool_mgr, entry);
         return RT_ERROR(RT_ERR_IO, strerror(errno));
@@ -228,19 +217,14 @@ rt_status rt_timer_cancel(timer_id id) {
         return RT_ERROR(RT_ERR_INVALID, "Timer subsystem not initialized");
     }
 
-    // Find timer in list
-    timer_entry *entry = g_timer.timers;
-    while (entry) {
-        if (entry->id == id) {
-            // Found it - remove from epoll and cleanup
-            int epoll_fd = rt_scheduler_get_epoll_fd();
-            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, entry->fd, NULL);
-            close(entry->fd);
-            REMOVE_FROM_LIST(g_timer.timers, entry);
-            rt_pool_free(&g_timer_pool_mgr, entry);
-            return RT_SUCCESS;
-        }
-        entry = entry->next;
+    // Find and remove timer from list
+    timer_entry *found = NULL;
+    SLIST_FIND_REMOVE(g_timer.timers, entry->id == id, found);
+
+    if (found) {
+        timer_close_fd(found);
+        rt_pool_free(&g_timer_pool_mgr, found);
+        return RT_SUCCESS;
     }
 
     return RT_ERROR(RT_ERR_INVALID, "Timer not found");

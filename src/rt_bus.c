@@ -115,10 +115,7 @@ static void expire_old_entries(bus_t *bus) {
         }
 
         // Expire this entry
-        if (entry->data) {
-            message_data_entry *msg_data = DATA_TO_MSG_ENTRY(entry->data);
-            rt_pool_free(&g_message_pool_mgr, msg_data);
-        }
+        rt_msg_pool_free(entry->data);
         entry->valid = false;
         bus->tail = (bus->tail + 1) % bus->config.max_entries;
         bus->count--;
@@ -150,9 +147,8 @@ void rt_bus_cleanup(void) {
         if (bus->active) {
             // Free all entry data from pool
             for (size_t j = 0; j < bus->config.max_entries; j++) {
-                if (bus->entries[j].valid && bus->entries[j].data) {
-                    message_data_entry *msg_data = DATA_TO_MSG_ENTRY(bus->entries[j].data);
-                    rt_pool_free(&g_message_pool_mgr, msg_data);
+                if (bus->entries[j].valid) {
+                    rt_msg_pool_free(bus->entries[j].data);
                 }
             }
             // Note: bus->entries and bus->subscribers point to static arrays, no free needed
@@ -263,9 +259,8 @@ rt_status rt_bus_destroy(bus_id id) {
 
     // Free all entry data from pool
     for (size_t i = 0; i < bus->config.max_entries; i++) {
-        if (bus->entries[i].valid && bus->entries[i].data) {
-            message_data_entry *msg_data = DATA_TO_MSG_ENTRY(bus->entries[i].data);
-            rt_pool_free(&g_message_pool_mgr, msg_data);
+        if (bus->entries[i].valid) {
+            rt_msg_pool_free(bus->entries[i].data);
         }
     }
 
@@ -302,10 +297,8 @@ rt_status rt_bus_publish(bus_id id, const void *data, size_t len) {
     // If buffer is full, evict oldest entry
     if (bus->count >= bus->config.max_entries) {
         bus_entry *oldest = &bus->entries[bus->tail];
-        if (oldest->valid && oldest->data) {
-            // Free from message pool using offsetof pattern
-            message_data_entry *msg_data = DATA_TO_MSG_ENTRY(oldest->data);
-            rt_pool_free(&g_message_pool_mgr, msg_data);
+        if (oldest->valid) {
+            rt_msg_pool_free(oldest->data);
         }
         oldest->valid = false;
         bus->tail = (bus->tail + 1) % bus->config.max_entries;
@@ -479,10 +472,7 @@ rt_status rt_bus_read(bus_id id, void *buf, size_t max_len, size_t *actual_len) 
 
     // Check if entry should be removed (max_readers)
     if (bus->config.max_readers > 0 && entry->read_count >= bus->config.max_readers) {
-        if (entry->data) {
-            message_data_entry *msg_data = DATA_TO_MSG_ENTRY(entry->data);
-            rt_pool_free(&g_message_pool_mgr, msg_data);
-        }
+        rt_msg_pool_free(entry->data);
         entry->valid = false;
         entry->data = NULL;
 
