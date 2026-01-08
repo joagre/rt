@@ -107,7 +107,7 @@ typedef struct {
 void rt_msg_pool_free(void *data);
 
 // Add mailbox entry to actor's mailbox and wake if blocked
-// Used by: timer, link subsystems (via rt_ipc_send_ex)
+// Used by: timer, link subsystems (via rt_ipc_notify_ex)
 void rt_mailbox_add_entry(actor *recipient, mailbox_entry *entry);
 
 // Check for timeout message in mailbox and dequeue if present
