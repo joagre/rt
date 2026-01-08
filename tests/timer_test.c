@@ -391,6 +391,64 @@ static void run_timer_tests(void *arg) {
         }
     }
 
+    // ========================================================================
+    // Test 13: acrt_sleep basic functionality
+    // ========================================================================
+    printf("\nTest 13: acrt_sleep basic functionality\n");
+    {
+        uint64_t start = time_ms();
+        acrt_status status = acrt_sleep(100000);  // 100ms
+        uint64_t elapsed = time_ms() - start;
+
+        if (ACRT_FAILED(status)) {
+            TEST_FAIL("acrt_sleep failed");
+        } else if (elapsed >= 80 && elapsed <= 200) {
+            printf("    acrt_sleep(100ms) took %lu ms\n", (unsigned long)elapsed);
+            TEST_PASS("acrt_sleep sleeps for correct duration");
+        } else {
+            printf("    acrt_sleep(100ms) took %lu ms (expected ~100ms)\n", (unsigned long)elapsed);
+            TEST_FAIL("acrt_sleep duration incorrect");
+        }
+    }
+
+    // ========================================================================
+    // Test 14: acrt_sleep preserves messages (selective receive)
+    // ========================================================================
+    printf("\nTest 14: acrt_sleep preserves messages\n");
+    {
+        // Send a message to self before sleeping
+        actor_id self = acrt_self();
+        int test_data = 12345;
+        acrt_status status = acrt_ipc_notify(self, &test_data, sizeof(test_data));
+        if (ACRT_FAILED(status)) {
+            TEST_FAIL("failed to send message to self");
+        } else {
+            // Sleep - the message should NOT be consumed
+            status = acrt_sleep(50000);  // 50ms
+            if (ACRT_FAILED(status)) {
+                TEST_FAIL("acrt_sleep failed");
+            } else {
+                // Now receive - the message should still be there
+                acrt_message msg;
+                status = acrt_ipc_recv(&msg, 0);  // Non-blocking
+
+                if (ACRT_FAILED(status)) {
+                    TEST_FAIL("message lost during sleep");
+                } else if (acrt_msg_is_timer(&msg)) {
+                    TEST_FAIL("received timer message instead of our message");
+                } else {
+                    int *received = (int *)msg.data;
+                    if (*received == test_data) {
+                        TEST_PASS("message preserved during sleep");
+                    } else {
+                        printf("    Expected %d, got %d\n", test_data, *received);
+                        TEST_FAIL("message data corrupted");
+                    }
+                }
+            }
+        }
+    }
+
     printf("\n=== Results ===\n");
     printf("Passed: %d\n", tests_passed);
     printf("Failed: %d\n", tests_failed);
