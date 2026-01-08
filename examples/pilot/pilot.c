@@ -125,17 +125,36 @@ int main(void) {
     hive_bus_create(&cfg, &g_thrust_bus);
     hive_bus_create(&cfg, &g_motor_bus);
 
-    // Initialize and spawn actors
+    // Initialize actors
     sensor_actor_init(g_imu_bus, platform_read_imu);
     altitude_actor_init(g_imu_bus, g_thrust_bus);
     attitude_actor_init(g_imu_bus, g_thrust_bus, g_motor_bus);
     motor_actor_init(g_motor_bus, platform_write_motors);
 
+    // Spawn actors with priorities
+    // CRITICAL: time-sensitive, safety-critical
+    // HIGH: important but can tolerate slight delay
     actor_id sensor, altitude, attitude, motor;
-    hive_spawn(sensor_actor, NULL, &sensor);
-    hive_spawn(altitude_actor, NULL, &altitude);
-    hive_spawn(attitude_actor, NULL, &attitude);
-    hive_spawn(motor_actor, NULL, &motor);
+
+    actor_config cfg_sensor = HIVE_ACTOR_CONFIG_DEFAULT;
+    cfg_sensor.priority = HIVE_PRIORITY_CRITICAL;
+    cfg_sensor.name = "sensor";
+    hive_spawn_ex(sensor_actor, NULL, &cfg_sensor, &sensor);
+
+    actor_config cfg_attitude = HIVE_ACTOR_CONFIG_DEFAULT;
+    cfg_attitude.priority = HIVE_PRIORITY_CRITICAL;
+    cfg_attitude.name = "attitude";
+    hive_spawn_ex(attitude_actor, NULL, &cfg_attitude, &attitude);
+
+    actor_config cfg_motor = HIVE_ACTOR_CONFIG_DEFAULT;
+    cfg_motor.priority = HIVE_PRIORITY_CRITICAL;
+    cfg_motor.name = "motor";
+    hive_spawn_ex(motor_actor, NULL, &cfg_motor, &motor);
+
+    actor_config cfg_altitude = HIVE_ACTOR_CONFIG_DEFAULT;
+    cfg_altitude.priority = HIVE_PRIORITY_HIGH;
+    cfg_altitude.name = "altitude";
+    hive_spawn_ex(altitude_actor, NULL, &cfg_altitude, &altitude);
 
     printf("Pilot: 4 actors (sensor, altitude, attitude, motor)\n");
 
