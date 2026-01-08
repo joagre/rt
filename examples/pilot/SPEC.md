@@ -21,6 +21,28 @@ A quadcopter autopilot example using the actor runtime with Webots simulator.
 
 The pilot serves dual purposes: a real-world stress test that exposes runtime weaknesses, and a showcase of clean actor-based embedded design.
 
+## Design Decisions
+
+### Why buses instead of IPC?
+
+- **Buses** provide latest-value semantics - subscribers get current state, not history
+- **IPC notify** queues every message - slow consumers would process stale data
+- For control loops, you always want the *latest* sensor reading, not a backlog
+
+### Why max_entries=1?
+
+All buses use `max_entries=1` (single entry, latest value only):
+
+```c
+hive_bus_config cfg = HIVE_BUS_CONFIG_DEFAULT;
+cfg.max_entries = 1;  // Latest value only - correct for real-time control
+```
+
+- Control loops need current state, not history
+- If a subscriber is slow, it should skip stale data, not queue it
+- Larger buffers would cause processing of outdated sensor readings
+- This matches how real flight controllers handle sensor data
+
 ## Non-Goals (Future Work)
 
 - Navigation (waypoint following)
