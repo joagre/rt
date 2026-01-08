@@ -90,23 +90,23 @@ All runtime functions return `rt_status` with a code and optional string literal
 
 ### IPC Message Format
 All messages have a 4-byte header prepended to payload:
-- **class** (4 bits): Message type (CAST, CALL, REPLY, TIMER, SYSTEM)
+- **class** (4 bits): Message type (NOTIFY, REQUEST, REPLY, TIMER, SYSTEM)
 - **gen** (1 bit): Generated tag flag (1 = runtime-generated, 0 = user-provided)
 - **tag** (27 bits): Correlation identifier for RPC
 
 ### IPC API
-- **`rt_ipc_cast(to, data, len)`**: Fire-and-forget message (class=CAST)
+- **`rt_ipc_notify(to, data, len)`**: Fire-and-forget notification (class=NOTIFY)
 - **`rt_ipc_recv(msg, timeout)`**: Receive any message
 - **`rt_ipc_recv_match(from, class, tag, msg, timeout)`**: Selective receive with filtering (Erlang-style)
-- **`rt_ipc_call(to, req, len, reply, timeout)`**: Blocking RPC (send CALL, wait for REPLY)
-- **`rt_ipc_reply(request, data, len)`**: Reply to a CALL message
+- **`rt_ipc_request(to, req, len, reply, timeout)`**: Blocking RPC (send REQUEST, wait for REPLY)
+- **`rt_ipc_reply(request, data, len)`**: Reply to a REQUEST message
 - **`rt_msg_decode(msg, class, tag, payload, len)`**: Decode message header
 
 ### Selective Receive (Erlang-style)
 - `rt_ipc_recv_match()` scans mailbox for messages matching filter criteria
 - Non-matching messages are **skipped but not dropped** - they remain in mailbox
 - Filter on sender (`RT_SENDER_ANY` = wildcard), class (`RT_MSG_ANY`), tag (`RT_TAG_ANY`)
-- Enables RPC pattern: send CALL with generated tag, wait for REPLY with matching tag
+- Enables RPC pattern: send REQUEST with generated tag, wait for REPLY with matching tag
 
 ### IPC Pool Exhaustion
 IPC uses global pools shared by all actors:
@@ -114,14 +114,14 @@ IPC uses global pools shared by all actors:
 - **Message data pool**: `RT_MESSAGE_DATA_POOL_SIZE` (256 default)
 
 **When pools are exhausted:**
-- `rt_ipc_cast()` returns `RT_ERR_NOMEM` immediately
+- `rt_ipc_notify()` returns `RT_ERR_NOMEM` immediately
 - Send operation **does NOT block** waiting for space
 - Send operation **does NOT drop** messages automatically
 - Caller **must check** return value and handle failure (retry, backoff, or discard)
 
 **Notes:**
 - No per-actor mailbox limit - pools are shared globally
-- Use `rt_ipc_call()` for natural backpressure (sender waits for reply)
+- Use `rt_ipc_request()` for natural backpressure (sender waits for reply)
 - Pool exhaustion indicates system overload - increase pool sizes or add backpressure
 
 ### Bus Retention
@@ -205,7 +205,7 @@ The runtime is **completely single-threaded**. All runtime APIs must be called f
 **STM32 exception:** ISR-to-scheduler communication uses `volatile bool` flags with interrupt disable/enable. This is a synchronization protocol but not C11 atomics or lock-based synchronization.
 
 **External threads (forbidden):**
-- CANNOT call runtime APIs (rt_ipc_cast NOT THREAD-SAFE - no locking/atomics)
+- CANNOT call runtime APIs (rt_ipc_notify NOT THREAD-SAFE - no locking/atomics)
 - Must use platform-specific IPC (sockets, pipes) with dedicated reader actors
 
 See SPEC.md "Thread Safety" section for full details.
@@ -220,9 +220,9 @@ Different implementations for Linux (dev) vs STM32 bare metal (prod):
 
 ### Message Classes
 Messages are identified by class (not special sender IDs):
-- `RT_MSG_CAST`: Fire-and-forget message
-- `RT_MSG_CALL`: Request expecting a reply
-- `RT_MSG_REPLY`: Response to a CALL
+- `RT_MSG_NOTIFY`: Fire-and-forget notification
+- `RT_MSG_REQUEST`: Request expecting a reply
+- `RT_MSG_REPLY`: Response to a REQUEST
 - `RT_MSG_TIMER`: Timer tick (tag contains timer_id)
 - `RT_MSG_SYSTEM`: System notification (e.g., actor death)
 - `RT_MSG_ANY`: Wildcard for selective receive filtering

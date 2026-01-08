@@ -28,7 +28,7 @@ A minimalistic actor-based runtime designed for **embedded and safety-critical s
 
 **Forbidden heap use** (exhaustive):
 - Scheduler loop (`rt_run()`, `rt_yield()`, context switching)
-- IPC (`rt_ipc_cast()`, `rt_ipc_recv()`, `rt_ipc_recv_match()`, `rt_ipc_call()`, `rt_ipc_reply()`)
+- IPC (`rt_ipc_notify()`, `rt_ipc_recv()`, `rt_ipc_recv_match()`, `rt_ipc_request()`, `rt_ipc_reply()`)
 - Timers (`rt_timer_after()`, `rt_timer_every()`, timer delivery)
 - Bus (`rt_bus_publish()`, `rt_bus_read()`, `rt_bus_read_wait()`)
 - Network I/O (`rt_net_*()` functions, event loop dispatch)
@@ -119,7 +119,7 @@ When an actor calls a blocking API, the following contract applies:
 **Operations that block (actor yields, other actors run):**
 - `rt_ipc_recv()` with timeout > 0 or timeout < 0 (block until message or timeout)
 - `rt_ipc_recv_match()` (block until matching message or timeout)
-- `rt_ipc_call()` (block until reply or timeout)
+- `rt_ipc_request()` (block until reply or timeout)
 - `rt_net_send()`, `rt_net_recv()` (block until at least 1 byte transferred or timeout)
 - `rt_bus_read_wait()` (block until data available or timeout)
 
@@ -133,7 +133,7 @@ When an actor calls a blocking API, the following contract applies:
 **Unblock conditions:**
 - I/O readiness signaled (network socket becomes readable/writable)
 - Timer expires (for APIs with timeout)
-- Message arrives in mailbox (for `rt_ipc_recv()`, `rt_ipc_recv_match()`, `rt_ipc_call()`)
+- Message arrives in mailbox (for `rt_ipc_recv()`, `rt_ipc_recv_match()`, `rt_ipc_request()`)
 - Bus data published (for `rt_bus_read_wait()`)
 - **Important**: Mailbox arrival only unblocks actors blocked in IPC receive operations, not actors blocked on network I/O or bus read
 
@@ -280,7 +280,7 @@ The runtime is **completely single-threaded**. All runtime operations execute in
 | API Category | Thread Safety | Enforcement |
 |-------------|---------------|-------------|
 | **Actor APIs** (`rt_spawn`, `rt_exit`, etc.) | Single-threaded only | Must call from actor context |
-| **IPC APIs** (`rt_ipc_cast`, `rt_ipc_recv`) | Single-threaded only | Must call from actor context |
+| **IPC APIs** (`rt_ipc_notify`, `rt_ipc_recv`) | Single-threaded only | Must call from actor context |
 | **Bus APIs** (`rt_bus_publish`, `rt_bus_read`) | Single-threaded only | Must call from actor context |
 | **Timer APIs** (`rt_timer_after`, `rt_timer_every`) | Single-threaded only | Must call from actor context |
 | **File APIs** (`rt_file_read`, `rt_file_write`) | Single-threaded only | Must call from actor context; stalls scheduler |
@@ -310,7 +310,7 @@ void socket_reader_actor(void *arg) {
     while (1) {
         size_t received;
         rt_net_recv(sock, buf, len, &received, -1);  // Blocks in event loop
-        rt_ipc_cast(worker, buf, received);  // Forward to actors
+        rt_ipc_notify(worker, buf, received);  // Forward to actors
     }
 }
 ```
@@ -318,7 +318,7 @@ void socket_reader_actor(void *arg) {
 This pattern is safe because:
 - External thread only touches OS-level socket (thread-safe by OS)
 - `rt_net_recv()` executes in scheduler thread (actor context)
-- `rt_ipc_cast()` executes in scheduler thread (actor context)
+- `rt_ipc_notify()` executes in scheduler thread (actor context)
 - No direct runtime state access from external thread
 
 ### Synchronization Primitives
@@ -555,7 +555,7 @@ This runtime makes deliberate design choices that favor **determinism, performan
 
 **Keep mailboxes shallow.** The RPC pattern naturally does this (block waiting for reply).
 
-**Mitigation:** Process messages promptly. Don't let mailbox grow deep. Use `rt_ipc_call()` which blocks until reply.
+**Mitigation:** Process messages promptly. Don't let mailbox grow deep. Use `rt_ipc_request()` which blocks until reply.
 
 **Acceptable if:** Typical mailbox depth is small (< 20 messages) and RPC pattern is followed.
 
@@ -714,8 +714,8 @@ All messages have a 4-byte header prepended to the payload:
 
 ```c
 typedef enum {
-    RT_MSG_CAST = 0,   // Fire-and-forget message
-    RT_MSG_CALL,       // Request expecting a reply
+    RT_MSG_NOTIFY = 0,   // Fire-and-forget message
+    RT_MSG_REQUEST,       // Request expecting a reply
     RT_MSG_REPLY,      // Response to a CALL
     RT_MSG_TIMER,      // Timer tick
     RT_MSG_SYSTEM,     // System notifications (actor death)
@@ -736,9 +736,9 @@ typedef enum {
 **Tag semantics:**
 - **RT_TAG_NONE**: Used for simple CAST messages where no correlation is needed
 - **RT_TAG_ANY**: Used in `rt_ipc_recv_match()` to match any tag
-- **Generated tags**: Created automatically by `rt_ipc_call()` for RPC correlation
+- **Generated tags**: Created automatically by `rt_ipc_request()` for RPC correlation
 
-**Tag generation:** Internal to `rt_ipc_call()`. Global counter increments on each call. Generated tags have `RT_TAG_GEN_BIT` set. Wraps at 2^27 (134M values).
+**Tag generation:** Internal to `rt_ipc_request()`. Global counter increments on each call. Generated tags have `RT_TAG_GEN_BIT` set. Wraps at 2^27 (134M values).
 
 **Namespace separation:** Generated tags (gen=1) and user tags (gen=0) can never collide.
 
@@ -760,7 +760,7 @@ typedef struct {
 
 ```c
 // Fire-and-forget message (class=CAST, tag=0)
-rt_status rt_ipc_cast(actor_id to, const void *data, size_t len);
+rt_status rt_ipc_notify(actor_id to, const void *data, size_t len);
 
 // Receive any message (no filtering)
 // timeout_ms == 0:  non-blocking, returns RT_ERR_WOULDBLOCK if empty
@@ -789,7 +789,7 @@ rt_status rt_ipc_recv_match(const actor_id *from, const rt_msg_class *class,
 
 ```c
 // Send CALL, block until REPLY with matching tag, or timeout
-rt_status rt_ipc_call(actor_id to, const void *request, size_t req_len,
+rt_status rt_ipc_request(actor_id to, const void *request, size_t req_len,
                       rt_message *reply, int32_t timeout_ms);
 
 // Reply to a received CALL (extracts sender and tag from request automatically)
@@ -798,7 +798,7 @@ rt_status rt_ipc_reply(const rt_message *request, const void *data, size_t len);
 
 **RPC implementation:**
 ```c
-// rt_ipc_call internally does:
+// rt_ipc_request internally does:
 // 1. Generate unique tag
 // 2. Send message with class=CALL
 // 3. Block on rt_ipc_recv_match() for REPLY with matching tag
@@ -821,7 +821,7 @@ rt_status rt_msg_decode(const rt_message *msg,
                         size_t *payload_len);   // out: len minus 4-byte header
 ```
 
-### API Contract: rt_ipc_cast()
+### API Contract: rt_ipc_notify()
 
 **Parameter validation:**
 - If `data == NULL && len > 0`: Returns `RT_ERR_INVALID`
@@ -830,7 +830,7 @@ rt_status rt_msg_decode(const rt_message *msg,
 
 **Behavior when pools are exhausted:**
 
-`rt_ipc_cast()` uses two global pools:
+`rt_ipc_notify()` uses two global pools:
 1. **Mailbox entry pool** (`RT_MAILBOX_ENTRY_POOL_SIZE` = 256)
 2. **Message data pool** (`RT_MESSAGE_DATA_POOL_SIZE` = 256)
 
@@ -850,10 +850,10 @@ rt_status rt_msg_decode(const rt_message *msg,
 
 ```c
 // Bad: Ignoring RT_ERR_NOMEM
-rt_ipc_cast(target, &data, sizeof(data));  // WRONG
+rt_ipc_notify(target, &data, sizeof(data));  // WRONG
 
 // Good: Check and handle
-rt_status status = rt_ipc_cast(target, &data, sizeof(data));
+rt_status status = rt_ipc_notify(target, &data, sizeof(data));
 if (status.code == RT_ERR_NOMEM) {
     // Pool exhausted - implement backpressure
     log_dropped_message(target);
@@ -932,9 +932,9 @@ Global pool limits: **Yes** - all actors share:
 **Example: Waiting for specific reply**
 
 ```c
-// Using rt_ipc_call() for RPC (recommended - handles tag generation internally)
+// Using rt_ipc_request() for RPC (recommended - handles tag generation internally)
 rt_message reply;
-rt_ipc_call(server, &request, sizeof(request), &reply, 5000);
+rt_ipc_request(server, &request, sizeof(request), &reply, 5000);
 
 // Or manually using selective receive:
 actor_id from = server;
@@ -990,17 +990,17 @@ rt_ipc_recv(&msg, 0);  // Gets first skipped message
 ```c
 // Single sender - FIFO guaranteed
 void sender_actor(void *arg) {
-    rt_ipc_cast(receiver, &msg1, sizeof(msg1));  // Sent first
-    rt_ipc_cast(receiver, &msg2, sizeof(msg2));  // Sent second
+    rt_ipc_notify(receiver, &msg1, sizeof(msg1));  // Sent first
+    rt_ipc_notify(receiver, &msg2, sizeof(msg2));  // Sent second
     // Receiver will see: msg1, then msg2 (guaranteed)
 }
 
 // Multiple senders - order depends on scheduling
 void sender_A(void *arg) {
-    rt_ipc_cast(receiver, &msgA, sizeof(msgA));
+    rt_ipc_notify(receiver, &msgA, sizeof(msgA));
 }
 void sender_B(void *arg) {
-    rt_ipc_cast(receiver, &msgB, sizeof(msgB));
+    rt_ipc_notify(receiver, &msgB, sizeof(msgB));
 }
 // Receiver may see: msgA then msgB, OR msgB then msgA
 
@@ -1012,7 +1012,7 @@ void rpc_actor(void *arg) {
 
     // Do RPC
     rt_message reply;
-    rt_ipc_call(server, &req, sizeof(req), &reply, 5000);
+    rt_ipc_request(server, &req, sizeof(req), &reply, 5000);
     // Timer tick arrived during RPC wait - it's in mailbox
 
     // Now process timer
@@ -1050,10 +1050,10 @@ size_t payload_len;
 rt_msg_decode(&msg, &class, &tag, &payload, &payload_len);
 
 switch (class) {
-    case RT_MSG_CAST:
+    case RT_MSG_NOTIFY:
         handle_cast(msg.sender, payload, payload_len);
         break;
-    case RT_MSG_CALL:
+    case RT_MSG_REQUEST:
         handle_call_and_reply(&msg, payload, payload_len);
         break;
     case RT_MSG_TIMER:
@@ -1096,7 +1096,7 @@ IPC uses two global pools shared by all actors:
 - **Message data pool**: `RT_MESSAGE_DATA_POOL_SIZE` (256 default)
 
 **When pools are exhausted:**
-- `rt_ipc_cast()` returns `RT_ERR_NOMEM` immediately
+- `rt_ipc_notify()` returns `RT_ERR_NOMEM` immediately
 - Send operation **does NOT block** waiting for space
 - Send operation **does NOT drop** messages automatically
 - Caller **must check** return value and handle failure
@@ -1106,12 +1106,12 @@ IPC uses two global pools shared by all actors:
 **Mitigation strategies:**
 - Size pools appropriately: `1.5× peak concurrent messages`
 - Check return values and implement retry logic or backpressure
-- Use `rt_ipc_call()` for natural backpressure (sender waits for reply)
+- Use `rt_ipc_request()` for natural backpressure (sender waits for reply)
 - Ensure receivers process messages promptly
 
 **Backoff-retry example:**
 ```c
-rt_status status = rt_ipc_cast(target, data, len);
+rt_status status = rt_ipc_notify(target, data, len);
 if (status.code == RT_ERR_NOMEM) {
     // Pool exhausted - backoff before retry
     rt_message msg;
@@ -1262,7 +1262,7 @@ rt_bus_read(bus, buf, len, &actual);
 **Implications:**
 - Slow subscribers lose data without notification
 - Fast subscribers never lose data (assuming buffer sized for publish rate)
-- No backpressure mechanism (unlike `rt_ipc_call()` RPC pattern)
+- No backpressure mechanism (unlike `rt_ipc_request()` RPC pattern)
 - Real-time principle: Prefer fresh data over old data
 
 **Example (data loss):**
@@ -1779,8 +1779,8 @@ Exit notifications (steps 2-3 above) are enqueued in recipient mailboxes **durin
 ```c
 // Dying actor sends messages before death
 void actor_A(void *arg) {
-    rt_ipc_cast(B, &msg1, sizeof(msg1));  // Enqueued in B's mailbox
-    rt_ipc_cast(C, &msg2, sizeof(msg2));  // Enqueued in C's mailbox
+    rt_ipc_notify(B, &msg1, sizeof(msg1));  // Enqueued in B's mailbox
+    rt_ipc_notify(C, &msg2, sizeof(msg2));  // Enqueued in C's mailbox
     rt_exit();  // Exit notifications sent to links/monitors
 }
 // Linked actor B will receive: msg1, then EXIT(A) (class=RT_MSG_SYSTEM)
@@ -1788,7 +1788,7 @@ void actor_A(void *arg) {
 
 // Messages sent TO dying actor are lost
 void actor_B(void *arg) {
-    rt_ipc_cast(A, &msg, sizeof(msg));  // Enqueued in A's mailbox
+    rt_ipc_notify(A, &msg, sizeof(msg));  // Enqueued in A's mailbox
 }
 void actor_A(void *arg) {
     // ... does some work ...

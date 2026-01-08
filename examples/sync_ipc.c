@@ -1,7 +1,7 @@
 /*
  * RPC Example - Request/Response Pattern with Blocking Calls
  *
- * This example demonstrates the RPC pattern using rt_ipc_call/rt_ipc_reply,
+ * This example demonstrates the RPC pattern using rt_ipc_request/rt_ipc_reply,
  * which provides natural backpressure by blocking the caller until a reply.
  *
  * KEY CONCEPTS:
@@ -40,7 +40,7 @@ static void consumer_actor(void *arg) {
     printf("Consumer: I process slowly to demonstrate backpressure\n\n");
 
     for (int jobs_processed = 0; jobs_processed < 5; jobs_processed++) {
-        // Wait for work request (RT_MSG_CALL)
+        // Wait for work request (RT_MSG_REQUEST)
         rt_message msg;
         rt_status status = rt_ipc_recv(&msg, 5000);  // 5 second timeout
 
@@ -60,7 +60,7 @@ static void consumer_actor(void *arg) {
         size_t payload_len;
         rt_msg_decode(&msg, &class, NULL, &payload, &payload_len);
 
-        if (class != RT_MSG_CALL) {
+        if (class != RT_MSG_REQUEST) {
             printf("Consumer: Unexpected message class %d, skipping\n", class);
             continue;
         }
@@ -105,7 +105,7 @@ static void producer_actor(void *arg) {
     actor_id consumer_id = (actor_id)(uintptr_t)arg;
 
     printf("Producer: Started (ID: %u)\n", rt_self());
-    printf("Producer: Sending 5 jobs with rt_ipc_call (blocks until reply)\n\n");
+    printf("Producer: Sending 5 jobs with rt_ipc_request (blocks until reply)\n\n");
 
     for (int i = 1; i <= 5; i++) {
         work_request req = {
@@ -117,7 +117,7 @@ static void producer_actor(void *arg) {
 
         // Call consumer - this BLOCKS until consumer sends rt_ipc_reply()
         rt_message reply;
-        rt_status status = rt_ipc_call(consumer_id, &req, sizeof(req), &reply, 10000);
+        rt_status status = rt_ipc_request(consumer_id, &req, sizeof(req), &reply, 10000);
 
         if (RT_FAILED(status)) {
             if (status.code == RT_ERR_TIMEOUT) {
@@ -147,10 +147,10 @@ static void demo_actor(void *arg) {
 
     printf("\n--- Message Passing Patterns Demo ---\n");
 
-    // Pattern 1: Fire-and-forget with rt_ipc_cast()
-    printf("Demo: Fire-and-forget (rt_ipc_cast) - sender continues immediately\n");
+    // Pattern 1: Fire-and-forget with rt_ipc_notify()
+    printf("Demo: Fire-and-forget (rt_ipc_notify) - sender continues immediately\n");
     int data = 42;
-    rt_status status = rt_ipc_cast(rt_self(), &data, sizeof(data));
+    rt_status status = rt_ipc_notify(rt_self(), &data, sizeof(data));
     if (!RT_FAILED(status)) {
         rt_message msg;
         rt_ipc_recv(&msg, 0);
@@ -167,7 +167,7 @@ int main(void) {
     printf("=== RPC Example - Request/Response Pattern ===\n\n");
 
     printf("This example shows:\n");
-    printf("1. Producer sends jobs with rt_ipc_call() (blocks until reply)\n");
+    printf("1. Producer sends jobs with rt_ipc_request() (blocks until reply)\n");
     printf("2. Consumer processes and replies with rt_ipc_reply()\n");
     printf("3. Producer only proceeds after receiving reply\n\n");
 
@@ -211,7 +211,7 @@ int main(void) {
 
     printf("\n=== Example completed ===\n");
     printf("\nKey takeaways:\n");
-    printf("- rt_ipc_call() blocks until rt_ipc_reply() is received\n");
+    printf("- rt_ipc_request() blocks until rt_ipc_reply() is received\n");
     printf("- Tag-based correlation matches replies to requests\n");
     printf("- Natural backpressure without explicit release calls\n");
     printf("- Simpler than old IPC_SYNC mode\n");

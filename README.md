@@ -94,7 +94,7 @@ All structures are statically allocated. Actor stacks use a static arena allocat
 # Bus pub-sub example
 ./build/bus
 
-# RPC example (request/reply pattern with rt_ipc_call)
+# RPC example (request/reply pattern with rt_ipc_request)
 ./build/sync_ipc
 
 # Priority scheduling example (4 levels, starvation demo)
@@ -137,9 +137,9 @@ cfg.stack_size = 128 * 1024;
 cfg.malloc_stack = false;     // false=arena (default), true=malloc
 actor_id worker = rt_spawn_ex(worker_actor, &args, &cfg);
 
-// Send fire-and-forget message (RT_MSG_CAST)
+// Send fire-and-forget message (RT_MSG_NOTIFY)
 int data = 42;
-rt_status status = rt_ipc_cast(target, &data, sizeof(data));
+rt_status status = rt_ipc_notify(target, &data, sizeof(data));
 if (RT_FAILED(status)) {
     // Pool exhausted: RT_MAILBOX_ENTRY_POOL_SIZE or RT_MESSAGE_DATA_POOL_SIZE
     // Send does NOT block or drop - caller must handle RT_ERR_NOMEM
@@ -152,7 +152,7 @@ if (RT_FAILED(status)) {
 
 // RPC pattern: Send request and wait for reply
 rt_message reply;
-status = rt_ipc_call(target, &data, sizeof(data), &reply, 5000);  // 5s timeout
+status = rt_ipc_request(target, &data, sizeof(data), &reply, 5000);  // 5s timeout
 if (RT_FAILED(status)) {
     // RT_ERR_TIMEOUT if no reply, RT_ERR_NOMEM if pool exhausted
 }
@@ -274,10 +274,10 @@ if (rt_is_exit_msg(&msg)) {
 
 ### IPC
 
-- `rt_ipc_cast(to, data, len)` - Send fire-and-forget message (RT_MSG_CAST)
+- `rt_ipc_notify(to, data, len)` - Send fire-and-forget message (RT_MSG_NOTIFY)
 - `rt_ipc_recv(msg, timeout)` - Receive any message
 - `rt_ipc_recv_match(from, class, tag, msg, timeout)` - Selective receive with filtering
-- `rt_ipc_call(to, req, len, reply, timeout)` - Blocking RPC (send CALL, wait for REPLY)
+- `rt_ipc_request(to, req, len, reply, timeout)` - Blocking RPC (send CALL, wait for REPLY)
 - `rt_ipc_reply(request, data, len)` - Reply to a CALL message
 - `rt_msg_decode(msg, class, tag, payload, len)` - Decode message header
 - `rt_msg_is_timer(msg)` - Check if message is a timer tick
