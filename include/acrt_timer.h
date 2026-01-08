@@ -25,4 +25,8 @@ acrt_status acrt_timer_every(uint32_t interval_us, timer_id *out);
 // Cancel timer
 acrt_status acrt_timer_cancel(timer_id id);
 
+// Sleep for specified duration (microseconds)
+// Uses selective receive - other messages remain in mailbox
+acrt_status acrt_sleep(uint32_t delay_us);
+
 #endif // ACRT_TIMER_H
