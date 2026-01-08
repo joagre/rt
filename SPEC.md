@@ -112,7 +112,7 @@ There is no preemptive scheduling or time slicing within the actor runtime.
 When an actor calls a blocking API, the following contract applies:
 
 **State transition:**
-- Actor transitions to `ACTOR_STATE_BLOCKED` and yields to scheduler
+- Actor transitions to `ACTOR_STATE_WAITING` and yields to scheduler
 - Actor is removed from run queue (not schedulable until unblocked)
 - Scheduler saves actor context and switches to next runnable actor
 
@@ -213,7 +213,7 @@ The runtime provides **conditional determinism**, not absolute determinism:
 File I/O operations (`acrt_file_read()`, `acrt_file_write()`, `acrt_file_sync()`) are **synchronous** and stall the entire runtime:
 
 **Behavior:**
-- Calling actor does NOT transition to `ACTOR_STATE_BLOCKED`
+- Calling actor does NOT transition to `ACTOR_STATE_WAITING`
 - The scheduler event loop is paused during the syscall
 - All actors are stalled (no actor runs while file I/O executes)
 - Timer delivery is suspended during the stall (timerfd expirations accumulate in kernel)
@@ -786,6 +786,25 @@ acrt_status acrt_ipc_recv_match(const actor_id *from, const acrt_msg_class *clas
 - `tag == NULL` or `*tag == ACRT_TAG_ANY` → match any tag
 - Non-wildcard values must match exactly
 
+**Usage examples:**
+```c
+// Match any message (equivalent to acrt_ipc_recv)
+acrt_ipc_recv_match(NULL, NULL, NULL, &msg, -1);
+
+// Match only from specific sender
+actor_id sender = some_actor;
+acrt_ipc_recv_match(&sender, NULL, NULL, &msg, -1);
+
+// Match REQUEST messages from any sender
+acrt_msg_class cls = ACRT_MSG_REQUEST;
+acrt_ipc_recv_match(NULL, &cls, NULL, &msg, -1);
+
+// Match REPLY with specific tag (used internally by acrt_ipc_request)
+acrt_msg_class reply_cls = ACRT_MSG_REPLY;
+uint32_t expected_tag = my_tag;
+acrt_ipc_recv_match(NULL, &reply_cls, &expected_tag, &msg, 5000);
+```
+
 #### Request/Reply
 
 ```c
@@ -850,15 +869,20 @@ acrt_status acrt_msg_decode(const acrt_message *msg,
 **Example: Handling pool exhaustion**
 
 ```c
-// Bad: Ignoring ACRT_ERR_NOMEM
-acrt_ipc_notify(target, &data, sizeof(data));  // WRONG
+// Bad: Ignoring return value
+acrt_ipc_notify(target, &data, sizeof(data));  // WRONG - message may be lost
 
-// Good: Check and handle
+// Good: Check and handle with backoff-retry
 acrt_status status = acrt_ipc_notify(target, &data, sizeof(data));
 if (status.code == ACRT_ERR_NOMEM) {
-    // Pool exhausted - implement backpressure
-    log_dropped_message(target);
-    // Or: backoff and retry
+    // Pool exhausted - backoff and retry
+    acrt_message msg;
+    acrt_ipc_recv(&msg, 10);  // Wait 10ms, process any incoming messages
+    // Retry the send
+    status = acrt_ipc_notify(target, &data, sizeof(data));
+    if (ACRT_FAILED(status)) {
+        // Still failing - drop message or take other action
+    }
 }
 ```
 
