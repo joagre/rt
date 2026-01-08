@@ -624,10 +624,10 @@ typedef struct {
 
 ```c
 // Spawn a new actor with default configuration
-actor_id acrt_spawn(actor_fn fn, void *arg);
+acrt_status acrt_spawn(actor_fn fn, void *arg, actor_id *out);
 
 // Spawn with explicit configuration
-actor_id acrt_spawn_ex(actor_fn fn, void *arg, const actor_config *cfg);
+acrt_status acrt_spawn_ex(actor_fn fn, void *arg, const actor_config *cfg, actor_id *out);
 
 // Terminate current actor
 _Noreturn void acrt_exit(void);
@@ -727,10 +727,11 @@ typedef enum {
 ### Tag System
 
 ```c
-#define ACRT_TAG_NONE        0            // No tag (for simple NOTIFY messages)
+#define ACRT_TAG_NONE        0            // No tag (for simple ASYNC messages)
 #define ACRT_TAG_ANY         0x0FFFFFFF   // Wildcard for selective receive filtering
-#define ACRT_TAG_GEN_BIT     0x08000000   // Bit 27: distinguishes generated tags
-#define ACRT_TAG_VALUE_MASK  0x07FFFFFF   // Lower 27 bits: tag value
+
+// Note: ACRT_TAG_GEN_BIT and ACRT_TAG_VALUE_MASK are internal implementation
+// details and not part of the public API
 ```
 
 **Tag semantics:**
@@ -759,7 +760,7 @@ typedef struct {
 #### Basic Messaging
 
 ```c
-// Fire-and-forget message (class=NOTIFY, tag=0)
+// Fire-and-forget message (class=ASYNC, tag=0)
 acrt_status acrt_ipc_notify(actor_id to, const void *data, size_t len);
 
 // Receive any message (no filtering)
@@ -1167,11 +1168,11 @@ acrt_status acrt_bus_unsubscribe(bus_id bus);
 
 // Read entry (non-blocking)
 // Returns ACRT_ERR_WOULDBLOCK if no data available
-acrt_status acrt_bus_read(bus_id bus, void *buf, size_t max_len, size_t *actual_len);
+acrt_status acrt_bus_read(bus_id bus, void *buf, size_t max_len, size_t *bytes_read);
 
 // Read with blocking
 acrt_status acrt_bus_read_wait(bus_id bus, void *buf, size_t max_len,
-                           size_t *actual_len, int32_t timeout_ms);
+                               size_t *bytes_read, int32_t timeout_ms);
 
 // Query bus state
 size_t acrt_bus_entry_count(bus_id bus);
@@ -1191,9 +1192,9 @@ size_t acrt_bus_entry_count(bus_id bus);
 
 `acrt_bus_read()` / `acrt_bus_read_wait()`:
 - If message size > `max_len`: Data is **truncated** to fit in buffer
-- `*actual_len` returns the **actual bytes copied** (truncated length), NOT the original message size
+- `*bytes_read` returns the **actual bytes copied** (truncated length), NOT the original message size
 - This is safe buffer overflow protection - caller gets as much data as fits
-- No error is returned for truncation (caller can compare `actual_len < max_entry_size` to detect)
+- No error is returned for truncation (caller can compare `bytes_read < max_entry_size` to detect)
 
 ### Bus Consumption Model (Semantic Contract)
 
@@ -1222,12 +1223,12 @@ The bus implements **per-subscriber read cursors** with the following **three co
 acrt_bus_subscribe(bus);
 //   -> subscriber.next_read_idx = 3 (next write position)
 
-acrt_bus_read(bus, buf, len, &actual);
+acrt_bus_read(bus, buf, len, &bytes_read);
 //   -> Returns ACRT_ERR_WOULDBLOCK (no new data)
 //   -> E1, E2, E3 are invisible (behind cursor)
 
 // Publisher publishes E4 (head advances to 4)
-acrt_bus_read(bus, buf, len, &actual);
+acrt_bus_read(bus, buf, len, &bytes_read);
 //   -> Returns E4 (first entry after subscription)
 ```
 
@@ -1670,11 +1671,11 @@ File I/O operations.
 acrt_status acrt_file_open(const char *path, int flags, int mode, int *fd_out);
 acrt_status acrt_file_close(int fd);
 
-acrt_status acrt_file_read(int fd, void *buf, size_t len, size_t *actual);
-acrt_status acrt_file_pread(int fd, void *buf, size_t len, size_t offset, size_t *actual);
+acrt_status acrt_file_read(int fd, void *buf, size_t len, size_t *bytes_read);
+acrt_status acrt_file_pread(int fd, void *buf, size_t len, size_t offset, size_t *bytes_read);
 
-acrt_status acrt_file_write(int fd, const void *buf, size_t len, size_t *actual);
-acrt_status acrt_file_pwrite(int fd, const void *buf, size_t len, size_t offset, size_t *actual);
+acrt_status acrt_file_write(int fd, const void *buf, size_t len, size_t *bytes_written);
+acrt_status acrt_file_pwrite(int fd, const void *buf, size_t len, size_t offset, size_t *bytes_written);
 
 acrt_status acrt_file_sync(int fd);
 ```
