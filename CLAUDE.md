@@ -12,6 +12,26 @@ This is an actor-based runtime for embedded systems, targeting STM32 (ARM Cortex
 - Development: Linux x86-64
 - Production: STM32 (ARM Cortex-M) bare metal
 
+## Documentation
+
+- **SPEC.md** - Complete design specification
+- **README.md** - Quick start and API overview
+- **man/man3/** - Unix man pages for all API functions
+
+Man pages available:
+- `acrt_init(3)` - Runtime initialization, run loop, shutdown
+- `acrt_spawn(3)` - Actor lifecycle, priority, stack allocation
+- `acrt_ipc(3)` - Message passing, request/reply, selective receive
+- `acrt_link(3)` - Linking and monitoring for death notifications
+- `acrt_timer(3)` - One-shot and periodic timers
+- `acrt_bus(3)` - Publish-subscribe bus
+- `acrt_net(3)` - Non-blocking TCP network I/O
+- `acrt_file(3)` - Synchronous file I/O
+- `acrt_types(3)` - Types, constants, compile-time configuration
+
+View without installing: `man man/man3/acrt_ipc.3`
+Install: `make install-man` (or `sudo make install-man`)
+
 ## Design Principles
 
 - Minimalistic and predictable behavior
