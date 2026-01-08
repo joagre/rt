@@ -293,7 +293,7 @@ acrt_status acrt_ipc_notify(actor_id to, const void *data, size_t len) {
         return ACRT_ERROR(ACRT_ERR_INVALID, "NULL data with non-zero length");
     }
 
-    return acrt_ipc_notify_ex(to, sender->id, ACRT_MSG_ASYNC, ACRT_TAG_NONE, data, len);
+    return acrt_ipc_notify_ex(to, sender->id, ACRT_MSG_NOTIFY, ACRT_TAG_NONE, data, len);
 }
 
 acrt_status acrt_ipc_recv(acrt_message *msg, int32_t timeout_ms) {
