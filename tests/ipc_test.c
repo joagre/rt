@@ -500,11 +500,11 @@ static void test11_message_size_limits(void *arg) {
     // Receive it
     acrt_message msg;
     status = acrt_ipc_recv(&msg, 100);
-    // msg.len includes header, so total should be max_payload_size + 4
-    if (!ACRT_FAILED(status) && msg.len == ACRT_MAX_MESSAGE_SIZE) {
+    // msg.len is payload length (excludes 4-byte header)
+    if (!ACRT_FAILED(status) && msg.len == max_payload_size) {
         TEST_PASS("received max size message");
     } else {
-        printf("    msg.len = %zu, expected %d\n", msg.len, ACRT_MAX_MESSAGE_SIZE);
+        printf("    msg.len = %zu, expected %zu\n", msg.len, max_payload_size);
         TEST_FAIL("failed to receive max size message");
     }
 

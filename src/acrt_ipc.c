@@ -372,10 +372,17 @@ acrt_status acrt_ipc_recv_match(const actor_id *from, const acrt_msg_class *clas
     // Found a match - unlink from mailbox
     mailbox_unlink(&current->mailbox, entry);
 
-    // Fill in message structure
+    // Pre-decode header and fill in message structure
+    uint32_t header = *(uint32_t *)entry->data;
+    acrt_msg_class msg_class;
+    uint32_t msg_tag;
+    decode_header(header, &msg_class, &msg_tag);
+
     msg->sender = entry->sender;
-    msg->len = entry->len;
-    msg->data = entry->data;
+    msg->class = msg_class;
+    msg->tag = msg_tag;
+    msg->len = entry->len - ACRT_MSG_HEADER_SIZE;  // Payload length only
+    msg->data = (const uint8_t *)entry->data + ACRT_MSG_HEADER_SIZE;  // Skip header
 
     // Store entry as active message for later cleanup
     current->active_msg = entry;
@@ -415,18 +422,12 @@ acrt_status acrt_ipc_reply(const acrt_message *request, const void *data, size_t
     ACRT_REQUIRE_ACTOR_CONTEXT();
     actor *current = acrt_actor_current();
 
-    if (!request || !request->data || request->len < ACRT_MSG_HEADER_SIZE) {
+    if (!request) {
         return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid request message");
     }
 
-    // Extract tag from request header
-    uint32_t header = *(uint32_t *)request->data;
-    acrt_msg_class req_class;
-    uint32_t req_tag;
-    decode_header(header, &req_class, &req_tag);
-
-    // Verify this is a REQUEST message
-    if (req_class != ACRT_MSG_REQUEST) {
+    // Verify this is a REQUEST message (use pre-decoded class)
+    if (request->class != ACRT_MSG_REQUEST) {
         return ACRT_ERROR(ACRT_ERR_INVALID, "Can only reply to ACRT_MSG_REQUEST messages");
     }
 
@@ -435,8 +436,8 @@ acrt_status acrt_ipc_reply(const acrt_message *request, const void *data, size_t
         return ACRT_ERROR(ACRT_ERR_INVALID, "NULL data with non-zero length");
     }
 
-    // Send ACRT_MSG_REPLY with same tag back to caller
-    return acrt_ipc_notify_ex(request->sender, current->id, ACRT_MSG_REPLY, req_tag, data, len);
+    // Send ACRT_MSG_REPLY with same tag back to caller (use pre-decoded tag)
+    return acrt_ipc_notify_ex(request->sender, current->id, ACRT_MSG_REPLY, request->tag, data, len);
 }
 
 // -----------------------------------------------------------------------------
@@ -445,33 +446,25 @@ acrt_status acrt_ipc_reply(const acrt_message *request, const void *data, size_t
 
 acrt_status acrt_msg_decode(const acrt_message *msg, acrt_msg_class *class,
                         uint32_t *tag, const void **payload, size_t *payload_len) {
-    if (!msg || !msg->data || msg->len < ACRT_MSG_HEADER_SIZE) {
+    if (!msg) {
         return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid message");
     }
 
-    uint32_t header = *(uint32_t *)msg->data;
-    decode_header(header, class, tag);
-
-    if (payload) {
-        *payload = (const uint8_t *)msg->data + ACRT_MSG_HEADER_SIZE;
-    }
-    if (payload_len) {
-        *payload_len = msg->len - ACRT_MSG_HEADER_SIZE;
-    }
+    // Return pre-decoded values from message struct
+    if (class) *class = msg->class;
+    if (tag) *tag = msg->tag;
+    if (payload) *payload = msg->data;  // Already points to payload
+    if (payload_len) *payload_len = msg->len;  // Already payload length
 
     return ACRT_SUCCESS;
 }
 
 bool acrt_msg_is_timer(const acrt_message *msg) {
-    if (!msg || !msg->data || msg->len < ACRT_MSG_HEADER_SIZE) {
+    if (!msg) {
         return false;
     }
-
-    uint32_t header = *(uint32_t *)msg->data;
-    acrt_msg_class class;
-    decode_header(header, &class, NULL);
-
-    return class == ACRT_MSG_TIMER;
+    // Use pre-decoded class
+    return msg->class == ACRT_MSG_TIMER;
 }
 
 // -----------------------------------------------------------------------------

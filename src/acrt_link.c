@@ -231,15 +231,11 @@ acrt_status acrt_monitor_cancel(uint32_t monitor_id) {
 
 // Check if message is an exit notification
 bool acrt_is_exit_msg(const acrt_message *msg) {
-    if (!msg || !msg->data || msg->len < ACRT_MSG_HEADER_SIZE) {
+    if (!msg) {
         return false;
     }
-
-    // Check message class
-    acrt_msg_class class;
-    acrt_msg_decode(msg, &class, NULL, NULL, NULL);
-
-    return class == ACRT_MSG_EXIT;
+    // Use pre-decoded class
+    return msg->class == ACRT_MSG_EXIT;
 }
 
 // Decode exit message
@@ -252,19 +248,12 @@ acrt_status acrt_decode_exit(const acrt_message *msg, acrt_exit_msg *out) {
         return ACRT_ERROR(ACRT_ERR_INVALID, "Not an exit message");
     }
 
-    // Extract payload (after header)
-    const void *payload;
-    size_t payload_len;
-    acrt_status status = acrt_msg_decode(msg, NULL, NULL, &payload, &payload_len);
-    if (ACRT_FAILED(status)) {
-        return status;
-    }
-
-    if (payload_len != sizeof(acrt_exit_msg)) {
+    // msg->data already points to payload, msg->len is payload length
+    if (msg->len != sizeof(acrt_exit_msg)) {
         return ACRT_ERROR(ACRT_ERR_INVALID, "Invalid exit message size");
     }
 
-    memcpy(out, payload, sizeof(acrt_exit_msg));
+    memcpy(out, msg->data, sizeof(acrt_exit_msg));
     return ACRT_SUCCESS;
 }
 

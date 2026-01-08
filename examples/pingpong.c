@@ -32,12 +32,8 @@ static void pong_actor(void *arg) {
             ping_id = msg.sender;
         }
 
-        // Decode message payload
-        const void *payload;
-        size_t payload_len;
-        acrt_msg_decode(&msg, NULL, NULL, &payload, &payload_len);
-
-        ping_msg pm_copy = *(ping_msg *)payload;
+        // Direct payload access - no decode needed
+        ping_msg pm_copy = *(ping_msg *)msg.data;
         printf("Pong: Received ping #%d from actor %u\n", pm_copy.count, msg.sender);
 
         // Send pong back
@@ -86,11 +82,8 @@ static void ping_actor(void *arg) {
             break;
         }
 
-        // Decode message payload
-        const void *payload;
-        acrt_msg_decode(&msg, NULL, NULL, &payload, NULL);
-
-        ping_msg recv_pm = *(ping_msg *)payload;
+        // Direct payload access - no decode needed
+        ping_msg recv_pm = *(ping_msg *)msg.data;
         printf("Ping: Received pong #%d from actor %u\n", recv_pm.count, msg.sender);
 
         // Send ping back

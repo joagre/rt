@@ -100,7 +100,16 @@ All messages have a 4-byte header prepended to payload:
 - **`acrt_ipc_recv_match(from, class, tag, msg, timeout)`**: Selective receive with filtering
 - **`acrt_ipc_request(to, req, len, reply, timeout)`**: Blocking request/reply (send REQUEST, wait for REPLY)
 - **`acrt_ipc_reply(request, data, len)`**: Reply to a REQUEST message
-- **`acrt_msg_decode(msg, class, tag, payload, len)`**: Decode message header
+
+### Message Structure (Pre-decoded)
+The `acrt_message` struct provides direct access to all fields - no `acrt_msg_decode()` needed:
+```c
+acrt_message msg;
+acrt_ipc_recv(&msg, -1);
+my_data *data = (my_data *)msg.data;  // Direct payload access
+if (msg.class == ACRT_MSG_REQUEST) { ... }  // Pre-decoded class
+// msg.tag also available directly
+```
 
 ### Selective Receive
 - `acrt_ipc_recv_match()` scans mailbox for messages matching filter criteria
@@ -219,12 +228,12 @@ Different implementations for Linux (dev) vs STM32 bare metal (prod):
 - File: Synchronous POSIX vs synchronous FATFS/littlefs
 
 ### Message Classes
-Messages are identified by class (not special sender IDs):
+Messages are identified by class (accessible directly via `msg.class`):
 - `ACRT_MSG_NOTIFY`: Fire-and-forget notification
 - `ACRT_MSG_REQUEST`: Request expecting a reply
 - `ACRT_MSG_REPLY`: Response to a REQUEST
-- `ACRT_MSG_TIMER`: Timer tick (tag contains timer_id)
+- `ACRT_MSG_TIMER`: Timer tick (`msg.tag` contains timer_id)
 - `ACRT_MSG_EXIT`: System notification (e.g., actor death)
 - `ACRT_MSG_ANY`: Wildcard for selective receive filtering
 
-Use `acrt_msg_decode()` or `acrt_msg_is_timer()` to check message type.
+Check message type directly: `if (msg.class == ACRT_MSG_TIMER) { ... }` or use `acrt_msg_is_timer(&msg)`.
