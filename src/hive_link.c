@@ -276,10 +276,10 @@ static bool send_exit_notification(actor *recipient, actor_id dying_id, hive_exi
         .reason = reason
     };
 
-    // Send using hive_ipc_notify_ex with HIVE_MSG_EXIT class
+    // Send using hive_ipc_notify_internal with HIVE_MSG_EXIT class
     // Sender is the dying actor so recipient knows who died
-    hive_status status = hive_ipc_notify_ex(recipient->id, dying_id, HIVE_MSG_EXIT,
-                                       HIVE_TAG_NONE, &exit_data, sizeof(exit_data));
+    hive_status status = hive_ipc_notify_internal(recipient->id, dying_id, HIVE_MSG_EXIT,
+                                                HIVE_TAG_NONE, &exit_data, sizeof(exit_data));
     if (HIVE_FAILED(status)) {
         HIVE_LOG_ERROR("Failed to send exit notification: %s", status.msg);
         return false;

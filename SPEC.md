@@ -28,7 +28,7 @@ A minimalistic actor-based runtime designed for **embedded and safety-critical s
 
 **Forbidden heap use** (exhaustive):
 - Scheduler loop (`hive_run()`, `hive_yield()`, context switching)
-- IPC (`hive_ipc_notify()`, `hive_ipc_recv()`, `hive_ipc_recv_match()`, `hive_ipc_request()`, `hive_ipc_reply()`)
+- IPC (`hive_ipc_notify()`, `hive_ipc_notify_ex()`, `hive_ipc_recv()`, `hive_ipc_recv_match()`, `hive_ipc_request()`, `hive_ipc_reply()`)
 - Timers (`hive_timer_after()`, `hive_timer_every()`, timer delivery)
 - Bus (`hive_bus_publish()`, `hive_bus_read()`, `hive_bus_read_wait()`)
 - Network I/O (`hive_net_*()` functions, event loop dispatch)
@@ -794,6 +794,10 @@ if (msg.class == HIVE_MSG_REQUEST) {
 ```c
 // Fire-and-forget message (class=NOTIFY, tag=0)
 hive_status hive_ipc_notify(actor_id to, const void *data, size_t len);
+
+// Send with explicit class and tag (sender is current actor)
+hive_status hive_ipc_notify_ex(actor_id to, hive_msg_class class,
+                               uint32_t tag, const void *data, size_t len);
 
 // Receive any message (no filtering)
 // timeout_ms == 0:  non-blocking, returns HIVE_ERR_WOULDBLOCK if empty

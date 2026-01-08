@@ -237,9 +237,9 @@ hive_status hive_mailbox_handle_timeout(actor *current, timer_id timeout_timer, 
 // Core Send/Receive
 // -----------------------------------------------------------------------------
 
-// Internal send with explicit class and tag (used by timer, link, etc.)
-hive_status hive_ipc_notify_ex(actor_id to, actor_id sender, hive_msg_class class,
-                         uint32_t tag, const void *data, size_t len) {
+// Internal notify with explicit sender, class and tag (used by timer, link, etc.)
+hive_status hive_ipc_notify_internal(actor_id to, actor_id sender, hive_msg_class class,
+                                   uint32_t tag, const void *data, size_t len) {
     actor *receiver = hive_actor_get(to);
     if (!receiver) {
         return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid receiver actor ID");
@@ -293,7 +293,20 @@ hive_status hive_ipc_notify(actor_id to, const void *data, size_t len) {
         return HIVE_ERROR(HIVE_ERR_INVALID, "NULL data with non-zero length");
     }
 
-    return hive_ipc_notify_ex(to, sender->id, HIVE_MSG_NOTIFY, HIVE_TAG_NONE, data, len);
+    return hive_ipc_notify_internal(to, sender->id, HIVE_MSG_NOTIFY, HIVE_TAG_NONE, data, len);
+}
+
+hive_status hive_ipc_notify_ex(actor_id to, hive_msg_class class,
+                               uint32_t tag, const void *data, size_t len) {
+    HIVE_REQUIRE_ACTOR_CONTEXT();
+    actor *sender = hive_actor_current();
+
+    // Validate data pointer - NULL with len > 0 would cause memcpy crash
+    if (data == NULL && len > 0) {
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL data with non-zero length");
+    }
+
+    return hive_ipc_notify_internal(to, sender->id, class, tag, data, len);
 }
 
 hive_status hive_ipc_recv(hive_message *msg, int32_t timeout_ms) {
@@ -408,7 +421,7 @@ hive_status hive_ipc_request(actor_id to, const void *request, size_t req_len,
     uint32_t call_tag = generate_tag();
 
     // Send HIVE_MSG_REQUEST with generated tag
-    hive_status status = hive_ipc_notify_ex(to, sender->id, HIVE_MSG_REQUEST, call_tag, request, req_len);
+    hive_status status = hive_ipc_notify_internal(to, sender->id, HIVE_MSG_REQUEST, call_tag, request, req_len);
     if (HIVE_FAILED(status)) {
         return status;
     }
@@ -437,7 +450,7 @@ hive_status hive_ipc_reply(const hive_message *request, const void *data, size_t
     }
 
     // Send HIVE_MSG_REPLY with same tag back to caller (use pre-decoded tag)
-    return hive_ipc_notify_ex(request->sender, current->id, HIVE_MSG_REPLY, request->tag, data, len);
+    return hive_ipc_notify_internal(request->sender, current->id, HIVE_MSG_REPLY, request->tag, data, len);
 }
 
 // -----------------------------------------------------------------------------

@@ -1,12 +1,14 @@
 .\" Man page for IPC functions
 .TH HIVE_IPC 3 "January 2025" "Hive 1.0" "Actor Runtime Manual"
 .SH NAME
-hive_ipc_notify, hive_ipc_recv, hive_ipc_recv_match, hive_ipc_request, hive_ipc_reply, hive_msg_is_timer, hive_ipc_pending, hive_ipc_count \- inter-process communication
+hive_ipc_notify, hive_ipc_notify_ex, hive_ipc_recv, hive_ipc_recv_match, hive_ipc_request, hive_ipc_reply, hive_msg_is_timer, hive_ipc_pending, hive_ipc_count \- inter-process communication
 .SH SYNOPSIS
 .nf
 .B #include <hive_ipc.h>
 .PP
 .BI "hive_status hive_ipc_notify(actor_id " to ", const void *" data ", size_t " len ");"
+.BI "hive_status hive_ipc_notify_ex(actor_id " to ", hive_msg_class " class ", uint32_t " tag ","
+.BI "                               const void *" data ", size_t " len ");"
 .BI "hive_status hive_ipc_recv(hive_message *" msg ", int32_t " timeout_ms ");"
 .BI "hive_status hive_ipc_recv_match(const actor_id *" from ", const hive_msg_class *" class ","
 .BI "                            const uint32_t *" tag ", hive_message *" msg ", int32_t " timeout_ms ");"
@@ -72,6 +74,17 @@ is copied to the receiver's mailbox. The sender continues immediately without
 waiting. Maximum payload size is
 .B HIVE_MAX_MESSAGE_SIZE - 4
 (252 bytes by default).
+.PP
+.BR hive_ipc_notify_ex ()
+is like
+.BR hive_ipc_notify ()
+but allows specifying the message
+.I class
+and
+.IR tag .
+This is useful for implementing custom protocols or tagged notifications where
+the receiver needs to distinguish between different message types or correlate
+messages. The sender is automatically set to the current actor.
 .SS Receiving Messages
 .BR hive_ipc_recv ()
 receives the next message from the mailbox in FIFO order. The
@@ -210,9 +223,11 @@ IPC uses global pools shared by all actors:
 .PP
 When pools are exhausted,
 .BR hive_ipc_notify ()
-returns
+and
+.BR hive_ipc_notify_ex ()
+return
 .B HIVE_ERR_NOMEM
-immediately. It does
+immediately. They do
 .B not
 block or drop messages. Implement backoff-retry:
 .PP

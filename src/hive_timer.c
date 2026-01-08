@@ -73,8 +73,8 @@ void hive_timer_handle_event(io_source *source) {
     // Send timer tick message to actor
     // Use HIVE_MSG_TIMER class with timer_id as tag, sender is the owning actor
     // No payload needed - timer_id is encoded in the tag
-    hive_status status = hive_ipc_notify_ex(entry->owner, entry->owner, HIVE_MSG_TIMER,
-                                       entry->id, NULL, 0);
+    hive_status status = hive_ipc_notify_internal(entry->owner, entry->owner, HIVE_MSG_TIMER,
+                                                entry->id, NULL, 0);
     if (HIVE_FAILED(status)) {
         HIVE_LOG_ERROR("Failed to send timer tick: %s", status.msg);
         // Don't cleanup timer - try again next tick

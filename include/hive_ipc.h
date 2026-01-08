@@ -13,6 +13,14 @@
 // Returns HIVE_ERR_NOMEM if IPC pools exhausted.
 hive_status hive_ipc_notify(actor_id to, const void *data, size_t len);
 
+// Send a message with explicit class and tag
+// Like hive_ipc_notify, but allows specifying message class and tag.
+// Useful for implementing custom protocols or for tagged notifications.
+// The sender is automatically set to the current actor.
+// Returns HIVE_ERR_NOMEM if IPC pools exhausted.
+hive_status hive_ipc_notify_ex(actor_id to, hive_msg_class class,
+                               uint32_t tag, const void *data, size_t len);
+
 // Receive any message (FIFO order)
 // timeout_ms: HIVE_TIMEOUT_NONBLOCKING (0) returns HIVE_ERR_WOULDBLOCK if empty
 //             HIVE_TIMEOUT_INFINITE (-1) blocks forever

@@ -133,6 +133,7 @@ All messages have a 4-byte header prepended to payload:
 
 ### IPC API
 - **`hive_ipc_notify(to, data, len)`**: Fire-and-forget notification (class=NOTIFY)
+- **`hive_ipc_notify_ex(to, class, tag, data, len)`**: Send with explicit class and tag
 - **`hive_ipc_recv(msg, timeout)`**: Receive any message
 - **`hive_ipc_recv_match(from, class, tag, msg, timeout)`**: Selective receive with filtering
 - **`hive_ipc_request(to, req, len, reply, timeout)`**: Blocking request/reply (send REQUEST, wait for REPLY)
@@ -162,7 +163,7 @@ IPC uses global pools shared by all actors:
 - **Message data pool**: `HIVE_MESSAGE_DATA_POOL_SIZE` (256 default)
 
 **When pools are exhausted:**
-- `hive_ipc_notify()` returns `HIVE_ERR_NOMEM` immediately
+- `hive_ipc_notify()` and `hive_ipc_notify_ex()` return `HIVE_ERR_NOMEM` immediately
 - Send operation **does NOT block** waiting for space
 - Send operation **does NOT drop** messages automatically
 - Caller **must check** return value and handle failure (retry, backoff, or discard)
