@@ -1920,6 +1920,35 @@ procedure hive_run():
                     wake_actor(source.owner)
 ```
 
+### hive_step() - External Event Loop Integration
+
+For integration with external event loops (e.g., Webots simulator), use `hive_step()`:
+
+```
+procedure hive_step():
+    # 1. Poll for I/O events (non-blocking)
+    events = epoll_wait(epoll_fd, timeout=0)
+    dispatch_io_events(events)
+
+    # 2. Run each READY actor exactly once (priority order)
+    for prio in [CRITICAL, HIGH, NORMAL, LOW]:
+        for actor in actors where state == READY and priority == prio:
+            context_switch(scheduler_ctx, actor.ctx)
+            # Actor runs until it yields or exits
+            # Even if actor yields and becomes READY again, skip it this step
+
+    return HIVE_OK if ran_any else HIVE_ERR_WOULDBLOCK
+```
+
+**Use case:** Simulation integration where an external loop controls time:
+```c
+while (wb_robot_step(TIME_STEP) != -1) {
+    publish_sensors_to_bus();
+    hive_step();  // Each actor runs once
+    read_motors_from_bus();
+}
+```
+
 ## Event Loop Architecture
 
 When all actors are blocked on I/O, the scheduler waits efficiently for I/O events using platform-specific event notification mechanisms.

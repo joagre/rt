@@ -289,6 +289,7 @@ if (msg.class == HIVE_MSG_EXIT) {
 
 - `hive_init()` - Initialize the runtime
 - `hive_run()` - Run the scheduler (blocks until all actors exit)
+- `hive_step()` - Run each ready actor once (for external event loop integration, e.g., Webots)
 - `hive_cleanup()` - Cleanup and free resources
 - `hive_shutdown()` - Request graceful shutdown
 - `hive_actor_alive(id)` - Check if actor is still alive

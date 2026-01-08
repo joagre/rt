@@ -1,13 +1,14 @@
-.\" Man page for hive_init, hive_run, hive_shutdown, hive_cleanup
-.TH HIVE_INIT 3 "January 2025" "ACRT 1.0" "Actor Runtime Manual"
+.\" Man page for hive_init, hive_run, hive_step, hive_shutdown, hive_cleanup
+.TH HIVE_INIT 3 "January 2025" "Hive 1.0" "Actor Runtime Manual"
 .SH NAME
-hive_init, hive_run, hive_shutdown, hive_cleanup \- initialize and control the actor runtime
+hive_init, hive_run, hive_step, hive_shutdown, hive_cleanup \- initialize and control the actor runtime
 .SH SYNOPSIS
 .nf
 .B #include <hive_runtime.h>
 .PP
 .BI "hive_status hive_init(void);"
 .BI "void hive_run(void);"
+.BI "hive_status hive_step(void);"
 .BI "void hive_shutdown(void);"
 .BI "void hive_cleanup(void);"
 .fi
@@ -30,6 +31,17 @@ four priority levels (CRITICAL=0, HIGH=1, NORMAL=2, LOW=3). When no actors are
 runnable, the scheduler efficiently waits for I/O events using
 .BR epoll_wait (2)
 on Linux or WFI (Wait For Interrupt) on STM32.
+.PP
+.BR hive_step ()
+runs each READY actor exactly once (in priority order) and returns immediately.
+This function is designed for integration with external event loops such as
+simulation environments (e.g., Webots). It polls for I/O events non-blocking,
+then gives each ready actor one execution slot. Unlike
+.BR hive_run (),
+it does not block waiting for I/O events and returns after each actor has had
+one opportunity to run. If an actor yields and becomes READY again, it will not
+run again until the next call to
+.BR hive_step ().
 .PP
 .BR hive_shutdown ()
 requests graceful shutdown of the runtime. All actors will be allowed to
@@ -55,6 +67,13 @@ On failure,
 indicates the error and
 .I status.msg
 contains a descriptive string.
+.PP
+.BR hive_step ()
+returns
+.B HIVE_OK
+if at least one actor executed, or
+.B HIVE_ERR_WOULDBLOCK
+if no actors were ready to run.
 .PP
 The other functions do not return values.
 .SH ERRORS
@@ -119,6 +138,33 @@ int main(void) {
     hive_run();      /* Blocks until all actors exit */
     hive_cleanup();
 
+    return 0;
+}
+.fi
+.PP
+Example using
+.BR hive_step ()
+for simulation integration:
+.nf
+
+/* Webots controller example */
+#include <hive_runtime.h>
+#include <webots/robot.h>
+
+int main(void) {
+    wb_robot_init();
+    hive_init();
+
+    /* Spawn actors, create buses... */
+
+    while (wb_robot_step(TIME_STEP) != -1) {
+        publish_sensors_to_bus();
+        hive_step();   /* Each actor runs once */
+        read_motors_from_bus();
+    }
+
+    hive_cleanup();
+    wb_robot_cleanup();
     return 0;
 }
 .fi

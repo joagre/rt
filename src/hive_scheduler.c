@@ -162,6 +162,78 @@ void hive_scheduler_run(void) {
     HIVE_LOG_INFO("Scheduler stopped");
 }
 
+hive_status hive_scheduler_step(void) {
+    if (!g_scheduler.initialized) {
+        return HIVE_ERROR(HIVE_ERR_INVALID, "Scheduler not initialized");
+    }
+
+    actor_table *table = hive_actor_get_table();
+    if (!table) {
+        return HIVE_ERROR(HIVE_ERR_INVALID, "Actor table not initialized");
+    }
+
+    // Poll for I/O events (non-blocking, timeout=0)
+    struct epoll_event events[HIVE_EPOLL_MAX_EVENTS];
+    int n = epoll_wait(g_scheduler.epoll_fd, events, HIVE_EPOLL_MAX_EVENTS, 0);
+
+    // Dispatch any ready epoll events
+    for (int i = 0; i < n; i++) {
+        io_source *source = events[i].data.ptr;
+
+        if (source->type == IO_SOURCE_TIMER) {
+            hive_timer_handle_event(source);
+        } else if (source->type == IO_SOURCE_NETWORK) {
+            hive_net_handle_event(source);
+        }
+    }
+
+    // Run each READY actor exactly once (priority order)
+    // Collect ready actors first to avoid issues with state changes during iteration
+    bool ran_any = false;
+
+    for (hive_priority_level prio = HIVE_PRIORITY_CRITICAL; prio < HIVE_PRIORITY_COUNT; prio++) {
+        for (size_t i = 0; i < table->max_actors; i++) {
+            actor *a = &table->actors[i];
+
+            if (a->state != ACTOR_STATE_READY || a->priority != prio) {
+                continue;
+            }
+
+            ran_any = true;
+
+            // Switch to actor
+            HIVE_LOG_TRACE("Scheduler step: Running actor %u (prio=%d)", a->id, prio);
+            a->state = ACTOR_STATE_RUNNING;
+            hive_actor_set_current(a);
+
+            // Context switch to actor
+            hive_context_switch(&g_scheduler.scheduler_ctx, &a->ctx);
+
+            // Check for stack overflow
+            if (!check_stack_guard(a)) {
+                HIVE_LOG_ERROR("Actor %u stack overflow detected", a->id);
+                a->exit_reason = HIVE_EXIT_CRASH_STACK;
+                a->state = ACTOR_STATE_DEAD;
+            }
+
+            // Actor has yielded or exited
+            HIVE_LOG_TRACE("Scheduler step: Actor %u yielded, state=%d", a->id, a->state);
+            hive_actor_set_current(NULL);
+
+            // If actor is dead, free its resources
+            if (a->state == ACTOR_STATE_DEAD) {
+                hive_actor_free(a);
+            }
+            // If actor is still running (yielded), mark as ready for next step
+            else if (a->state == ACTOR_STATE_RUNNING) {
+                a->state = ACTOR_STATE_READY;
+            }
+        }
+    }
+
+    return ran_any ? HIVE_SUCCESS : HIVE_ERROR(HIVE_ERR_WOULDBLOCK, "No actors ready");
+}
+
 void hive_scheduler_shutdown(void) {
     g_scheduler.shutdown_requested = true;
 }
