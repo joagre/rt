@@ -727,21 +727,18 @@ typedef enum {
 ### Tag System
 
 ```c
-#define RT_TAG_NONE      0                // No tag (for simple CAST messages)
-#define RT_TAG_GENERATE  ((uint32_t)-1)   // Request runtime to generate unique tag
-#define RT_TAG_ANY       ((uint32_t)-2)   // Wildcard for selective receive filtering
-
-#define RT_TAG_GEN_BIT    (1u << 27)      // Generated flag bit
-#define RT_TAG_VALUE_MASK 0x07FFFFFFu     // 27-bit value mask
+#define RT_TAG_NONE        0            // No tag (for simple CAST messages)
+#define RT_TAG_ANY         0x0FFFFFFF   // Wildcard for selective receive filtering
+#define RT_TAG_GEN_BIT     0x08000000   // Bit 27: distinguishes generated tags
+#define RT_TAG_VALUE_MASK  0x07FFFFFF   // Lower 27 bits: tag value
 ```
 
 **Tag semantics:**
 - **RT_TAG_NONE**: Used for simple CAST messages where no correlation is needed
-- **RT_TAG_GENERATE**: Pass pointer to `rt_ipc_send_ex()`, runtime generates unique 27-bit value with gen bit set, returns via pointer
 - **RT_TAG_ANY**: Used in `rt_ipc_recv_match()` to match any tag
-- **User-provided tags**: Any value 0 to 2^27-1 (gen bit must be 0)
+- **Generated tags**: Created automatically by `rt_ipc_call()` for RPC correlation
 
-**Tag generation:** Global counter, increments on each `RT_TAG_GENERATE` request. Generated tags have `RT_TAG_GEN_BIT` set. Wraps at 2^27 (134M values).
+**Tag generation:** Internal to `rt_ipc_call()`. Global counter increments on each call. Generated tags have `RT_TAG_GEN_BIT` set. Wraps at 2^27 (134M values).
 
 **Namespace separation:** Generated tags (gen=1) and user tags (gen=0) can never collide.
 
@@ -777,15 +774,15 @@ rt_status rt_ipc_recv(rt_message *msg, int32_t timeout_ms);
 ```c
 // Receive with filtering on sender, class, and/or tag
 // Blocks until message matches ALL non-wildcard criteria, or timeout
-// On return, actual values are written back to non-NULL pointers
-rt_status rt_ipc_recv_match(actor_id *from, rt_msg_class *class,
-                            uint32_t *tag, rt_message *msg, int32_t timeout_ms);
+// Pass NULL for any filter parameter to accept any value
+rt_status rt_ipc_recv_match(const actor_id *from, const rt_msg_class *class,
+                            const uint32_t *tag, rt_message *msg, int32_t timeout_ms);
 ```
 
 **Filter semantics:**
-- `*from == RT_SENDER_ANY` → match any sender
-- `*class == RT_MSG_ANY` → match any class
-- `*tag == RT_TAG_ANY` → match any tag
+- `from == NULL` or `*from == RT_SENDER_ANY` → match any sender
+- `class == NULL` or `*class == RT_MSG_ANY` → match any class
+- `tag == NULL` or `*tag == RT_TAG_ANY` → match any tag
 - Non-wildcard values must match exactly
 
 #### RPC (Request/Reply)
@@ -935,14 +932,15 @@ Global pool limits: **Yes** - all actors share:
 **Example: Waiting for specific reply**
 
 ```c
-// Send RPC request with generated tag
-uint32_t tag = RT_TAG_GENERATE;
-// (internally rt_ipc_call does this)
+// Using rt_ipc_call() for RPC (recommended - handles tag generation internally)
+rt_message reply;
+rt_ipc_call(server, &request, sizeof(request), &reply, 5000);
 
-// Wait for reply with matching tag
+// Or manually using selective receive:
 actor_id from = server;
 rt_msg_class class = RT_MSG_REPLY;
-rt_ipc_recv_match(&from, &class, &tag, &reply, 5000);
+uint32_t expected_tag = 42;  // Known tag from earlier call
+rt_ipc_recv_match(&from, &class, &expected_tag, &reply, 5000);
 
 // During the wait:
 // - CAST messages from other actors: skipped, stay in mailbox
