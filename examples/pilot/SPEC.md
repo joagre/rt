@@ -84,39 +84,52 @@ Four actors connected via buses:
 
 ## Implementation Details
 
-### Single File Design
+### Multi-File Design
 
-All code is in `pilot.c` (~260 lines), organized into sections:
+Code is split into focused modules:
 
-1. **Portable types** - `imu_data_t`, `motor_cmd_t`, `pid_state_t`
-2. **Portable control code** - `pid_init()`, `pid_update()`, `mixer_update()`
-3. **Platform abstraction** - `motor_output_set()` (global variable interface)
-4. **Attitude actor** - Subscribes to IMU bus, runs PIDs, outputs motor commands
-5. **Webots platform layer** - Device init, sensor reading, motor writing
-6. **Main loop** - Webots integration with `hive_step()`
+| File | Purpose |
+|------|---------|
+| `pilot.c` | Main loop, platform layer, bus setup |
+| `sensor_actor.c/h` | Reads hardware, publishes to IMU bus |
+| `altitude_actor.c/h` | Outer loop: altitude PID → thrust |
+| `attitude_actor.c/h` | Inner loop: rate PIDs + mixer → motor commands |
+| `motor_actor.c/h` | Safety: limits, watchdog → hardware |
+| `pid.c/h` | Reusable PID controller |
+| `types.h` | Portable data types |
+| `config.h` | All tuning parameters and constants |
 
 ### Data Flow
 
 ```
-Webots sensors → platform_read_imu() → imu_data_t → bus publish
-                                                         │
-                                                         ▼
-                                              attitude_actor reads bus
-                                                         │
-                                                         ▼
-                                              PID controllers compute
-                                                         │
-                                                         ▼
-                                              mixer_update() → motor_cmd_t
-                                                         │
-                                                         ▼
-                                              motor_output_set() → global
-                                                         │
-                                                         ▼
-                              platform_write_motors() ← reads global
-                                                         │
-                                                         ▼
-                                              wb_motor_set_velocity()
+Webots sensors
+       │
+       ▼
+platform_read_imu() ◄── called by sensor_actor
+       │
+       ▼
+   IMU Bus
+       │
+       ├──────────────────────┐
+       ▼                      ▼
+Altitude Actor          Attitude Actor
+(altitude PID)          (rate PIDs + mixer)
+       │                      │
+       ▼                      │
+  Thrust Bus ─────────────────┘
+                              │
+                              ▼
+                         Motor Bus
+                              │
+                              ▼
+                        Motor Actor
+                     (safety, watchdog)
+                              │
+                              ▼
+                platform_write_motors()
+                              │
+                              ▼
+                   wb_motor_set_velocity()
 ```
 
 ---
@@ -189,21 +202,19 @@ static const float signs[4] = {-1.0f, 1.0f, -1.0f, 1.0f};
 
 ### Simulation Loop
 
+The main loop is minimal - all logic lives in actors:
+
 ```c
-while (wb_robot_step(TIME_STEP) != -1) {
-    // 1. Read sensors from Webots
-    platform_read_imu(&imu);
-
-    // 2. Publish to bus for actors
-    hive_bus_publish(g_imu_bus, &imu, sizeof(imu));
-
-    // 3. Run actors (attitude actor computes motor commands)
+while (wb_robot_step(TIME_STEP_MS) != -1) {
     hive_step();
-
-    // 4. Apply motor commands to Webots
-    platform_write_motors();
 }
 ```
+
+Each `hive_step()` runs all ready actors once:
+1. Sensor actor reads hardware, publishes to IMU bus
+2. Altitude actor reads IMU bus, publishes thrust
+3. Attitude actor reads IMU + thrust, publishes motor commands
+4. Motor actor reads commands, writes to hardware
 
 ### Key Parameters
 
@@ -229,26 +240,30 @@ while (wb_robot_step(TIME_STEP) != -1) {
 
 ### Platform Abstraction
 
-To port to real hardware, replace three functions:
+To port to real hardware, replace the platform functions in `pilot.c`:
 
 ```c
-// Initialize hardware
+// Initialize hardware (sensors, motors)
 int platform_init(void);
 
-// Read sensors into portable struct
+// Read sensors into portable struct (called by sensor_actor)
 void platform_read_imu(imu_data_t *imu);
 
-// Write motor commands from global
-void platform_write_motors(void);
+// Write motor commands (called by motor_actor)
+void platform_write_motors(const motor_cmd_t *cmd);
 ```
 
-### Portable Code
+Actors receive platform functions via init:
+- `sensor_actor_init(bus, platform_read_imu)`
+- `motor_actor_init(bus, platform_write_motors)`
 
-The following code is hardware-independent:
+### Portable Code (no hardware deps)
 
-- `pid_init()`, `pid_update()` - Generic PID controller
-- `mixer_update()` - Crazyflie-specific but no hardware deps
-- `attitude_actor()` - Uses only bus API and portable types
+- `pid.c/h` - Generic PID controller
+- `altitude_actor.c/h` - Uses only bus API
+- `attitude_actor.c/h` - Uses only bus API
+- `types.h` - Data structures
+- `config.h` - Tuning parameters
 
 ---
 

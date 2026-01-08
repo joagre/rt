@@ -4,13 +4,12 @@ Quadcopter hover example using hive actor runtime with Webots simulator.
 
 ## What it does
 
-Demonstrates altitude-hold hover control with a Crazyflie quadcopter:
+Demonstrates altitude-hold hover control with a Crazyflie quadcopter using 4 actors:
 
-1. Main loop reads IMU and GPS sensors from Webots
-2. Publishes sensor data to a bus
-3. Calls `hive_step()` to run the attitude actor
-4. Attitude actor runs PID controllers for roll, pitch, yaw, and altitude
-5. Motor commands are applied to Webots motors
+1. **Sensor actor** reads IMU/GPS from Webots, publishes to IMU bus
+2. **Altitude actor** runs altitude PID, publishes thrust commands
+3. **Attitude actor** runs rate PIDs + mixer, publishes motor commands
+4. **Motor actor** enforces safety limits, writes to hardware
 
 The drone rises to 1.0m altitude and holds position.
 
@@ -31,39 +30,50 @@ Then open `worlds/hover_test.wbt` in Webots and start the simulation.
 
 ## Files
 
-- `pilot.c` - Complete hover controller (~260 lines)
-- `Makefile` - Build configuration
-- `worlds/hover_test.wbt` - Webots world with Crazyflie
+```
+pilot.c              # Main loop, platform layer, bus setup
+sensor_actor.c/h     # Hardware sensor reading → IMU bus
+altitude_actor.c/h   # Outer loop: altitude PID → thrust
+attitude_actor.c/h   # Inner loop: rate PIDs → motor commands
+motor_actor.c/h      # Safety: watchdog, limits → hardware
+pid.c/h              # Reusable PID controller
+types.h              # Portable data types
+config.h             # Shared constants (PID gains, timing)
+```
 
 ## Architecture
 
-The code is organized for portability to real hardware:
+Four actors connected via buses:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    PORTABLE CONTROL CODE                     │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │ PID Control │  │    Mixer    │  │   Attitude Actor    │  │
-│  │  (generic)  │  │ (Crazyflie) │  │ (roll/pitch/yaw/alt)│  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                    Platform abstraction
-                            │
-┌─────────────────────────────────────────────────────────────┐
-│                   WEBOTS PLATFORM LAYER                      │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │ platform_   │  │ platform_   │  │  platform_write_    │  │
-│  │ init()      │  │ read_imu()  │  │  motors()           │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+Sensor Actor ──► IMU Bus ──► Altitude Actor ──► Thrust Bus ─┐
+                     │                                      │
+                     │       ┌──────────────────────────────┘
+                     │       │
+                     └──► Attitude Actor ──► Motor Bus ──► Motor Actor
+                                                               │
+                                                               ▼
+                                                          Hardware
 ```
 
-To port to real hardware, replace the platform layer functions.
+Platform layer (in pilot.c) provides hardware abstraction:
+- `platform_read_imu()` - reads Webots sensors
+- `platform_write_motors()` - writes Webots motors
+
+To port to real hardware, replace these functions.
+
+## Actor Priorities
+
+| Actor    | Priority | Rationale |
+|----------|----------|-----------|
+| sensor   | CRITICAL | Must read on time |
+| attitude | CRITICAL | Inner loop, safety critical |
+| motor    | CRITICAL | Safety critical |
+| altitude | HIGH     | Outer loop, can tolerate delay |
 
 ## Control System
 
-### PID Controllers
+### PID Controllers (tuned in config.h)
 
 | Controller | Kp   | Ki   | Kd    | Purpose |
 |------------|------|------|-------|---------|
@@ -89,86 +99,30 @@ M3 = thrust + pitch - yaw
 M4 = thrust + roll  + yaw
 ```
 
-Motor velocity signs: M1,M3 negative; M2,M4 positive (for torque cancellation).
+## Main Loop
 
-## How Webots Controllers Work
-
-Understanding the Webots execution model is crucial for writing controllers.
-
-### Process Model
-
-Webots runs your controller as a **separate process**. When you start a simulation:
-
-1. Webots spawns your executable (`pilot`)
-2. Your `main()` runs
-3. Webots and your controller communicate via IPC
-
-### The Step Function
-
-The key function is `wb_robot_step(TIME_STEP)`. It synchronizes your controller with the simulator:
-
-```
-Your controller                    Webots simulator
-───────────────                    ────────────────
-main() starts
-  │
-  ├─► wb_robot_init()  ──────────► "Controller connected"
-  │
-  ├─► enable sensors
-  │
-  └─► while loop:
-        │
-        ├─► wb_robot_step(4) ────► BLOCKS here
-        │         │                    │
-        │         │                    ▼
-        │         │               Simulate 4ms of physics
-        │         │               Update sensor values
-        │         │               Apply motor commands
-        │         │                    │
-        │         ◄────────────────────┘ Returns when done
-        │
-        ├─► read sensors (values from previous step)
-        ├─► your logic (hive_step runs actors)
-        ├─► set motors (applied on next step)
-        │
-        └─► loop back to wb_robot_step()
-```
-
-### Key Points
-
-1. **`wb_robot_step()` blocks** until Webots advances simulation by TIME_STEP milliseconds
-2. **Sensors read values from the previous step** (there's a 1-step delay)
-3. **Motor commands take effect on the next step** (another 1-step delay)
-4. **Return value of -1** means simulation ended (user pressed stop)
-5. **If your code is slow**, simulation slows down to wait for you
-
-### Timing
-
-With `TIME_STEP=4`:
-- Your loop runs **250 times per simulated second**
-- If your code takes <4ms real time, simulation runs at real-time speed
-- If your code takes >4ms, simulation runs slower than real-time
-
-### Integration with Hive Runtime
-
-We use `hive_step()` instead of `hive_run()`:
+The main loop is minimal - all logic is in actors:
 
 ```c
-while (wb_robot_step(TIME_STEP) != -1) {
-    // 1. Read sensors from Webots, publish to bus
-    platform_read_imu(&imu);
-    hive_bus_publish(g_imu_bus, &imu, sizeof(imu));
-
-    // 2. Run each ready actor exactly once
+while (wb_robot_step(TIME_STEP_MS) != -1) {
     hive_step();
-
-    // 3. Apply motor commands to Webots
-    platform_write_motors();
 }
 ```
 
-This works because:
-- **Webots controls time**, not the hive scheduler
-- **No hive timers needed** - the loop rate is determined by `wb_robot_step()`
-- **Actors yield after processing** - `hive_step()` runs each once and returns
-- **Deterministic** - same inputs produce same outputs (no timing races)
+Webots controls time via `wb_robot_step()`. Each call:
+1. Blocks until Webots simulates TIME_STEP milliseconds
+2. Returns, allowing `hive_step()` to run all actors once
+3. Actors read sensors, compute, publish results
+4. Loop repeats
+
+## Webots Device Names
+
+| Device | Name | Type |
+|--------|------|------|
+| Motor 1 (front) | `m1_motor` | RotationalMotor |
+| Motor 2 (right) | `m2_motor` | RotationalMotor |
+| Motor 3 (rear) | `m3_motor` | RotationalMotor |
+| Motor 4 (left) | `m4_motor` | RotationalMotor |
+| Gyroscope | `gyro` | Gyro |
+| Inertial Unit | `inertial_unit` | InertialUnit |
+| GPS | `gps` | GPS |
