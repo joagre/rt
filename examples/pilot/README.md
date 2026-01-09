@@ -4,16 +4,17 @@ Quadcopter hover example using hive actor runtime with Webots simulator.
 
 ## What it does
 
-Demonstrates altitude-hold hover control with a Crazyflie quadcopter using 6 actors:
+Demonstrates altitude-hold and position-hold control with a Crazyflie quadcopter using 7 actors:
 
 1. **Sensor actor** reads IMU/GPS from Webots, publishes to IMU bus
-2. **Estimator actor** sensor fusion, computes vertical velocity, publishes to state bus
+2. **Estimator actor** sensor fusion, computes velocities, publishes to state bus
 3. **Altitude actor** runs altitude PID, publishes thrust commands
-4. **Angle actor** runs angle PIDs, publishes rate setpoints
-5. **Attitude actor** runs rate PIDs, publishes torque commands
-6. **Motor actor** applies mixer, enforces safety limits, writes to hardware
+4. **Position actor** runs position PD, publishes angle setpoints
+5. **Angle actor** runs angle PIDs, publishes rate setpoints
+6. **Attitude actor** runs rate PIDs, publishes torque commands
+7. **Motor actor** applies X-config mixer, enforces safety limits, writes to hardware
 
-The drone rises to 1.0m altitude and holds position.
+The drone rises to 1.0m altitude and holds XY position.
 
 ## Prerequisites
 
@@ -37,6 +38,7 @@ pilot.c              # Main loop, platform layer, bus setup
 sensor_actor.c/h     # Hardware sensor reading → IMU bus
 estimator_actor.c/h  # Sensor fusion → state bus
 altitude_actor.c/h   # Altitude PID → thrust
+position_actor.c/h   # Position PD → angle setpoints
 angle_actor.c/h      # Angle PIDs → rate setpoints
 attitude_actor.c/h   # Rate PIDs → torque commands
 motor_actor.c/h      # Mixer + safety: torque → motors → hardware
@@ -47,17 +49,23 @@ config.h             # Shared constants (PID gains, timing)
 
 ## Architecture
 
-Six actors connected via buses:
+Seven actors connected via buses:
 
 ```
-Sensor ──► IMU Bus ──► Estimator ──► State Bus ──► Altitude ──► Thrust Bus ─┐
-                                          │                                  │
-                                          ├──► Angle ──► Rate Setpoint Bus ──┤
-                                          │                                  │
-                                          └──► Attitude ◄────────────────────┘
-                                                  │
-                                                  ▼
-                                            Torque Bus ──► Motor ──► Hardware
+Sensor ──► IMU Bus ──► Estimator ──► State Bus ──┬──► Altitude ──► Thrust Bus ─┐
+                                                 │                              │
+                                                 ├──► Position ──► Angle SP ────┤
+                                                 │                    │         │
+                                                 │                    ▼         │
+                                                 │              Angle Actor     │
+                                                 │                    │         │
+                                                 │                    ▼         │
+                                                 │         Rate Setpoint Bus ───┤
+                                                 │                              │
+                                                 └──► Attitude ◄────────────────┘
+                                                          │
+                                                          ▼
+                                                    Torque Bus ──► Motor ──► HW
 ```
 
 Platform layer (in pilot.c) provides hardware abstraction:
@@ -77,9 +85,10 @@ order to ensure each actor sees fresh data from upstream actors in the same step
 | 1     | sensor    | CRITICAL | Reads hardware first |
 | 2     | estimator | CRITICAL | Needs IMU, produces state estimate |
 | 3     | altitude  | CRITICAL | Needs state, produces thrust |
-| 4     | angle     | CRITICAL | Needs state, produces rate setpoints |
-| 5     | attitude  | CRITICAL | Needs state + thrust + rate setpoints |
-| 6     | motor     | CRITICAL | Needs torque, writes hardware last |
+| 4     | position  | CRITICAL | Needs state, produces angle setpoints |
+| 5     | angle     | CRITICAL | Needs angle setpoints, produces rate setpoints |
+| 6     | attitude  | CRITICAL | Needs state + thrust + rate setpoints |
+| 7     | motor     | CRITICAL | Needs torque, writes hardware last |
 
 ## Control System
 
@@ -88,7 +97,8 @@ order to ensure each actor sees fresh data from upstream actors in the same step
 | Controller | Kp   | Ki   | Kd    | Purpose |
 |------------|------|------|-------|---------|
 | Altitude   | 0.3  | 0.05 | 0     | Hold 1.0m height (PI + velocity damping) |
-| Angle      | 4.0  | 0    | 0.1   | Level attitude |
+| Position   | 0.2  | -    | 0.1   | Hold XY position (PD, max tilt 0.35 rad) |
+| Angle      | 4.0  | 0    | 0     | Level attitude |
 | Roll rate  | 0.02 | 0    | 0.001 | Stabilize roll |
 | Pitch rate | 0.02 | 0    | 0.001 | Stabilize pitch |
 | Yaw rate   | 0.02 | 0    | 0.001 | Stabilize yaw |
@@ -96,21 +106,27 @@ order to ensure each actor sees fresh data from upstream actors in the same step
 Altitude control uses measured vertical velocity for damping (Kv=0.15) instead
 of differentiating position error. This provides smoother response with less noise.
 
-### Motor Mixer (in motor_actor, + Configuration)
+Position control uses simple PD with velocity damping. Sign conventions match
+the Bitcraze Webots controller.
+
+### Motor Mixer (in motor_actor, X Configuration)
+
+The Webots Crazyflie uses X-configuration (matching Bitcraze):
 
 ```
         Front
-          M1
-           │
-    M4 ────┼──── M2
-           │
-          M3
-         Rear
+      M2    M3
+        \  /
+         \/
+         /\
+        /  \
+      M1    M4
+        Rear
 
-M1 = thrust - pitch - yaw
-M2 = thrust - roll  + yaw
-M3 = thrust + pitch - yaw
-M4 = thrust + roll  + yaw
+M1 = thrust - roll + pitch + yaw  (rear-left)
+M2 = thrust - roll - pitch - yaw  (front-left)
+M3 = thrust + roll - pitch + yaw  (front-right)
+M4 = thrust + roll + pitch - yaw  (rear-right)
 ```
 
 ## Main Loop
