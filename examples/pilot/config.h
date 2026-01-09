@@ -86,10 +86,11 @@
 // Provides smoother response than differentiating position error
 #define VVEL_DAMPING_GAIN  0.15f
 
-// Position hold control
-#define TARGET_X         0.0f    // meters (world frame)
-#define TARGET_Y         0.0f    // meters (world frame)
-#define TARGET_YAW       0.0f    // radians (0 = initial heading / north)
+// Waypoint navigation
+#define WAYPOINT_TOLERANCE_XY   0.15f  // meters - arrival radius
+#define WAYPOINT_TOLERANCE_YAW  0.1f   // radians (~6 degrees)
+#define WAYPOINT_TOLERANCE_VEL  0.1f   // m/s - must be nearly stopped
+#define WAYPOINT_HOVER_TICKS    50     // iterations to hover before advancing (~200ms)
 
 // Position PD gains (simple PD controller)
 #define POS_KP           0.2f    // Position gain: rad per meter error

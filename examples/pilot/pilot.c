@@ -1,11 +1,12 @@
-// Pilot example - Quadcopter hover using actor runtime with Webots
+// Pilot example - Quadcopter waypoint navigation using actor runtime with Webots
 //
-// Demonstrates position-hold hover control for a Crazyflie quadcopter
-// using the hive actor runtime. Seven actors work together:
+// Demonstrates waypoint navigation for a Crazyflie quadcopter
+// using the hive actor runtime. Eight actors work together:
 //
 //   sensor_actor    - Reads hardware sensors → IMU bus
 //   estimator_actor - Sensor fusion → state bus
 //   altitude_actor  - Altitude PID → thrust command
+//   waypoint_actor  - Waypoint manager → target bus
 //   position_actor  - Position PID → angle setpoints
 //   angle_actor     - Angle PIDs → rate setpoints
 //   attitude_actor  - Rate PIDs → torque commands
@@ -36,6 +37,7 @@
 #include "sensor_actor.h"
 #include "estimator_actor.h"
 #include "altitude_actor.h"
+#include "waypoint_actor.h"
 #include "position_actor.h"
 #include "angle_actor.h"
 #include "attitude_actor.h"
@@ -62,6 +64,7 @@
 static bus_id g_imu_bus;
 static bus_id g_state_bus;
 static bus_id g_thrust_bus;
+static bus_id g_target_bus;
 static bus_id g_angle_setpoint_bus;
 static bus_id g_rate_setpoint_bus;
 static bus_id g_torque_bus;
@@ -145,6 +148,7 @@ int main(void) {
     hive_bus_create(&cfg, &g_imu_bus);
     hive_bus_create(&cfg, &g_state_bus);
     hive_bus_create(&cfg, &g_thrust_bus);
+    hive_bus_create(&cfg, &g_target_bus);
     hive_bus_create(&cfg, &g_angle_setpoint_bus);
     hive_bus_create(&cfg, &g_rate_setpoint_bus);
     hive_bus_create(&cfg, &g_torque_bus);
@@ -153,27 +157,28 @@ int main(void) {
     sensor_actor_init(g_imu_bus, platform_read_imu);
     estimator_actor_init(g_imu_bus, g_state_bus);
     altitude_actor_init(g_state_bus, g_thrust_bus);
-    position_actor_init(g_state_bus, g_angle_setpoint_bus);
+    waypoint_actor_init(g_state_bus, g_target_bus);
+    position_actor_init(g_state_bus, g_angle_setpoint_bus, g_target_bus);
     angle_actor_init(g_state_bus, g_angle_setpoint_bus, g_rate_setpoint_bus);
     attitude_actor_init(g_state_bus, g_thrust_bus, g_rate_setpoint_bus, g_torque_bus);
     motor_actor_init(g_torque_bus, platform_write_motors);
 
     // Spawn actors in data-flow order to minimize latency.
     // All CRITICAL priority, round-robin within priority follows spawn order.
-    // Order: sensor → estimator → altitude → position → angle → attitude → motor
+    // Order: sensor → estimator → altitude → waypoint → position → angle → attitude → motor
     // This ensures each actor sees fresh data from upstream actors in same step.
-    actor_id sensor, estimator, altitude, position, angle, attitude, motor;
+    actor_id sensor, estimator, altitude, waypoint, position, angle, attitude, motor;
 
     SPAWN_CRITICAL_ACTOR(sensor_actor,    "sensor",    sensor);
     SPAWN_CRITICAL_ACTOR(estimator_actor, "estimator", estimator);
     SPAWN_CRITICAL_ACTOR(altitude_actor,  "altitude",  altitude);
+    SPAWN_CRITICAL_ACTOR(waypoint_actor,  "waypoint",  waypoint);
     SPAWN_CRITICAL_ACTOR(position_actor,  "position",  position);
     SPAWN_CRITICAL_ACTOR(angle_actor,     "angle",     angle);
     SPAWN_CRITICAL_ACTOR(attitude_actor,  "attitude",  attitude);
     SPAWN_CRITICAL_ACTOR(motor_actor,     "motor",     motor);
 
-    printf("Pilot: 7 actors spawned, holding position at (%.1f, %.1f, %.1f)\n",
-           TARGET_X, TARGET_Y, TARGET_ALTITUDE);
+    printf("Pilot: 8 actors spawned, waypoint navigation active\n");
 
     // Main loop: just run actors, sensor actor handles IMU reading
     while (wb_robot_step(TIME_STEP_MS) != -1) {
