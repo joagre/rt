@@ -61,13 +61,13 @@
 // BUSES
 // ============================================================================
 
-static bus_id g_imu_bus;
-static bus_id g_state_bus;
-static bus_id g_thrust_bus;
-static bus_id g_target_bus;
-static bus_id g_angle_setpoint_bus;
-static bus_id g_rate_setpoint_bus;
-static bus_id g_torque_bus;
+static bus_id s_imu_bus;
+static bus_id s_state_bus;
+static bus_id s_thrust_bus;
+static bus_id s_target_bus;
+static bus_id s_angle_setpoint_bus;
+static bus_id s_rate_setpoint_bus;
+static bus_id s_torque_bus;
 
 // ============================================================================
 // WEBOTS PLATFORM LAYER
@@ -145,23 +145,26 @@ int main(void) {
     // Create buses (single entry = latest value only)
     hive_bus_config cfg = HIVE_BUS_CONFIG_DEFAULT;
     cfg.max_entries = 1;
-    hive_bus_create(&cfg, &g_imu_bus);
-    hive_bus_create(&cfg, &g_state_bus);
-    hive_bus_create(&cfg, &g_thrust_bus);
-    hive_bus_create(&cfg, &g_target_bus);
-    hive_bus_create(&cfg, &g_angle_setpoint_bus);
-    hive_bus_create(&cfg, &g_rate_setpoint_bus);
-    hive_bus_create(&cfg, &g_torque_bus);
+    if (HIVE_FAILED(hive_bus_create(&cfg, &s_imu_bus)) ||
+        HIVE_FAILED(hive_bus_create(&cfg, &s_state_bus)) ||
+        HIVE_FAILED(hive_bus_create(&cfg, &s_thrust_bus)) ||
+        HIVE_FAILED(hive_bus_create(&cfg, &s_target_bus)) ||
+        HIVE_FAILED(hive_bus_create(&cfg, &s_angle_setpoint_bus)) ||
+        HIVE_FAILED(hive_bus_create(&cfg, &s_rate_setpoint_bus)) ||
+        HIVE_FAILED(hive_bus_create(&cfg, &s_torque_bus))) {
+        printf("Error: failed to create buses\n");
+        return 1;
+    }
 
     // Initialize actors
-    sensor_actor_init(g_imu_bus, platform_read_imu);
-    estimator_actor_init(g_imu_bus, g_state_bus);
-    altitude_actor_init(g_state_bus, g_thrust_bus);
-    waypoint_actor_init(g_state_bus, g_target_bus);
-    position_actor_init(g_state_bus, g_angle_setpoint_bus, g_target_bus);
-    angle_actor_init(g_state_bus, g_angle_setpoint_bus, g_rate_setpoint_bus);
-    attitude_actor_init(g_state_bus, g_thrust_bus, g_rate_setpoint_bus, g_torque_bus);
-    motor_actor_init(g_torque_bus, platform_write_motors);
+    sensor_actor_init(s_imu_bus, platform_read_imu);
+    estimator_actor_init(s_imu_bus, s_state_bus);
+    altitude_actor_init(s_state_bus, s_thrust_bus);
+    waypoint_actor_init(s_state_bus, s_target_bus);
+    position_actor_init(s_state_bus, s_angle_setpoint_bus, s_target_bus);
+    angle_actor_init(s_state_bus, s_angle_setpoint_bus, s_rate_setpoint_bus);
+    attitude_actor_init(s_state_bus, s_thrust_bus, s_rate_setpoint_bus, s_torque_bus);
+    motor_actor_init(s_torque_bus, platform_write_motors);
 
     // Spawn actors in data-flow order to minimize latency.
     // All CRITICAL priority, round-robin within priority follows spawn order.

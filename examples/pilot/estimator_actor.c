@@ -31,9 +31,8 @@ void estimator_actor(void *arg) {
 
     while (1) {
         imu_data_t imu;
-        size_t len;
 
-        if (hive_bus_read(s_imu_bus, &imu, sizeof(imu), &len).code == HIVE_OK) {
+        if (BUS_READ(s_imu_bus, &imu)) {
             state_estimate_t state;
 
             // Pass through attitude (Webots inertial_unit is already fused)

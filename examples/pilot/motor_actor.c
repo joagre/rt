@@ -52,9 +52,8 @@ void motor_actor(void *arg) {
 
     while (1) {
         torque_cmd_t torque;
-        size_t len;
 
-        if (hive_bus_read(s_torque_bus, &torque, sizeof(torque), &len).code == HIVE_OK) {
+        if (BUS_READ(s_torque_bus, &torque)) {
             watchdog = 0;
 
             mixer_apply(&torque, &cmd);

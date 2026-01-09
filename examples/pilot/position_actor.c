@@ -44,14 +44,13 @@ void position_actor(void *arg) {
     while (1) {
         state_estimate_t state;
         position_target_t new_target;
-        size_t len;
 
         // Read target from waypoint actor
-        if (hive_bus_read(s_target_bus, &new_target, sizeof(new_target), &len).code == HIVE_OK) {
+        if (BUS_READ(s_target_bus, &new_target)) {
             target = new_target;
         }
 
-        if (hive_bus_read(s_state_bus, &state, sizeof(state), &len).code == HIVE_OK) {
+        if (BUS_READ(s_state_bus, &state)) {
             float pitch_cmd = 0.0f;
             float roll_cmd = 0.0f;
 

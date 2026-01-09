@@ -34,9 +34,8 @@ void altitude_actor(void *arg) {
 
     while (1) {
         state_estimate_t state;
-        size_t len;
 
-        if (hive_bus_read(s_state_bus, &state, sizeof(state), &len).code == HIVE_OK) {
+        if (BUS_READ(s_state_bus, &state)) {
             // Position control (PI)
             float pos_correction = pid_update(&alt_pid, TARGET_ALTITUDE, state.altitude, TIME_STEP_S);
 
