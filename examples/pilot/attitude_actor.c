@@ -32,10 +32,10 @@ void attitude_actor(void *arg) {
     hive_bus_subscribe(s_rate_setpoint_bus);
 
     pid_state_t roll_pid, pitch_pid, yaw_pid;
-
-    pid_init_full(&roll_pid,  RATE_PID_KP, RATE_PID_KI, RATE_PID_KD, 0.5f, RATE_ROLL_PID_OMAX);
-    pid_init_full(&pitch_pid, RATE_PID_KP, RATE_PID_KI, RATE_PID_KD, 0.5f, RATE_PITCH_PID_OMAX);
-    pid_init_full(&yaw_pid,   RATE_PID_KP, RATE_PID_KI, RATE_PID_KD, 0.5f, RATE_YAW_PID_OMAX);
+    // Note: Different output limits per axis (yaw needs more authority)
+    pid_init_full(&roll_pid,  RATE_PID_KP, RATE_PID_KI, RATE_PID_KD, RATE_PID_IMAX, RATE_PID_OMAX_ROLL);
+    pid_init_full(&pitch_pid, RATE_PID_KP, RATE_PID_KI, RATE_PID_KD, RATE_PID_IMAX, RATE_PID_OMAX_PITCH);
+    pid_init_full(&yaw_pid,   RATE_PID_KP, RATE_PID_KI, RATE_PID_KD, RATE_PID_IMAX, RATE_PID_OMAX_YAW);
 
     float thrust = 0.0f;
     rate_setpoint_t rate_sp = RATE_SETPOINT_ZERO;

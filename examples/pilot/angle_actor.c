@@ -28,10 +28,8 @@ void angle_actor(void *arg) {
     hive_bus_subscribe(s_angle_setpoint_bus);
 
     pid_state_t roll_pid, pitch_pid, yaw_pid;
-
-    pid_init_full(&roll_pid,  ANGLE_PID_KP, ANGLE_PID_KI, ANGLE_PID_KD, 0.5f, ANGLE_PID_OMAX);
-    pid_init_full(&pitch_pid, ANGLE_PID_KP, ANGLE_PID_KI, ANGLE_PID_KD, 0.5f, ANGLE_PID_OMAX);
-    pid_init_full(&yaw_pid,   ANGLE_PID_KP, ANGLE_PID_KI, ANGLE_PID_KD, 0.5f, ANGLE_PID_OMAX);
+    PID_INIT_RPY(roll_pid, pitch_pid, yaw_pid,
+                 ANGLE_PID_KP, ANGLE_PID_KI, ANGLE_PID_KD, ANGLE_PID_IMAX, ANGLE_PID_OMAX);
 
     // Target angles (updated from angle_setpoint_bus)
     angle_setpoint_t angle_sp = ANGLE_SETPOINT_ZERO;
