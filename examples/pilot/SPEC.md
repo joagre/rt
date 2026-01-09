@@ -133,47 +133,36 @@ Code is split into focused modules:
 
 ### Data Flow
 
-```
-Webots sensors
-       │
-       ▼
-platform_read_imu() ◄── called by sensor_actor
-       │
-       ▼
-   IMU Bus
-       │
-       ▼
-Estimator Actor ──► State Bus (includes XY position and velocity)
-                        │
-       ┌────────────────┼────────────────┐
-       ▼                ▼                ▼
-Altitude Actor   Position Actor    Attitude Actor
-(altitude PID)   (position PD)       (rate PIDs)
-       │                │                 ▲
-       ▼                ▼                 │
-  Thrust Bus    Angle Setpoint Bus        │
-       │                │                 │
-       │                ▼                 │
-       │          Angle Actor             │
-       │          (angle PIDs)            │
-       │                │                 │
-       │                ▼                 │
-       │        Rate Setpoint Bus ────────┤
-       │                                  │
-       └──────────────────────────────────┘
-                        │
-                        ▼
-                  Torque Bus
-                        │
-                        ▼
-                  Motor Actor
-               (mixer + safety)
-                        │
-                        ▼
-              platform_write_motors()
-                        │
-                        ▼
-             wb_motor_set_velocity()
+```mermaid
+graph TB
+    subgraph HW["Hardware"]
+        Sensors[Webots Sensors]
+        Motors[wb_motor_set_velocity]
+    end
+
+    ReadIMU[platform_read_imu]
+    WriteMotors[platform_write_motors]
+
+    Sensors --> ReadIMU --> Sensor[Sensor Actor]
+    Sensor --> IMUBus([IMU Bus])
+    IMUBus --> Estimator[Estimator Actor]
+    Estimator --> StateBus([State Bus])
+
+    StateBus --> Altitude[Altitude Actor<br/>altitude PID]
+    StateBus --> Position[Position Actor<br/>position PD]
+    StateBus --> Attitude[Attitude Actor<br/>rate PIDs]
+
+    Altitude --> ThrustBus([Thrust Bus])
+    Position --> AngleSP([Angle Setpoint Bus])
+    AngleSP --> Angle[Angle Actor<br/>angle PIDs]
+    Angle --> RateSP([Rate Setpoint Bus])
+    RateSP --> Attitude
+
+    ThrustBus --> Motor[Motor Actor<br/>mixer + safety]
+    Attitude --> TorqueBus([Torque Bus])
+    TorqueBus --> Motor
+
+    Motor --> WriteMotors --> Motors
 ```
 
 ---
@@ -390,33 +379,27 @@ Each step maintains a working system while improving separation of concerns.
 
 ### Target Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         ACTOR ARCHITECTURE                          │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌──────────┐      ┌──────────┐      ┌──────────┐                  │
-│  │  Sensor  │─────►│ Estimator│─────►│  State   │                  │
-│  │  Actor   │      │  Actor   │      │   Bus    │                  │
-│  └──────────┘      └──────────┘      └────┬─────┘                  │
-│   Read HW           Fuse data             │                        │
-│   Publish raw       Publish estimate      │                        │
-│                                           ▼                        │
-│  ┌──────────┐      ┌──────────┐      ┌──────────┐      ┌────────┐ │
-│  │ Setpoint │─────►│ Altitude │─────►│  Angle   │─────►│Attitude│ │
-│  │  Actor   │      │  Actor   │      │  Actor   │      │ Actor  │ │
-│  └──────────┘      └──────────┘      └──────────┘      └───┬────┘ │
-│   RC input          Altitude          Angle control        │      │
-│   Waypoints         Z control         → rate setpoints     │      │
-│   Commands                                                 ▼      │
-│                                                       ┌──────────┐│
-│                                                       │  Motor   ││
-│                                                       │  Actor   ││
-│                                                       └──────────┘│
-│                                                        Safety     │
-│                                                        Write HW   │
-│                                                                   │
-└───────────────────────────────────────────────────────────────────┘
+```mermaid
+graph LR
+    subgraph Sensing
+        Sensor[Sensor Actor<br/>Read HW]
+        Estimator[Estimator Actor<br/>Fuse data]
+    end
+
+    subgraph Control
+        Setpoint[Setpoint Actor<br/>RC/Waypoints]
+        Altitude[Altitude Actor<br/>Z control]
+        Angle[Angle Actor<br/>Angle control]
+        Attitude[Attitude Actor<br/>Rate control]
+    end
+
+    subgraph Output
+        Motor[Motor Actor<br/>Safety + Write HW]
+    end
+
+    Sensor --> Estimator --> StateBus([State Bus])
+    Setpoint --> Altitude
+    StateBus --> Altitude --> Angle --> Attitude --> Motor
 ```
 
 ### Actor Responsibilities (Current)
