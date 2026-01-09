@@ -8,8 +8,8 @@ Demonstrates altitude-hold hover control with a Crazyflie quadcopter using 4 act
 
 1. **Sensor actor** reads IMU/GPS from Webots, publishes to IMU bus
 2. **Altitude actor** runs altitude PID, publishes thrust commands
-3. **Attitude actor** runs rate PIDs + mixer, publishes motor commands
-4. **Motor actor** enforces safety limits, writes to hardware
+3. **Attitude actor** runs rate PIDs, publishes torque commands
+4. **Motor actor** applies mixer, enforces safety limits, writes to hardware
 
 The drone rises to 1.0m altitude and holds position.
 
@@ -34,8 +34,8 @@ Then open `worlds/hover_test.wbt` in Webots and start the simulation.
 pilot.c              # Main loop, platform layer, bus setup
 sensor_actor.c/h     # Hardware sensor reading → IMU bus
 altitude_actor.c/h   # Outer loop: altitude PID → thrust
-attitude_actor.c/h   # Inner loop: rate PIDs → motor commands
-motor_actor.c/h      # Safety: watchdog, limits → hardware
+attitude_actor.c/h   # Inner loop: rate PIDs → torque commands
+motor_actor.c/h      # Mixer + safety: torque → motors → hardware
 pid.c/h              # Reusable PID controller
 types.h              # Portable data types
 config.h             # Shared constants (PID gains, timing)
@@ -50,7 +50,8 @@ Sensor Actor ──► IMU Bus ──► Altitude Actor ──► Thrust Bus ─
                      │                                      │
                      │       ┌──────────────────────────────┘
                      │       │
-                     └──► Attitude Actor ──► Motor Bus ──► Motor Actor
+                     └──► Attitude Actor ──► Torque Bus ──► Motor Actor
+                            (rate PIDs)                   (mixer+safety)
                                                                │
                                                                ▼
                                                           Hardware
@@ -82,7 +83,7 @@ To port to real hardware, replace these functions.
 | Yaw rate   | 0.02 | 0    | 0.001 | Stabilize yaw |
 | Altitude   | 0.3  | 0.05 | 0.15  | Hold 1.0m height |
 
-### Motor Mixer (+ Configuration)
+### Motor Mixer (in motor_actor, + Configuration)
 
 ```
         Front

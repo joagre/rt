@@ -1,6 +1,6 @@
-// Motor actor - Motor output with safety
+// Motor actor - Mixer and safety layer
 //
-// Subscribes to motor bus, enforces limits, implements watchdog,
+// Subscribes to torque bus, applies mixer, enforces limits, implements watchdog,
 // writes to platform layer.
 
 #ifndef MOTOR_ACTOR_H
@@ -14,7 +14,7 @@ typedef void (*motor_write_fn)(const motor_cmd_t *cmd);
 
 // Initialize the motor actor module with bus ID and platform function.
 // Must be called before spawning the actor.
-void motor_actor_init(bus_id motor_bus, motor_write_fn write_fn);
+void motor_actor_init(bus_id torque_bus, motor_write_fn write_fn);
 
 // Actor entry point - spawn this with hive_spawn()
 void motor_actor(void *arg);

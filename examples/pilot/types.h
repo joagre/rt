@@ -27,6 +27,17 @@ typedef struct {
     float thrust;  // Normalized thrust (0.0 to 1.0)
 } thrust_cmd_t;
 
+// Torque command from attitude actor to motor actor.
+// Motor actor applies mixer to convert to motor commands.
+typedef struct {
+    float thrust;  // Normalized thrust (0.0 to 1.0)
+    float roll;    // Roll torque
+    float pitch;   // Pitch torque
+    float yaw;     // Yaw torque
+} torque_cmd_t;
+
+#define TORQUE_CMD_ZERO {.thrust = 0.0f, .roll = 0.0f, .pitch = 0.0f, .yaw = 0.0f}
+
 // PID controller state. Each axis (roll, pitch, yaw, altitude) has its own.
 typedef struct {
     float kp, ki, kd;       // PID gains (proportional, integral, derivative)
