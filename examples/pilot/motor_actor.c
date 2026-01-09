@@ -13,20 +13,23 @@
 static bus_id s_torque_bus;
 static motor_write_fn s_write_fn;
 
-// Motor mixer for Crazyflie "+" configuration.
+// Motor mixer for Crazyflie "X" configuration (matching Bitcraze/Webots).
 //
 //         Front
-//           M1
-//            |
-//     M4 ----+---- M2
-//            |
-//           M3
-//          Rear
+//       M2    M3
+//         \  /
+//          \/
+//          /\
+//         /  \
+//       M1    M4
+//         Rear
+//
+// In X-config, each motor affects BOTH roll AND pitch.
 static void mixer_apply(const torque_cmd_t *torque, motor_cmd_t *cmd) {
-    cmd->motor[0] = torque->thrust - torque->pitch - torque->yaw;  // M1 (front)
-    cmd->motor[1] = torque->thrust - torque->roll  + torque->yaw;  // M2 (right)
-    cmd->motor[2] = torque->thrust + torque->pitch - torque->yaw;  // M3 (rear)
-    cmd->motor[3] = torque->thrust + torque->roll  + torque->yaw;  // M4 (left)
+    cmd->motor[0] = torque->thrust - torque->roll + torque->pitch + torque->yaw;  // M1 (rear-left)
+    cmd->motor[1] = torque->thrust - torque->roll - torque->pitch - torque->yaw;  // M2 (front-left)
+    cmd->motor[2] = torque->thrust + torque->roll - torque->pitch + torque->yaw;  // M3 (front-right)
+    cmd->motor[3] = torque->thrust + torque->roll + torque->pitch - torque->yaw;  // M4 (rear-right)
 
     for (int i = 0; i < NUM_MOTORS; i++) {
         cmd->motor[i] = CLAMPF(cmd->motor[i], 0.0f, 1.0f);
