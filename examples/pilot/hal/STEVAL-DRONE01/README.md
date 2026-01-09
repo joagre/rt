@@ -88,6 +88,8 @@ The Webots `inertial_unit` provides pre-fused roll/pitch/yaw. On real hardware, 
 | `platform.h/c` | - | - | Main control loop and hardware init |
 | `main.c` | - | - | Example flight controller |
 | `system_config.h/c` | - | - | Clock config (84MHz) and timing |
+| `gpio_config.h/c` | - | - | GPIO pin configuration |
+| `spi1.h/c` | - | SPI1 | SPI driver for LSM6DSL |
 | `Makefile` | - | - | ARM GCC build system |
 | `stm32f401_flash.ld` | - | - | Linker script (512K Flash, 96K RAM) |
 | `startup_stm32f401.s` | - | - | Startup code and vector table |
@@ -331,5 +333,7 @@ The `on_control` callback runs at 400Hz and implements:
 - [x] Makefile for ARM GCC build
 - [x] Linker script and startup code
 - [x] System clock configuration (84MHz)
-- [ ] STM32 HAL integration (implement TODO placeholders)
+- [x] GPIO pin configuration
+- [ ] SPI/I2C/TIM peripheral drivers
+- [ ] Integrate with sensor drivers
 - [ ] hive runtime port for STM32F4

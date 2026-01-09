@@ -3,9 +3,9 @@
 // SPI interface to the LSM6DSL 6-axis accelerometer + gyroscope.
 
 #include "lsm6dsl.h"
-
-// TODO: Include STM32 HAL headers when integrating
-// #include "stm32f4xx_hal.h"
+#include "spi1.h"
+#include "gpio_config.h"
+#include "system_config.h"
 
 // ----------------------------------------------------------------------------
 // Register addresses
@@ -74,24 +74,19 @@ static float s_accel_scale;  // Conversion factor: raw -> m/s²
 static float s_gyro_scale;   // Conversion factor: raw -> rad/s
 
 // ----------------------------------------------------------------------------
-// SPI low-level (TODO: implement with STM32 HAL)
+// SPI low-level
 // ----------------------------------------------------------------------------
 
 static void spi_cs_low(void) {
-    // TODO: HAL_GPIO_WritePin(LSM6DSL_CS_GPIO_Port, LSM6DSL_CS_Pin, GPIO_PIN_RESET);
+    gpio_lsm6dsl_cs_low();
 }
 
 static void spi_cs_high(void) {
-    // TODO: HAL_GPIO_WritePin(LSM6DSL_CS_GPIO_Port, LSM6DSL_CS_Pin, GPIO_PIN_SET);
+    gpio_lsm6dsl_cs_high();
 }
 
 static uint8_t spi_transfer(uint8_t data) {
-    // TODO: Implement SPI transfer using HAL_SPI_TransmitReceive
-    // uint8_t rx;
-    // HAL_SPI_TransmitReceive(&hspi1, &data, &rx, 1, HAL_MAX_DELAY);
-    // return rx;
-    (void)data;
-    return 0;
+    return spi1_transfer(data);
 }
 
 static void spi_write_reg(uint8_t reg, uint8_t value) {
@@ -130,6 +125,10 @@ bool lsm6dsl_init(const lsm6dsl_config_t *config) {
         s_config = (lsm6dsl_config_t)LSM6DSL_CONFIG_DEFAULT;
     }
 
+    // Initialize SPI1 peripheral
+    // LSM6DSL max SPI clock is 10MHz, using 10.5MHz (close enough)
+    spi1_init(SPI1_SPEED_10_5MHZ);
+
     // Calculate scale factors
     s_accel_scale = accel_sensitivity[s_config.accel_fs] * MG_TO_MS2;
     s_gyro_scale = gyro_sensitivity[s_config.gyro_fs] * MDPS_TO_RAD;
@@ -141,7 +140,7 @@ bool lsm6dsl_init(const lsm6dsl_config_t *config) {
 
     // Software reset
     spi_write_reg(LSM6DSL_CTRL3_C, 0x01);
-    // TODO: HAL_Delay(10);
+    system_delay_ms(10);
 
     // Configure accelerometer: ODR and full-scale
     uint8_t ctrl1 = (s_config.odr << 4) | (s_config.accel_fs << 2);
