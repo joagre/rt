@@ -76,6 +76,96 @@ The Webots `inertial_unit` provides pre-fused roll/pitch/yaw. On real hardware, 
 3. **Magnetometer fusion** for yaw (with tilt compensation)
 4. **Barometer filtering** for altitude hold
 
+## Driver Files
+
+| File | Sensor | Interface | Purpose |
+|------|--------|-----------|---------|
+| `lsm6dsl.h/c` | LSM6DSL | SPI1 | 6-axis IMU for attitude estimation (roll/pitch/rates) |
+| `lis2mdl.h/c` | LIS2MDL | I2C1 | 3-axis magnetometer for heading (yaw) |
+| `lps22hd.h/c` | LPS22HD | I2C1 | Barometer for altitude hold |
+| `motors.h/c` | - | TIM4 PWM | Motor output with arm/disarm safety |
+
+All drivers are skeleton implementations with TODO placeholders for STM32 HAL integration.
+
+### LSM6DSL (IMU)
+
+6-axis accelerometer + gyroscope via SPI.
+
+```c
+lsm6dsl_init(NULL);                    // Use default config (±4g, ±500dps, 416Hz)
+lsm6dsl_read_all(&accel, &gyro);       // Burst read both sensors
+// accel: m/s², gyro: rad/s
+```
+
+Key features:
+- Configurable full-scale (±2/4/8/16g accel, ±250/500/1000/2000 dps gyro)
+- Configurable ODR (12.5Hz to 1.66kHz)
+- Burst read for efficient data acquisition
+- Temperature sensor
+
+### LIS2MDL (Magnetometer)
+
+3-axis magnetometer via I2C for heading estimation.
+
+```c
+lis2mdl_init(NULL);                    // Use default config (50Hz, continuous)
+lis2mdl_read(&mag);                    // Read in microtesla
+float heading = lis2mdl_heading_tilt_compensated(&mag, roll, pitch);
+```
+
+Key features:
+- Temperature compensation
+- Hard-iron calibration support (offset registers + software)
+- Tilt-compensated heading calculation
+- Low-pass filter option
+
+### LPS22HD (Barometer)
+
+Pressure sensor via I2C for altitude hold.
+
+```c
+lps22hd_init(NULL);                    // Use default config (50Hz)
+lps22hd_set_reference(lps22hd_read_pressure());  // Set ground level
+float alt = lps22hd_read_altitude();   // Meters above ground
+```
+
+Key features:
+- Configurable ODR (1-75Hz) + one-shot mode
+- Low-pass filter for noise reduction
+- Barometric altitude calculation
+- Reference pressure for relative altitude
+
+**Note:** Barometer provides relative altitude only. Weather changes cause drift.
+
+### Motors
+
+TIM4 PWM output for 4 brushed DC motors.
+
+```c
+motors_init(NULL);                     // Use default config (20kHz PWM)
+motors_arm();                          // Enable PWM output
+motors_set(&cmd);                      // Set motor speeds (0.0-1.0)
+motors_emergency_stop();               // Immediate stop + disarm
+```
+
+Key features:
+- Arm/disarm safety (motors won't spin until armed)
+- Normalized input (0.0-1.0) with configurable PWM range
+- Emergency stop function
+- Individual motor control for testing
+
+Motor layout (X configuration):
+```
+        Front
+      M2    M3
+        \  /
+         \/
+         /\
+        /  \
+      M1    M4
+        Rear
+```
+
 ## Resources
 
 - [STEVAL-DRONE01 Product Page](https://www.st.com/en/evaluation-tools/steval-drone01.html)
@@ -84,10 +174,11 @@ The Webots `inertial_unit` provides pre-fused roll/pitch/yaw. On real hardware, 
 
 ## TODO
 
-- [ ] LSM6DSL driver (SPI)
-- [ ] LIS2MDL driver (I2C)
-- [ ] LPS22HD driver (I2C)
-- [ ] Motor PWM driver (TIM4)
-- [ ] Complementary filter for attitude
+- [x] LSM6DSL driver skeleton (SPI)
+- [x] LIS2MDL driver skeleton (I2C)
+- [x] LPS22HD driver skeleton (I2C)
+- [x] Motor PWM driver skeleton (TIM4)
+- [ ] STM32 HAL integration (implement TODO placeholders)
+- [ ] Complementary filter for attitude estimation
 - [ ] Platform init and main loop
 - [ ] hive runtime port for STM32F4
