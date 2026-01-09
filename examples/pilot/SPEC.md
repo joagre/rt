@@ -568,7 +568,7 @@ State Bus ──► Waypoint Actor ──► Target Bus
 - Arrival requires: XY position, altitude, heading within tolerance, velocity below threshold
 - Hovers briefly at each waypoint before advancing
 - Loops forever: returns to first waypoint after completing route
-- Demo route: square pattern with altitude changes (1.0m → 1.5m → 1.0m → 2.0m → 1.0m)
+- Demo route: square pattern with gentle altitude changes (1.0m → 1.2m → 1.4m → 1.2m → 1.0m)
 
 **Benefits:**
 - Decouples waypoint logic from both position and altitude control
