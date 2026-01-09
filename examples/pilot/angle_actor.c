@@ -55,8 +55,7 @@ void angle_actor(void *arg) {
 
             hive_bus_publish(s_rate_setpoint_bus, &setpoint, sizeof(setpoint));
 
-            // Debug: print every 50 iterations (200ms) to catch dynamics
-            if (++count % 50 == 0) {
+            if (++count % DEBUG_PRINT_INTERVAL == 0) {
                 printf("[ANG] sp_r=%.2f st_r=%.2f rate_r=%.2f | sp_p=%.2f st_p=%.2f rate_p=%.2f\n",
                        angle_sp.roll * RAD_TO_DEG, state.roll * RAD_TO_DEG, setpoint.roll * RAD_TO_DEG,
                        angle_sp.pitch * RAD_TO_DEG, state.pitch * RAD_TO_DEG, setpoint.pitch * RAD_TO_DEG);

@@ -71,20 +71,20 @@
 #define VVEL_DAMPING_GAIN  0.15f
 
 // Position hold control
-#define TARGET_X         0.5f    // meters (world frame)
-#define TARGET_Y         0.3f    // meters (world frame)
+#define TARGET_X         0.0f    // meters (world frame)
+#define TARGET_Y         0.0f    // meters (world frame)
 
 // Position PD gains (simple PD controller)
-#define POS_KP           0.005f  // Position gain: rad per meter error (very gentle)
-#define POS_KD           0.02f   // Velocity damping: rad per m/s
+#define POS_KP           0.1f    // Position gain: rad per meter error
+#define POS_KD           0.05f   // Velocity damping: rad per m/s
 
 // Maximum tilt angle for position control (safety limit)
-#define MAX_TILT_ANGLE   0.02f   // ~1 degree (extremely conservative)
+#define MAX_TILT_ANGLE   0.2f    // ~11 degrees
 
 // Angle PID gains (angle error → rate setpoint)
 #define ANGLE_PID_KP   1.0f
 #define ANGLE_PID_KI   0.0f
-#define ANGLE_PID_KD   0.0f   // Disabled - derivative causes spikes on setpoint changes
+#define ANGLE_PID_KD   0.0f   // Derivative on error causes kick on setpoint change
 #define ANGLE_PID_OMAX 2.0f  // Max rate setpoint (rad/s)
 
 // Rate PID gains (rate error → torque)
