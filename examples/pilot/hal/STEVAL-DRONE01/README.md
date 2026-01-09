@@ -87,6 +87,7 @@ The Webots `inertial_unit` provides pre-fused roll/pitch/yaw. On real hardware, 
 | `attitude.h/c` | - | - | Complementary filter for sensor fusion |
 | `platform.h/c` | - | - | Main control loop and hardware init |
 | `main.c` | - | - | Example flight controller |
+| `system_config.h/c` | - | - | Clock config (84MHz) and timing |
 | `Makefile` | - | - | ARM GCC build system |
 | `stm32f401_flash.ld` | - | - | Linker script (512K Flash, 96K RAM) |
 | `startup_stm32f401.s` | - | - | Startup code and vector table |
@@ -329,5 +330,6 @@ The `on_control` callback runs at 400Hz and implements:
 - [x] Example main.c with PID control
 - [x] Makefile for ARM GCC build
 - [x] Linker script and startup code
+- [x] System clock configuration (84MHz)
 - [ ] STM32 HAL integration (implement TODO placeholders)
 - [ ] hive runtime port for STM32F4

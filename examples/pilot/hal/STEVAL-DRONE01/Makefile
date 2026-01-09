@@ -24,6 +24,7 @@ BUILD_DIR = build
 # HAL driver sources
 SRCS = \
 	main.c \
+	system_config.c \
 	platform.c \
 	attitude.c \
 	lsm6dsl.c \
