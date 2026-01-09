@@ -56,14 +56,15 @@ void attitude_actor(void *arg) {
         }
 
         if (hive_bus_read(s_state_bus, &state, sizeof(state), &len).code == HIVE_OK) {
-            // Sign convention: Webots gyro positive = body rotating CCW when viewed from axis.
-            // Our mixer expects positive torque = body rotating CW when viewed from axis.
-            // Negate the measured rate to match sign conventions.
+            // With correct X-config mixer (matching Bitcraze/Webots):
+            // - Roll: positive output = right wing down
+            // - Pitch: negated to match Webots coordinate convention
+            // - Yaw: positive output = clockwise rotation
             torque_cmd_t cmd;
             cmd.thrust = thrust;
-            cmd.roll   = pid_update(&roll_pid,  rate_sp.roll,  -state.roll_rate,  TIME_STEP_S);
-            cmd.pitch  = pid_update(&pitch_pid, rate_sp.pitch, -state.pitch_rate, TIME_STEP_S);
-            cmd.yaw    = pid_update(&yaw_pid,   rate_sp.yaw,   -state.yaw_rate,   TIME_STEP_S);
+            cmd.roll   = pid_update(&roll_pid,  rate_sp.roll,  state.roll_rate, TIME_STEP_S);
+            cmd.pitch  = -pid_update(&pitch_pid, rate_sp.pitch, state.pitch_rate, TIME_STEP_S);
+            cmd.yaw    = pid_update(&yaw_pid,   rate_sp.yaw,   state.yaw_rate,   TIME_STEP_S);
 
             hive_bus_publish(s_torque_bus, &cmd, sizeof(cmd));
 
