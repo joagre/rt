@@ -28,9 +28,7 @@ void altitude_actor(void *arg) {
     hive_bus_subscribe(s_state_bus);
 
     pid_state_t alt_pid;
-    pid_init(&alt_pid, ALT_PID_KP, ALT_PID_KI, ALT_PID_KD);
-    alt_pid.integral_max = ALT_PID_IMAX;
-    alt_pid.output_max = ALT_PID_OMAX;
+    pid_init_full(&alt_pid, ALT_PID_KP, ALT_PID_KI, ALT_PID_KD, ALT_PID_IMAX, ALT_PID_OMAX);
 
     int count = 0;
 

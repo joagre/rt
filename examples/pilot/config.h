@@ -18,6 +18,13 @@
 #define RAD_TO_DEG  57.2957795f  // 180/π
 #define DEG_TO_RAD  0.0174533f   // π/180
 
+// Initialize roll/pitch/yaw PIDs with same gains (common pattern)
+#define PID_INIT_RPY(roll, pitch, yaw, kp, ki, kd, imax, omax) do { \
+    pid_init_full(&(roll),  (kp), (ki), (kd), (imax), (omax)); \
+    pid_init_full(&(pitch), (kp), (ki), (kd), (imax), (omax)); \
+    pid_init_full(&(yaw),   (kp), (ki), (kd), (imax), (omax)); \
+} while (0)
+
 // ----------------------------------------------------------------------------
 // Hardware configuration
 // ----------------------------------------------------------------------------
@@ -85,14 +92,16 @@
 #define ANGLE_PID_KP   4.0f     // Typical autopilot: 4-8
 #define ANGLE_PID_KI   0.0f
 #define ANGLE_PID_KD   0.0f     // Derivative on error causes kick on setpoint change
+#define ANGLE_PID_IMAX 0.5f     // Integral limit
 #define ANGLE_PID_OMAX 3.0f     // Max rate setpoint (rad/s)
 
 // Rate PID gains (rate error → torque)
-#define RATE_PID_KP          0.02f
-#define RATE_PID_KI          0.0f
-#define RATE_PID_KD          0.001f
-#define RATE_ROLL_PID_OMAX   0.1f
-#define RATE_PITCH_PID_OMAX  0.1f
-#define RATE_YAW_PID_OMAX    0.15f
+#define RATE_PID_KP   0.02f
+#define RATE_PID_KI   0.0f
+#define RATE_PID_KD   0.001f
+#define RATE_PID_IMAX 0.5f      // Integral limit
+#define RATE_PID_OMAX_ROLL   0.1f
+#define RATE_PID_OMAX_PITCH  0.1f
+#define RATE_PID_OMAX_YAW    0.15f
 
 #endif // PILOT_CONFIG_H
