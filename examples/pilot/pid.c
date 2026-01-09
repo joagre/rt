@@ -23,9 +23,7 @@ void pid_reset(pid_state_t *pid) {
     pid->prev_error = 0.0f;
 }
 
-float pid_update(pid_state_t *pid, float setpoint, float measurement, float dt) {
-    float error = setpoint - measurement;
-
+static float pid_update_internal(pid_state_t *pid, float error, float dt) {
     // Proportional
     float p = pid->kp * error;
 
@@ -41,4 +39,14 @@ float pid_update(pid_state_t *pid, float setpoint, float measurement, float dt) 
     // Sum and clamp
     float output = p + i + d;
     return CLAMPF(output, -pid->output_max, pid->output_max);
+}
+
+float pid_update(pid_state_t *pid, float setpoint, float measurement, float dt) {
+    float error = setpoint - measurement;
+    return pid_update_internal(pid, error, dt);
+}
+
+float pid_update_angle(pid_state_t *pid, float setpoint, float measurement, float dt) {
+    float error = NORMALIZE_ANGLE(setpoint - measurement);
+    return pid_update_internal(pid, error, dt);
 }

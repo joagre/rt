@@ -49,7 +49,7 @@ void angle_actor(void *arg) {
             rate_setpoint_t setpoint;
             setpoint.roll  = pid_update(&roll_pid,  angle_sp.roll,  state.roll,  TIME_STEP_S);
             setpoint.pitch = pid_update(&pitch_pid, angle_sp.pitch, state.pitch, TIME_STEP_S);
-            setpoint.yaw   = pid_update(&yaw_pid,   angle_sp.yaw,   state.yaw,   TIME_STEP_S);
+            setpoint.yaw   = pid_update_angle(&yaw_pid, angle_sp.yaw, state.yaw, TIME_STEP_S);
 
             hive_bus_publish(s_rate_setpoint_bus, &setpoint, sizeof(setpoint));
 
