@@ -557,6 +557,7 @@ State Bus ──► Waypoint Actor ──► Target Bus ──► Position Actor
 - Monitors state bus for arrival detection
 - Arrival requires: position within tolerance, heading within tolerance, velocity below threshold
 - Hovers briefly at each waypoint before advancing
+- Loops back to first waypoint after completing route
 - Demo route: square pattern with 90° turns
 
 **Benefits:**
