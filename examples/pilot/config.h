@@ -17,6 +17,15 @@
 
 #define RAD_TO_DEG  57.2957795f  // 180/π
 #define DEG_TO_RAD  0.0174533f   // π/180
+#define M_PI_F      3.14159265f  // π as float
+
+// Normalize angle to [-π, π] range
+#define NORMALIZE_ANGLE(a) ({ \
+    float _a = (a); \
+    while (_a > M_PI_F) _a -= 2.0f * M_PI_F; \
+    while (_a < -M_PI_F) _a += 2.0f * M_PI_F; \
+    _a; \
+})
 
 // Initialize roll/pitch/yaw PIDs with same gains (common pattern)
 #define PID_INIT_RPY(roll, pitch, yaw, kp, ki, kd, imax, omax) do { \
@@ -80,6 +89,7 @@
 // Position hold control
 #define TARGET_X         0.0f    // meters (world frame)
 #define TARGET_Y         0.0f    // meters (world frame)
+#define TARGET_YAW       0.0f    // radians (0 = initial heading / north)
 
 // Position PD gains (simple PD controller)
 #define POS_KP           0.2f    // Position gain: rad per meter error

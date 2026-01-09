@@ -63,7 +63,7 @@ void position_actor(void *arg) {
             angle_setpoint_t setpoint = {
                 .roll = -roll_cmd,
                 .pitch = pitch_cmd,
-                .yaw = 0.0f
+                .yaw = TARGET_YAW  // Heading hold target
             };
             hive_bus_publish(s_angle_setpoint_bus, &setpoint, sizeof(setpoint));
 
