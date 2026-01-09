@@ -38,14 +38,13 @@ void angle_actor(void *arg) {
     while (1) {
         state_estimate_t state;
         angle_setpoint_t new_angle_sp;
-        size_t len;
 
         // Read angle setpoints from position controller
-        if (hive_bus_read(s_angle_setpoint_bus, &new_angle_sp, sizeof(new_angle_sp), &len).code == HIVE_OK) {
+        if (BUS_READ(s_angle_setpoint_bus, &new_angle_sp)) {
             angle_sp = new_angle_sp;
         }
 
-        if (hive_bus_read(s_state_bus, &state, sizeof(state), &len).code == HIVE_OK) {
+        if (BUS_READ(s_state_bus, &state)) {
             rate_setpoint_t setpoint;
             setpoint.roll  = pid_update(&roll_pid,  angle_sp.roll,  state.roll,  TIME_STEP_S);
             setpoint.pitch = pid_update(&pitch_pid, angle_sp.pitch, state.pitch, TIME_STEP_S);

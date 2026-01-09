@@ -45,17 +45,16 @@ void attitude_actor(void *arg) {
         state_estimate_t state;
         thrust_cmd_t thrust_cmd;
         rate_setpoint_t new_rate_sp;
-        size_t len;
 
-        if (hive_bus_read(s_thrust_bus, &thrust_cmd, sizeof(thrust_cmd), &len).code == HIVE_OK) {
+        if (BUS_READ(s_thrust_bus, &thrust_cmd)) {
             thrust = thrust_cmd.thrust;
         }
 
-        if (hive_bus_read(s_rate_setpoint_bus, &new_rate_sp, sizeof(new_rate_sp), &len).code == HIVE_OK) {
+        if (BUS_READ(s_rate_setpoint_bus, &new_rate_sp)) {
             rate_sp = new_rate_sp;
         }
 
-        if (hive_bus_read(s_state_bus, &state, sizeof(state), &len).code == HIVE_OK) {
+        if (BUS_READ(s_state_bus, &state)) {
             // With correct X-config mixer (matching Bitcraze/Webots):
             // - Roll: positive output = right wing down
             // - Pitch: negated to match Webots coordinate convention
@@ -69,7 +68,7 @@ void attitude_actor(void *arg) {
             hive_bus_publish(s_torque_bus, &cmd, sizeof(cmd));
 
             if (++count % DEBUG_PRINT_INTERVAL == 0) {
-                printf("[ATT] roll=%5.1f pitch=%5.1f yaw=%5.1f\n",
+                printf("[ATT] roll=%.1f pitch=%.1f yaw=%.1f\n",
                        state.roll * RAD_TO_DEG, state.pitch * RAD_TO_DEG, state.yaw * RAD_TO_DEG);
             }
         }
