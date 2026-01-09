@@ -4,17 +4,18 @@ Quadcopter hover example using hive actor runtime with Webots simulator.
 
 ## What it does
 
-Demonstrates altitude-hold, position-hold, and heading-hold control with a Crazyflie quadcopter using 7 actors:
+Demonstrates waypoint navigation with a Crazyflie quadcopter using 8 actors:
 
 1. **Sensor actor** reads IMU/GPS from Webots, publishes to IMU bus
 2. **Estimator actor** sensor fusion, computes velocities, publishes to state bus
 3. **Altitude actor** runs altitude PID, publishes thrust commands
-4. **Position actor** runs position PD, publishes angle setpoints
-5. **Angle actor** runs angle PIDs, publishes rate setpoints
-6. **Attitude actor** runs rate PIDs, publishes torque commands
-7. **Motor actor** applies X-config mixer, enforces safety limits, writes to hardware
+4. **Waypoint actor** manages waypoint list, publishes targets to target bus
+5. **Position actor** runs position PD, publishes angle setpoints
+6. **Angle actor** runs angle PIDs, publishes rate setpoints
+7. **Attitude actor** runs rate PIDs, publishes torque commands
+8. **Motor actor** applies X-config mixer, enforces safety limits, writes to hardware
 
-The drone rises to 1.0m altitude and holds XY position and heading.
+The drone rises to 1.0m altitude and flies a square pattern, rotating to face each waypoint's heading.
 
 ## Prerequisites
 
@@ -38,6 +39,7 @@ pilot.c              # Main loop, platform layer, bus setup
 sensor_actor.c/h     # Hardware sensor reading → IMU bus
 estimator_actor.c/h  # Sensor fusion → state bus
 altitude_actor.c/h   # Altitude PID → thrust
+waypoint_actor.c/h   # Waypoint manager → target bus
 position_actor.c/h   # Position PD → angle setpoints
 angle_actor.c/h      # Angle PIDs → rate setpoints
 attitude_actor.c/h   # Rate PIDs → torque commands
@@ -49,14 +51,15 @@ config.h             # Shared constants (PID gains, timing)
 
 ## Architecture
 
-Seven actors connected via buses:
+Eight actors connected via buses:
 
 ```mermaid
 graph TB
     Sensor[Sensor] --> IMUBus([IMU Bus]) --> Estimator[Estimator] --> StateBus([State Bus])
 
     StateBus --> Altitude[Altitude] --> ThrustBus([Thrust Bus]) --> Motor[Motor]
-    StateBus --> Position[Position] --> AngleSP([Angle SP Bus]) --> Angle[Angle]
+    StateBus --> Waypoint[Waypoint] --> TargetBus([Target Bus]) --> Position[Position]
+    Position --> AngleSP([Angle SP Bus]) --> Angle[Angle]
     Angle --> RateSP([Rate SP Bus]) --> Attitude[Attitude]
     StateBus --> Attitude --> TorqueBus([Torque Bus]) --> Motor
 ```
@@ -78,10 +81,11 @@ order to ensure each actor sees fresh data from upstream actors in the same step
 | 1     | sensor    | CRITICAL | Reads hardware first |
 | 2     | estimator | CRITICAL | Needs IMU, produces state estimate |
 | 3     | altitude  | CRITICAL | Needs state, produces thrust |
-| 4     | position  | CRITICAL | Needs state, produces angle setpoints |
-| 5     | angle     | CRITICAL | Needs angle setpoints, produces rate setpoints |
-| 6     | attitude  | CRITICAL | Needs state + thrust + rate setpoints |
-| 7     | motor     | CRITICAL | Needs torque, writes hardware last |
+| 4     | waypoint  | CRITICAL | Needs state, produces position targets |
+| 5     | position  | CRITICAL | Needs target, produces angle setpoints |
+| 6     | angle     | CRITICAL | Needs angle setpoints, produces rate setpoints |
+| 7     | attitude  | CRITICAL | Needs state + thrust + rate setpoints |
+| 8     | motor     | CRITICAL | Needs torque, writes hardware last |
 
 ## Control System
 
@@ -100,10 +104,29 @@ order to ensure each actor sees fresh data from upstream actors in the same step
 Altitude control uses measured vertical velocity for damping (Kv=0.15) instead
 of differentiating position error. This provides smoother response with less noise.
 
-Position control uses simple PD with velocity damping. Sign conventions match
-the Bitcraze Webots controller. Heading hold is achieved via yaw angle setpoint
-published to the angle actor, which uses `pid_update_angle()` to handle the
-±π wrap-around correctly.
+Position control uses simple PD with velocity damping. Commands are transformed
+from world frame to body frame based on current yaw. Heading hold is achieved
+via yaw angle setpoint published to the angle actor, which uses `pid_update_angle()`
+to handle the ±π wrap-around correctly.
+
+### Waypoint Navigation
+
+The waypoint actor manages a list of waypoints and publishes the current target
+to the target bus. The position actor reads targets from the bus instead of
+using hardcoded constants.
+
+**Demo route (square pattern):**
+1. (0, 0) heading 0° (north)
+2. (1, 0) heading 0° (north)
+3. (1, 1) heading 90° (east)
+4. (0, 1) heading 180° (south)
+5. (0, 0) heading 0° (north) - return
+
+**Arrival detection:** The drone must satisfy all conditions before advancing:
+- Position within 0.15m of waypoint
+- Heading within 0.1 rad (~6°) of target
+- Velocity below 0.1 m/s (nearly stopped)
+- Hover at waypoint for 200ms
 
 ### Motor Mixer (in motor_actor, X Configuration)
 

@@ -8,12 +8,14 @@ A quadcopter autopilot example using the actor runtime with Webots simulator.
 - Altitude-hold hover with attitude stabilization
 - Horizontal position hold (GPS-based XY control)
 - Heading hold (yaw control with angle wrap-around)
+- Waypoint navigation (square demo route with heading changes)
 - Step 1: Motor actor (mixer, safety, watchdog)
 - Step 2: Separate altitude actor (altitude/rate split)
 - Step 3: Sensor actor (hardware abstraction)
 - Step 4: Angle actor (attitude angle control)
 - Step 5: Estimator actor (sensor fusion, vertical velocity)
 - Step 6: Position actor (horizontal position hold + heading hold)
+- Step 7: Waypoint actor (waypoint navigation)
 - Mixer moved to motor_actor (X-configuration for Crazyflie)
 
 ## Goals
@@ -51,7 +53,6 @@ cfg.max_entries = 1;  // Latest value only - correct for real-time control
 
 ## Non-Goals (Future Work)
 
-- Navigation (waypoint following)
 - Full state estimation (Kalman filter)
 - Failsafe handling
 - Parameter tuning UI
@@ -61,7 +62,7 @@ cfg.max_entries = 1;  // Latest value only - correct for real-time control
 
 ## Architecture Overview
 
-Seven actors connected via buses:
+Eight actors connected via buses:
 
 ```mermaid
 graph TB
@@ -84,6 +85,8 @@ graph TB
         StateBus([State Bus])
 
         Altitude[ALTITUDE ACTOR<br/>altitude PID]
+        Waypoint[WAYPOINT ACTOR<br/>navigation]
+        TargetBus([Target Bus])
         Position[POSITION ACTOR<br/>position PD]
         Attitude[ATTITUDE ACTOR<br/>rate PIDs]
 
@@ -104,7 +107,7 @@ graph TB
     Sensor --> IMUBus --> Estimator --> StateBus
 
     StateBus --> Altitude --> ThrustBus --> Motor
-    StateBus --> Position --> AngleSPBus --> Angle --> RateSPBus --> Attitude
+    StateBus --> Waypoint --> TargetBus --> Position --> AngleSPBus --> Angle --> RateSPBus --> Attitude
     StateBus --> Attitude --> TorqueBus --> Motor
 
     Motor --> WriteMotors
@@ -124,6 +127,7 @@ Code is split into focused modules:
 | `sensor_actor.c/h` | Reads hardware, publishes to IMU bus |
 | `estimator_actor.c/h` | Sensor fusion → state bus |
 | `altitude_actor.c/h` | Altitude PID → thrust |
+| `waypoint_actor.c/h` | Waypoint navigation → target bus |
 | `position_actor.c/h` | Position PD → angle setpoints |
 | `angle_actor.c/h` | Angle PIDs → rate setpoints |
 | `attitude_actor.c/h` | Rate PIDs → torque commands |
@@ -150,10 +154,12 @@ graph TB
     Estimator --> StateBus([State Bus])
 
     StateBus --> Altitude[Altitude Actor<br/>altitude PID]
-    StateBus --> Position[Position Actor<br/>position PD]
+    StateBus --> Waypoint[Waypoint Actor<br/>navigation]
     StateBus --> Attitude[Attitude Actor<br/>rate PIDs]
 
     Altitude --> ThrustBus([Thrust Bus])
+    Waypoint --> TargetBus([Target Bus])
+    TargetBus --> Position[Position Actor<br/>position PD]
     Position --> AngleSP([Angle Setpoint Bus])
     AngleSP --> Angle[Angle Actor<br/>angle PIDs]
     Angle --> RateSP([Rate Setpoint Bus])
@@ -267,18 +273,19 @@ Each `hive_step()` runs all ready actors once:
 1. Sensor actor reads hardware, publishes to IMU bus
 2. Estimator actor reads IMU bus, publishes state estimate
 3. Altitude actor reads state bus, publishes thrust
-4. Position actor reads state bus, publishes angle setpoints
-5. Angle actor reads angle setpoints, publishes rate setpoints
-6. Attitude actor reads state + thrust + rate setpoints, publishes torque commands
-7. Motor actor applies mixer, writes to hardware
+4. Waypoint actor reads state bus, publishes position target
+5. Position actor reads target bus, publishes angle setpoints
+6. Angle actor reads angle setpoints, publishes rate setpoints
+7. Attitude actor reads state + thrust + rate setpoints, publishes torque commands
+8. Motor actor applies mixer, writes to hardware
 
 ### Key Parameters
 
 - `TIME_STEP = 4` ms (250 Hz control rate)
 - `MOTOR_MAX_VELOCITY = 100.0` rad/s
 - Target altitude: 1.0 m
-- Target position: X=0, Y=0 (world frame)
-- Target heading: 0 rad (north)
+- Waypoint tolerance: 0.15 m position, 0.1 rad heading, 0.1 m/s velocity
+- Waypoint hover time: 200 ms before advancing
 
 ### Webots Device Names
 
@@ -335,6 +342,7 @@ examples/pilot/
     sensor_actor.c/h     # Hardware sensor reading → IMU bus
     estimator_actor.c/h  # Sensor fusion → state bus
     altitude_actor.c/h   # Altitude PID → thrust
+    waypoint_actor.c/h   # Waypoint navigation → target bus
     position_actor.c/h   # Position PD → angle setpoints
     angle_actor.c/h      # Angle PIDs → rate setpoints
     attitude_actor.c/h   # Rate PIDs → torque commands
@@ -415,7 +423,8 @@ graph LR
 | **Sensor** | Hardware | IMU Bus | CRITICAL | Read IMU/GPS, timestamp, publish |
 | **Estimator** | IMU Bus | State Bus | CRITICAL | Sensor fusion, state estimate |
 | **Altitude** | State Bus | Thrust Bus | CRITICAL | Altitude PID (250Hz) |
-| **Position** | State Bus | Angle Setpoint Bus | CRITICAL | Position PD (250Hz) |
+| **Waypoint** | State Bus | Target Bus | CRITICAL | Waypoint navigation, arrival detection |
+| **Position** | Target + State Bus | Angle Setpoint Bus | CRITICAL | Position PD (250Hz) |
 | **Angle** | Angle Setpoint + State | Rate Setpoint Bus | CRITICAL | Angle PIDs (250Hz) |
 | **Attitude** | State + Thrust + Rate SP | Torque Bus | CRITICAL | Rate PIDs (250Hz) |
 | **Motor** | Torque Bus | Hardware | CRITICAL | Mixer, safety, limits, write motors |
@@ -526,11 +535,39 @@ State Bus ──► Position Actor ──► Angle Setpoint Bus ──► Angle 
 - Drone holds XY position and heading
 - Returns to target when displaced or rotated
 - Takes shortest rotation path (never rotates >180°)
-- Enables future waypoint navigation with heading
 
-### Step 7 (Future): Setpoint Actor
+### Step 7: Waypoint Actor ✓
 
-Add command generation actor.
+Add waypoint navigation.
+
+**Before:**
+```
+Position Actor uses hardcoded TARGET_X, TARGET_Y, TARGET_YAW
+```
+
+**After:**
+```
+State Bus ──► Waypoint Actor ──► Target Bus ──► Position Actor
+              (navigation)       (x, y, yaw)    (position PD)
+```
+
+**Implementation:**
+- Manages list of waypoints (x, y, yaw)
+- Publishes current target to target bus
+- Monitors state bus for arrival detection
+- Arrival requires: position within tolerance, heading within tolerance, velocity below threshold
+- Hovers briefly at each waypoint before advancing
+- Demo route: square pattern with 90° turns
+
+**Benefits:**
+- Decouples waypoint logic from position control
+- Position actor reads targets from bus (no hardcoded values)
+- World-to-body frame transformation handles arbitrary headings
+- Easy to extend with mission planning
+
+### Step 8 (Future): Setpoint Actor
+
+Add altitude command generation actor.
 
 **Before:**
 ```
@@ -545,7 +582,7 @@ Setpoint Actor ──► Setpoint Bus ──► Altitude Actor
 
 **Future extensions:**
 - RC input handling
-- Waypoint mission execution
+- Takeoff/landing sequences
 - Mode switching (hover, land, etc.)
 
 ---
@@ -570,8 +607,8 @@ With default `hive_static_config.h`, the runtime uses ~1.2 MB RAM (mostly the 1 
 
 | Resource | Used | Default | Minimal |
 |----------|------|---------|---------|
-| Actors | 6 | 64 | 8 |
-| Buses | 5 | 32 | 8 |
+| Actors | 8 | 64 | 8 |
+| Buses | 7 | 32 | 8 |
 | Stack per actor | 1 KB | 64 KB | 1 KB |
 | Stack arena | 4 KB | 1 MB | 4 KB |
 | Mailbox entries | ~4 | 256 | 8 |
@@ -588,9 +625,9 @@ This fits comfortably on small STM32 chips (e.g., STM32F103 with 20 KB RAM).
 
 ## Future Extensions
 
-1. **Waypoint navigation** - Mission actor, path planning
+1. **Mission planning** - Load waypoints from file, complex routes
 2. **Sensor fusion** - Complementary filter for better attitude estimation
 3. **Failsafe** - Motor failure detection, emergency landing
 4. **Telemetry** - Logging, MAVLink output
 5. **RC input** - Manual control override
-6. **Setpoint actor** - Command generation, mode switching
+6. **Setpoint actor** - Altitude command generation, mode switching
