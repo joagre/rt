@@ -215,11 +215,19 @@ float pid_update(pid_state_t *pid, float setpoint, float measurement, float dt) 
 
 | Controller | Kp   | Ki   | Kd    | Output Max | Purpose |
 |------------|------|------|-------|------------|---------|
-| Altitude   | 0.3  | 0.05 | 0.15  | 0.15       | Hold 1.0m height |
+| Altitude   | 0.3  | 0.05 | 0     | 0.15       | Hold 1.0m height (PI) |
 | Angle      | 4.0  | 0    | 0.1   | 2.0        | Level attitude |
 | Roll rate  | 0.02 | 0    | 0.001 | 0.1        | Stabilize roll |
 | Pitch rate | 0.02 | 0    | 0.001 | 0.1        | Stabilize pitch |
 | Yaw rate   | 0.02 | 0    | 0.001 | 0.15       | Stabilize yaw |
+
+**Altitude velocity damping:** Kv = 0.15
+
+Altitude control uses measured vertical velocity for damping instead of
+differentiating position error. This provides smoother response with less noise:
+```
+thrust = BASE_THRUST + PI_correction - Kv * vertical_velocity
+```
 
 Base thrust: 0.553 (approximate hover thrust for Webots Crazyflie model)
 

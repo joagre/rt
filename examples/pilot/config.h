@@ -52,12 +52,16 @@
 #define TARGET_ALTITUDE  1.0f    // meters
 #define BASE_THRUST      0.553f  // Hover thrust
 
-// Altitude PID gains
+// Altitude PID gains (position error → thrust correction)
 #define ALT_PID_KP   0.3f
 #define ALT_PID_KI   0.05f
-#define ALT_PID_KD   0.15f
-#define ALT_PID_IMAX 0.2f   // Integral limit
-#define ALT_PID_OMAX 0.15f  // Output limit
+#define ALT_PID_KD   0.0f    // Using velocity feedback instead
+#define ALT_PID_IMAX 0.2f    // Integral limit
+#define ALT_PID_OMAX 0.15f   // Output limit
+
+// Vertical velocity damping (measured velocity → thrust correction)
+// Provides smoother response than differentiating position error
+#define VVEL_DAMPING_GAIN  0.15f
 
 // Angle PID gains (angle error → rate setpoint)
 #define ANGLE_PID_KP   4.0f
