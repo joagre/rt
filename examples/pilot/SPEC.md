@@ -7,12 +7,13 @@ A quadcopter autopilot example using the actor runtime with Webots simulator.
 **Implemented:**
 - Altitude-hold hover with attitude stabilization
 - Horizontal position hold (GPS-based XY control)
+- Heading hold (yaw control with angle wrap-around)
 - Step 1: Motor actor (mixer, safety, watchdog)
 - Step 2: Separate altitude actor (altitude/rate split)
 - Step 3: Sensor actor (hardware abstraction)
 - Step 4: Angle actor (attitude angle control)
 - Step 5: Estimator actor (sensor fusion, vertical velocity)
-- Step 6: Position actor (horizontal position hold)
+- Step 6: Position actor (horizontal position hold + heading hold)
 - Mixer moved to motor_actor (X-configuration for Crazyflie)
 
 ## Goals
@@ -196,13 +197,16 @@ float pid_update(pid_state_t *pid, float setpoint, float measurement, float dt) 
 |------------|------|------|-------|------------|---------|
 | Altitude   | 0.3  | 0.05 | 0     | 0.15       | Hold 1.0m height (PI) |
 | Position   | 0.2  | -    | 0.1   | 0.35 rad   | Hold XY position (PD) |
-| Angle      | 4.0  | 0    | 0     | 3.0 rad/s  | Level attitude |
+| Yaw angle  | 4.0  | 0    | 0     | 3.0 rad/s  | Hold heading (P) |
+| Roll angle | 4.0  | 0    | 0     | 3.0 rad/s  | Level attitude |
+| Pitch angle| 4.0  | 0    | 0     | 3.0 rad/s  | Level attitude |
 | Roll rate  | 0.02 | 0    | 0.001 | 0.1        | Stabilize roll |
 | Pitch rate | 0.02 | 0    | 0.001 | 0.1        | Stabilize pitch |
 | Yaw rate   | 0.02 | 0    | 0.001 | 0.15       | Stabilize yaw |
 
 **Altitude velocity damping:** Kv = 0.15
 **Position control:** PD controller with velocity damping, max tilt 0.35 rad (~20°)
+**Heading control:** Uses `pid_update_angle()` with ±π wrap-around for shortest path
 
 Altitude control uses measured vertical velocity for damping instead of
 differentiating position error. This provides smoother response with less noise:
@@ -273,6 +277,8 @@ Each `hive_step()` runs all ready actors once:
 - `TIME_STEP = 4` ms (250 Hz control rate)
 - `MOTOR_MAX_VELOCITY = 100.0` rad/s
 - Target altitude: 1.0 m
+- Target position: X=0, Y=0 (world frame)
+- Target heading: 0 rad (north)
 
 ### Webots Device Names
 
@@ -495,7 +501,7 @@ Sensor Actor ──► IMU Bus ──► Estimator Actor ──► State Bus ─
 
 ### Step 6: Position Actor ✓
 
-Add horizontal position hold using GPS.
+Add horizontal position hold and heading hold.
 
 **Before:**
 ```
@@ -505,7 +511,7 @@ Angle Actor uses hardcoded 0.0 angle setpoints
 **After:**
 ```
 State Bus ──► Position Actor ──► Angle Setpoint Bus ──► Angle Actor
-              (position PD)                              (angle PIDs)
+              (position PD)       (roll, pitch, yaw)    (angle PIDs)
 ```
 
 **Implementation:**
@@ -513,11 +519,14 @@ State Bus ──► Position Actor ──► Angle Setpoint Bus ──► Angle 
 - Velocity damping: reduces overshoot
 - Max tilt limit: 0.35 rad (~20°) for safety
 - Sign conventions match Bitcraze Webots controller
+- Heading hold: publishes TARGET_YAW as yaw setpoint
+- Angle wrap-around: `pid_update_angle()` handles ±π discontinuity
 
 **Benefits:**
-- Drone holds XY position
-- Returns to target when displaced
-- Enables future waypoint navigation
+- Drone holds XY position and heading
+- Returns to target when displaced or rotated
+- Takes shortest rotation path (never rotates >180°)
+- Enables future waypoint navigation with heading
 
 ### Step 7 (Future): Setpoint Actor
 
