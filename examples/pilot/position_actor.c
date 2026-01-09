@@ -19,25 +19,37 @@
 #include "hive_runtime.h"
 #include "hive_bus.h"
 #include <stdio.h>
+#include <math.h>
 
 static bus_id s_state_bus;
 static bus_id s_angle_setpoint_bus;
+static bus_id s_target_bus;
 
-void position_actor_init(bus_id state_bus, bus_id angle_setpoint_bus) {
+void position_actor_init(bus_id state_bus, bus_id angle_setpoint_bus, bus_id target_bus) {
     s_state_bus = state_bus;
     s_angle_setpoint_bus = angle_setpoint_bus;
+    s_target_bus = target_bus;
 }
 
 void position_actor(void *arg) {
     (void)arg;
 
     hive_bus_subscribe(s_state_bus);
+    hive_bus_subscribe(s_target_bus);
 
+    // Current target (updated from waypoint actor)
+    position_target_t target = POSITION_TARGET_ZERO;
     int count = 0;
 
     while (1) {
         state_estimate_t state;
+        position_target_t new_target;
         size_t len;
+
+        // Read target from waypoint actor
+        if (hive_bus_read(s_target_bus, &new_target, sizeof(new_target), &len).code == HIVE_OK) {
+            target = new_target;
+        }
 
         if (hive_bus_read(s_state_bus, &state, sizeof(state), &len).code == HIVE_OK) {
             float pitch_cmd = 0.0f;
@@ -45,12 +57,22 @@ void position_actor(void *arg) {
 
             // Only enable position control after reaching stable hover
             if (state.altitude > 0.8f) {
-                // Simple PD controller - very gentle to avoid destabilizing
-                float x_error = TARGET_X - state.x;
-                float y_error = TARGET_Y - state.y;
+                // Simple PD controller in world frame
+                float x_error = target.x - state.x;
+                float y_error = target.y - state.y;
 
-                pitch_cmd = POS_KP * x_error - POS_KD * state.x_velocity;
-                roll_cmd  = POS_KP * y_error - POS_KD * state.y_velocity;
+                // Desired acceleration in world frame
+                float accel_x = POS_KP * x_error - POS_KD * state.x_velocity;
+                float accel_y = POS_KP * y_error - POS_KD * state.y_velocity;
+
+                // Rotate from world frame to body frame based on current yaw
+                // Body X (forward) = World X * cos(yaw) + World Y * sin(yaw)
+                // Body Y (right)   = -World X * sin(yaw) + World Y * cos(yaw)
+                float cos_yaw = cosf(state.yaw);
+                float sin_yaw = sinf(state.yaw);
+
+                pitch_cmd = accel_x * cos_yaw + accel_y * sin_yaw;
+                roll_cmd  = -accel_x * sin_yaw + accel_y * cos_yaw;
 
                 // Clamp to maximum tilt angle for safety
                 pitch_cmd = CLAMPF(pitch_cmd, -MAX_TILT_ANGLE, MAX_TILT_ANGLE);
@@ -58,18 +80,18 @@ void position_actor(void *arg) {
             }
 
             // Sign conversion for Webots Crazyflie (matching Bitcraze):
-            // - Roll is negated: positive Y error → negative roll (left wing down) → +Y accel
-            // - Pitch is NOT negated: positive X error → positive pitch → forward
+            // - Roll is negated: positive body Y error → negative roll → +Y body accel
+            // - Pitch is NOT negated: positive body X error → positive pitch → forward
             angle_setpoint_t setpoint = {
                 .roll = -roll_cmd,
                 .pitch = pitch_cmd,
-                .yaw = TARGET_YAW  // Heading hold target
+                .yaw = target.yaw
             };
             hive_bus_publish(s_angle_setpoint_bus, &setpoint, sizeof(setpoint));
 
             if (++count % DEBUG_PRINT_INTERVAL == 0) {
-                printf("[POS] x=%.2f y=%.2f vx=%.2f vy=%.2f pitch=%.1f roll=%.1f\n",
-                       state.x, state.y, state.x_velocity, state.y_velocity,
+                printf("[POS] tgt=(%.1f,%.1f) x=%.2f y=%.2f pitch=%.1f roll=%.1f\n",
+                       target.x, target.y, state.x, state.y,
                        pitch_cmd * RAD_TO_DEG, roll_cmd * RAD_TO_DEG);
             }
         }
