@@ -128,6 +128,8 @@ using hardcoded constants.
 - Velocity below 0.1 m/s (nearly stopped)
 - Hover at waypoint for 200ms
 
+After completing the route, the drone loops back to the first waypoint and repeats forever.
+
 ### Motor Mixer (in motor_actor, X Configuration)
 
 The Webots Crazyflie uses X-configuration (matching Bitcraze):
