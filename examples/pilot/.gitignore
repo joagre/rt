@@ -1,0 +1,15 @@
+# Build artifacts
+*.o
+*.d
+pilot
+
+# Installed controller (copied to Webots)
+controllers/pilot/pilot
+
+# Editor backups
+*~
+*.swp
+*.swo
+
+# macOS
+.DS_Store
