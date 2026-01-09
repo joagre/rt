@@ -1,6 +1,10 @@
 // Altitude actor - Altitude hold control
 //
-// Subscribes to state bus, runs altitude PID, publishes thrust commands.
+// Subscribes to state bus, runs altitude PI with velocity damping,
+// publishes thrust commands.
+//
+// Uses measured vertical velocity for damping instead of differentiating
+// the position error. This provides smoother response with less noise.
 
 #include "altitude_actor.h"
 #include "types.h"
@@ -35,15 +39,20 @@ void altitude_actor(void *arg) {
         size_t len;
 
         if (hive_bus_read(s_state_bus, &state, sizeof(state), &len).code == HIVE_OK) {
-            float correction = pid_update(&alt_pid, TARGET_ALTITUDE, state.altitude, TIME_STEP_S);
-            float thrust = CLAMPF(BASE_THRUST + correction, 0.0f, 1.0f);
+            // Position control (PI)
+            float pos_correction = pid_update(&alt_pid, TARGET_ALTITUDE, state.altitude, TIME_STEP_S);
+
+            // Velocity damping: reduce thrust when moving up, increase when moving down
+            float vel_damping = -VVEL_DAMPING_GAIN * state.vertical_velocity;
+
+            float thrust = CLAMPF(BASE_THRUST + pos_correction + vel_damping, 0.0f, 1.0f);
 
             thrust_cmd_t cmd = {.thrust = thrust};
             hive_bus_publish(s_thrust_bus, &cmd, sizeof(cmd));
 
             if (++count % DEBUG_PRINT_INTERVAL == 0) {
-                printf("[ALT] alt=%.2f vvel=%.2f target=%.1f thrust=%.3f\n",
-                       state.altitude, state.vertical_velocity, TARGET_ALTITUDE, thrust);
+                printf("[ALT] alt=%.2f vvel=%.2f thrust=%.3f\n",
+                       state.altitude, state.vertical_velocity, thrust);
             }
         }
 

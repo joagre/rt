@@ -87,11 +87,14 @@ order to ensure each actor sees fresh data from upstream actors in the same step
 
 | Controller | Kp   | Ki   | Kd    | Purpose |
 |------------|------|------|-------|---------|
-| Altitude   | 0.3  | 0.05 | 0.15  | Hold 1.0m height |
+| Altitude   | 0.3  | 0.05 | 0     | Hold 1.0m height (PI + velocity damping) |
 | Angle      | 4.0  | 0    | 0.1   | Level attitude |
 | Roll rate  | 0.02 | 0    | 0.001 | Stabilize roll |
 | Pitch rate | 0.02 | 0    | 0.001 | Stabilize pitch |
 | Yaw rate   | 0.02 | 0    | 0.001 | Stabilize yaw |
+
+Altitude control uses measured vertical velocity for damping (Kv=0.15) instead
+of differentiating position error. This provides smoother response with less noise.
 
 ### Motor Mixer (in motor_actor, + Configuration)
 
