@@ -1,11 +1,12 @@
 // Pilot example - Quadcopter hover using actor runtime with Webots
 //
-// Demonstrates altitude-hold hover control for a Crazyflie quadcopter
-// using the hive actor runtime. Six actors work together:
+// Demonstrates position-hold hover control for a Crazyflie quadcopter
+// using the hive actor runtime. Seven actors work together:
 //
 //   sensor_actor    - Reads hardware sensors → IMU bus
 //   estimator_actor - Sensor fusion → state bus
 //   altitude_actor  - Altitude PID → thrust command
+//   position_actor  - Position PID → angle setpoints
 //   angle_actor     - Angle PIDs → rate setpoints
 //   attitude_actor  - Rate PIDs → torque commands
 //   motor_actor     - Mixer + safety: torque → motors → hardware
@@ -13,6 +14,8 @@
 // Data flows through buses:
 //
 //   Sensor ──► IMU Bus ──► Estimator ──► State Bus ──► Altitude ──► Thrust Bus ─┐
+//                                             │                                  │
+//                                             ├──► Position ──► Angle SP Bus ────┤
 //                                             │                                  │
 //                                             ├──► Angle ──► Rate Setpoint Bus ──┤
 //                                             │                                  │
@@ -37,6 +40,7 @@
 #include "sensor_actor.h"
 #include "estimator_actor.h"
 #include "altitude_actor.h"
+#include "position_actor.h"
 #include "angle_actor.h"
 #include "attitude_actor.h"
 #include "motor_actor.h"
@@ -62,6 +66,7 @@
 static bus_id g_imu_bus;
 static bus_id g_state_bus;
 static bus_id g_thrust_bus;
+static bus_id g_angle_setpoint_bus;
 static bus_id g_rate_setpoint_bus;
 static bus_id g_torque_bus;
 
@@ -115,6 +120,8 @@ static void platform_read_imu(imu_data_t *imu) {
     imu->gyro_x = g[0];
     imu->gyro_y = g[1];
     imu->gyro_z = g[2];
+    imu->x = pos[0];
+    imu->y = pos[1];
     imu->altitude = pos[2];
 }
 
@@ -142,6 +149,7 @@ int main(void) {
     hive_bus_create(&cfg, &g_imu_bus);
     hive_bus_create(&cfg, &g_state_bus);
     hive_bus_create(&cfg, &g_thrust_bus);
+    hive_bus_create(&cfg, &g_angle_setpoint_bus);
     hive_bus_create(&cfg, &g_rate_setpoint_bus);
     hive_bus_create(&cfg, &g_torque_bus);
 
@@ -149,24 +157,27 @@ int main(void) {
     sensor_actor_init(g_imu_bus, platform_read_imu);
     estimator_actor_init(g_imu_bus, g_state_bus);
     altitude_actor_init(g_state_bus, g_thrust_bus);
-    angle_actor_init(g_state_bus, g_rate_setpoint_bus);
+    position_actor_init(g_state_bus, g_angle_setpoint_bus);
+    angle_actor_init(g_state_bus, g_angle_setpoint_bus, g_rate_setpoint_bus);
     attitude_actor_init(g_state_bus, g_thrust_bus, g_rate_setpoint_bus, g_torque_bus);
     motor_actor_init(g_torque_bus, platform_write_motors);
 
     // Spawn actors in data-flow order to minimize latency.
     // All CRITICAL priority, round-robin within priority follows spawn order.
-    // Order: sensor → estimator → altitude → angle → attitude → motor
+    // Order: sensor → estimator → altitude → position → angle → attitude → motor
     // This ensures each actor sees fresh data from upstream actors in same step.
-    actor_id sensor, estimator, altitude, angle, attitude, motor;
+    actor_id sensor, estimator, altitude, position, angle, attitude, motor;
 
     SPAWN_CRITICAL_ACTOR(sensor_actor,    "sensor",    sensor);
     SPAWN_CRITICAL_ACTOR(estimator_actor, "estimator", estimator);
     SPAWN_CRITICAL_ACTOR(altitude_actor,  "altitude",  altitude);
+    SPAWN_CRITICAL_ACTOR(position_actor,  "position",  position);
     SPAWN_CRITICAL_ACTOR(angle_actor,     "angle",     angle);
     SPAWN_CRITICAL_ACTOR(attitude_actor,  "attitude",  attitude);
     SPAWN_CRITICAL_ACTOR(motor_actor,     "motor",     motor);
 
-    printf("Pilot: 6 actors (sensor, estimator, altitude, angle, attitude, motor)\n");
+    printf("Pilot: 7 actors spawned, holding position at (%.1f, %.1f, %.1f)\n",
+           TARGET_X, TARGET_Y, TARGET_ALTITUDE);
 
     // Main loop: just run actors, sensor actor handles IMU reading
     while (wb_robot_step(TIME_STEP_MS) != -1) {

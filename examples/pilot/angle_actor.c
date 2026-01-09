@@ -1,6 +1,7 @@
 // Angle actor - Attitude angle control
 //
-// Subscribes to state bus, runs angle PID controllers, publishes rate setpoints.
+// Subscribes to state and angle setpoint buses, runs angle PID controllers,
+// publishes rate setpoints.
 
 #include "angle_actor.h"
 #include "types.h"
@@ -10,10 +11,12 @@
 #include "hive_bus.h"
 
 static bus_id s_state_bus;
+static bus_id s_angle_setpoint_bus;
 static bus_id s_rate_setpoint_bus;
 
-void angle_actor_init(bus_id state_bus, bus_id rate_setpoint_bus) {
+void angle_actor_init(bus_id state_bus, bus_id angle_setpoint_bus, bus_id rate_setpoint_bus) {
     s_state_bus = state_bus;
+    s_angle_setpoint_bus = angle_setpoint_bus;
     s_rate_setpoint_bus = rate_setpoint_bus;
 }
 
@@ -21,6 +24,7 @@ void angle_actor(void *arg) {
     (void)arg;
 
     hive_bus_subscribe(s_state_bus);
+    hive_bus_subscribe(s_angle_setpoint_bus);
 
     pid_state_t roll_pid, pitch_pid, yaw_pid;
 
@@ -28,20 +32,24 @@ void angle_actor(void *arg) {
     pid_init_full(&pitch_pid, ANGLE_PID_KP, ANGLE_PID_KI, ANGLE_PID_KD, 0.5f, ANGLE_PID_OMAX);
     pid_init_full(&yaw_pid,   ANGLE_PID_KP, ANGLE_PID_KI, ANGLE_PID_KD, 0.5f, ANGLE_PID_OMAX);
 
-    // Target angles for hover (level flight)
-    const float target_roll  = 0.0f;
-    const float target_pitch = 0.0f;
-    const float target_yaw   = 0.0f;
+    // Target angles (updated from angle_setpoint_bus)
+    angle_setpoint_t angle_sp = ANGLE_SETPOINT_ZERO;
 
     while (1) {
         state_estimate_t state;
+        angle_setpoint_t new_angle_sp;
         size_t len;
+
+        // Read angle setpoints from position controller
+        if (hive_bus_read(s_angle_setpoint_bus, &new_angle_sp, sizeof(new_angle_sp), &len).code == HIVE_OK) {
+            angle_sp = new_angle_sp;
+        }
 
         if (hive_bus_read(s_state_bus, &state, sizeof(state), &len).code == HIVE_OK) {
             rate_setpoint_t setpoint;
-            setpoint.roll  = pid_update(&roll_pid,  target_roll,  state.roll,  TIME_STEP_S);
-            setpoint.pitch = pid_update(&pitch_pid, target_pitch, state.pitch, TIME_STEP_S);
-            setpoint.yaw   = pid_update(&yaw_pid,   target_yaw,   state.yaw,   TIME_STEP_S);
+            setpoint.roll  = pid_update(&roll_pid,  angle_sp.roll,  state.roll,  TIME_STEP_S);
+            setpoint.pitch = pid_update(&pitch_pid, angle_sp.pitch, state.pitch, TIME_STEP_S);
+            setpoint.yaw   = pid_update(&yaw_pid,   angle_sp.yaw,   state.yaw,   TIME_STEP_S);
 
             hive_bus_publish(s_rate_setpoint_bus, &setpoint, sizeof(setpoint));
         }

@@ -48,6 +48,9 @@
 // Lower = less smoothing, more noise
 #define VVEL_FILTER_ALPHA  0.8f
 
+// Low-pass filter coefficient for horizontal velocity
+#define HVEL_FILTER_ALPHA  0.8f
+
 // ----------------------------------------------------------------------------
 // Control parameters (tuned for Webots Crazyflie)
 // ----------------------------------------------------------------------------
@@ -66,6 +69,22 @@
 // Vertical velocity damping (measured velocity → thrust correction)
 // Provides smoother response than differentiating position error
 #define VVEL_DAMPING_GAIN  0.15f
+
+// Position hold control
+#define TARGET_X         0.0f    // meters (world frame)
+#define TARGET_Y         0.0f    // meters (world frame)
+
+// Position PID gains (position error → velocity command)
+#define POS_PID_KP       0.5f
+#define POS_PID_KI       0.0f
+#define POS_PID_KD       0.0f
+#define POS_PID_OMAX     1.0f    // Max velocity command (m/s)
+
+// Horizontal velocity damping (velocity error → angle command)
+#define HVEL_DAMPING_GAIN  0.1f  // rad per m/s
+
+// Maximum tilt angle for position control (safety limit)
+#define MAX_TILT_ANGLE   0.3f    // ~17 degrees
 
 // Angle PID gains (angle error → rate setpoint)
 #define ANGLE_PID_KP   4.0f

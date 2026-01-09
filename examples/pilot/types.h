@@ -12,13 +12,14 @@
 typedef struct {
     float roll, pitch, yaw;        // Euler angles in radians
     float gyro_x, gyro_y, gyro_z;  // Angular rates in rad/s (body frame: x=roll, y=pitch, z=yaw)
-    float altitude;                 // Height above ground in meters
+    float x, y;                    // GPS position (meters, world frame)
+    float altitude;                // Height above ground in meters (Z)
 } imu_data_t;
 
 #define IMU_DATA_ZERO { \
     .roll = 0.0f, .pitch = 0.0f, .yaw = 0.0f, \
     .gyro_x = 0.0f, .gyro_y = 0.0f, .gyro_z = 0.0f, \
-    .altitude = 0.0f \
+    .x = 0.0f, .y = 0.0f, .altitude = 0.0f \
 }
 
 // State estimate from estimator actor.
@@ -29,6 +30,8 @@ typedef struct {
     float roll_rate;               // Roll rate (rad/s)
     float pitch_rate;              // Pitch rate (rad/s)
     float yaw_rate;                // Yaw rate (rad/s)
+    float x, y;                    // Position estimate (m, world frame)
+    float x_velocity, y_velocity;  // Horizontal velocity (m/s, world frame)
     float altitude;                // Altitude estimate (m)
     float vertical_velocity;       // Vertical velocity (m/s), positive = up
 } state_estimate_t;
@@ -36,6 +39,7 @@ typedef struct {
 #define STATE_ESTIMATE_ZERO { \
     .roll = 0.0f, .pitch = 0.0f, .yaw = 0.0f, \
     .roll_rate = 0.0f, .pitch_rate = 0.0f, .yaw_rate = 0.0f, \
+    .x = 0.0f, .y = 0.0f, .x_velocity = 0.0f, .y_velocity = 0.0f, \
     .altitude = 0.0f, .vertical_velocity = 0.0f \
 }
 
@@ -64,6 +68,16 @@ typedef struct {
 } rate_setpoint_t;
 
 #define RATE_SETPOINT_ZERO {.roll = 0.0f, .pitch = 0.0f, .yaw = 0.0f}
+
+// Angle setpoint from position actor to angle actor.
+// Angle actor tracks these target angles.
+typedef struct {
+    float roll;   // Target roll angle (rad)
+    float pitch;  // Target pitch angle (rad)
+    float yaw;    // Target yaw angle (rad)
+} angle_setpoint_t;
+
+#define ANGLE_SETPOINT_ZERO {.roll = 0.0f, .pitch = 0.0f, .yaw = 0.0f}
 
 // Torque command from attitude actor to motor actor.
 // Motor actor applies mixer to convert to motor commands.
