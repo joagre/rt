@@ -87,8 +87,50 @@ The Webots `inertial_unit` provides pre-fused roll/pitch/yaw. On real hardware, 
 | `attitude.h/c` | - | - | Complementary filter for sensor fusion |
 | `platform.h/c` | - | - | Main control loop and hardware init |
 | `main.c` | - | - | Example flight controller |
+| `Makefile` | - | - | ARM GCC build system |
 
 All drivers are skeleton implementations with TODO placeholders for STM32 HAL integration.
+
+## Building
+
+### Requirements
+
+```bash
+# ARM GCC toolchain
+sudo apt install gcc-arm-none-eabi
+
+# ST-Link tools (for flashing)
+sudo apt install stlink-tools
+
+# OpenOCD (optional, for debugging)
+sudo apt install openocd
+```
+
+### Build Commands
+
+```bash
+make          # Build firmware
+make flash    # Flash to device via ST-Link
+make debug    # Start GDB debug session
+make clean    # Remove build artifacts
+make size     # Show memory usage
+make help     # Show all targets
+```
+
+### Integration with STM32CubeMX
+
+The Makefile is a skeleton. For a complete build:
+
+1. Create STM32CubeMX project for STM32F401CEU6
+2. Configure peripherals:
+   - SPI1: LSM6DSL (IMU)
+   - I2C1: LIS2MDL, LPS22HD (magnetometer, barometer)
+   - TIM4: PWM channels 1-4 (motors)
+   - TIM2: Microsecond timing
+3. Generate code
+4. Uncomment HAL sources/includes in Makefile
+5. Copy linker script from CubeMX project
+6. Implement TODO placeholders in drivers
 
 ### LSM6DSL (IMU)
 
@@ -283,5 +325,6 @@ The `on_control` callback runs at 400Hz and implements:
 - [x] Complementary filter for attitude estimation
 - [x] Platform init and main loop
 - [x] Example main.c with PID control
+- [x] Makefile for ARM GCC build
 - [ ] STM32 HAL integration (implement TODO placeholders)
 - [ ] hive runtime port for STM32F4
