@@ -51,13 +51,14 @@ config.h             # Shared constants (PID gains, timing)
 
 Seven actors connected via buses:
 
-```
-Sensor → IMU Bus → Estimator → State Bus ─┬→ Altitude → Thrust Bus ──────────┐
-                                          ├→ Position → Angle SP Bus → Angle │
-                                          │                             ↓    │
-                                          └→ Attitude ← Rate SP Bus ←───┘    │
-                                                ↓                             │
-                                          Torque Bus → Motor ← Thrust Bus ←───┘
+```mermaid
+graph LR
+    Sensor[Sensor] --> IMUBus[IMU Bus] --> Estimator[Estimator] --> StateBus[State Bus]
+
+    StateBus --> Altitude[Altitude] --> ThrustBus[Thrust Bus] --> Motor[Motor]
+    StateBus --> Position[Position] --> AngleSP[Angle SP Bus] --> Angle[Angle]
+    Angle --> RateSP[Rate SP Bus] --> Attitude[Attitude]
+    StateBus --> Attitude --> TorqueBus[Torque Bus] --> Motor
 ```
 
 Platform layer (in pilot.c) provides hardware abstraction:

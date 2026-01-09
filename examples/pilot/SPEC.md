@@ -62,54 +62,51 @@ cfg.max_entries = 1;  // Latest value only - correct for real-time control
 
 Seven actors connected via buses:
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         WEBOTS SIMULATION                           │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────────────┐   │
-│  │   IMU    │  │   GPS    │  │  Gyro    │  │   Motors (x4)     │   │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └─────────▲─────────┘   │
-└───────┼─────────────┼─────────────┼──────────────────┼──────────────┘
-        │             │             │                  │
-        ▼             ▼             ▼                  │
-┌─────────────────────────────────────────────────────────────────────┐
-│                     PLATFORM LAYER (pilot.c)                        │
-│   platform_read_imu() ──► imu_data_t                                │
-│   platform_write_motors() ◄── motor_cmd_t                           │
-└─────────────────────────────────────────────────────────────────────┘
-        │                                              ▲
-        ▼                                              │
-┌─────────────────────────────────────────────────────────────────────┐
-│                          ACTOR RUNTIME                              │
-│                                                                     │
-│  SENSOR ACTOR ──► IMU Bus ──► ESTIMATOR ACTOR ──► State Bus         │
-│                                                        │            │
-│                ┌───────────────────┬──────────────────┬┘            │
-│                │                   │                  │             │
-│                ▼                   ▼                  ▼             │
-│         ALTITUDE ACTOR      POSITION ACTOR      ATTITUDE ACTOR     │
-│         (altitude PID)      (position PD)       (rate PIDs)        │
-│                │                   │                  ▲             │
-│                ▼                   ▼                  │             │
-│           Thrust Bus ─────► Angle Setpoint Bus       │             │
-│                │                   │                  │             │
-│                │                   ▼                  │             │
-│                │             ANGLE ACTOR             │             │
-│                │             (angle PIDs)            │             │
-│                │                   │                  │             │
-│                │                   ▼                  │             │
-│                └────────► Rate Setpoint Bus ─────────┘             │
-│                                    │                                │
-│                                    ▼                                │
-│                              Torque Bus                             │
-│                                    │                                │
-│                                    ▼                                │
-│                              MOTOR ACTOR                            │
-│                             (mixer+safety)                          │
-│                                    │                                │
-└────────────────────────────────────┼────────────────────────────────┘
-                                     │
-                                     ▼
-                            platform_write_motors()
+```mermaid
+graph TB
+    subgraph WEBOTS["WEBOTS SIMULATION"]
+        IMU[IMU]
+        GPS[GPS]
+        Gyro[Gyro]
+        Motors[Motors x4]
+    end
+
+    subgraph PLATFORM["PLATFORM LAYER (pilot.c)"]
+        ReadIMU[platform_read_imu]
+        WriteMotors[platform_write_motors]
+    end
+
+    subgraph RUNTIME["ACTOR RUNTIME"]
+        Sensor[SENSOR ACTOR]
+        IMUBus[IMU Bus]
+        Estimator[ESTIMATOR ACTOR]
+        StateBus[State Bus]
+
+        Altitude[ALTITUDE ACTOR<br/>altitude PID]
+        Position[POSITION ACTOR<br/>position PD]
+        Attitude[ATTITUDE ACTOR<br/>rate PIDs]
+
+        ThrustBus[Thrust Bus]
+        AngleSPBus[Angle Setpoint Bus]
+        Angle[ANGLE ACTOR<br/>angle PIDs]
+        RateSPBus[Rate Setpoint Bus]
+        TorqueBus[Torque Bus]
+        Motor[MOTOR ACTOR<br/>mixer+safety]
+    end
+
+    IMU --> ReadIMU
+    GPS --> ReadIMU
+    Gyro --> ReadIMU
+    WriteMotors --> Motors
+
+    ReadIMU --> Sensor
+    Sensor --> IMUBus --> Estimator --> StateBus
+
+    StateBus --> Altitude --> ThrustBus --> Motor
+    StateBus --> Position --> AngleSPBus --> Angle --> RateSPBus --> Attitude
+    StateBus --> Attitude --> TorqueBus --> Motor
+
+    Motor --> WriteMotors
 ```
 
 ---
