@@ -52,7 +52,7 @@ config.h             # Shared constants (PID gains, timing)
 Seven actors connected via buses:
 
 ```mermaid
-graph LR
+graph TB
     Sensor[Sensor] --> IMUBus([IMU Bus]) --> Estimator[Estimator] --> StateBus([State Bus])
 
     StateBus --> Altitude[Altitude] --> ThrustBus([Thrust Bus]) --> Motor[Motor]
