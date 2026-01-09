@@ -25,6 +25,8 @@ BUILD_DIR = build
 SRCS = \
 	main.c \
 	system_config.c \
+	gpio_config.c \
+	spi1.c \
 	platform.c \
 	attitude.c \
 	lsm6dsl.c \
