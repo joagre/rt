@@ -5,8 +5,8 @@
 //
 //   sensor_actor   - Reads hardware sensors → IMU bus
 //   altitude_actor - Outer loop: altitude PID → thrust command
-//   attitude_actor - Inner loop: rate PIDs → motor commands
-//   motor_actor    - Safety layer: watchdog, limits → hardware
+//   attitude_actor - Inner loop: rate PIDs → torque commands
+//   motor_actor    - Mixer + safety: torque → motors → hardware
 //
 // Data flows through buses:
 //
@@ -14,7 +14,8 @@
 //                        │                                      │
 //                        │       ┌──────────────────────────────┘
 //                        │       │
-//                        └──► Attitude Actor ──► Motor Bus ──► Motor Actor
+//                        └──► Attitude Actor ──► Torque Bus ──► Motor Actor
+//                                  (rate PIDs)                  (mixer+safety)
 //                                                                   │
 //                                                                   ▼
 //                                                              Hardware
@@ -45,7 +46,7 @@
 
 static bus_id g_imu_bus;
 static bus_id g_thrust_bus;
-static bus_id g_motor_bus;
+static bus_id g_torque_bus;
 
 // ============================================================================
 // WEBOTS PLATFORM LAYER
@@ -123,13 +124,13 @@ int main(void) {
     cfg.max_entries = 1;
     hive_bus_create(&cfg, &g_imu_bus);
     hive_bus_create(&cfg, &g_thrust_bus);
-    hive_bus_create(&cfg, &g_motor_bus);
+    hive_bus_create(&cfg, &g_torque_bus);
 
     // Initialize actors
     sensor_actor_init(g_imu_bus, platform_read_imu);
     altitude_actor_init(g_imu_bus, g_thrust_bus);
-    attitude_actor_init(g_imu_bus, g_thrust_bus, g_motor_bus);
-    motor_actor_init(g_motor_bus, platform_write_motors);
+    attitude_actor_init(g_imu_bus, g_thrust_bus, g_torque_bus);
+    motor_actor_init(g_torque_bus, platform_write_motors);
 
     // Spawn actors with priorities
     // CRITICAL: time-sensitive, safety-critical

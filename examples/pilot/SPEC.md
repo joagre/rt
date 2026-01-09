@@ -6,9 +6,10 @@ A quadcopter autopilot example using the actor runtime with Webots simulator.
 
 **Implemented:**
 - Altitude-hold hover with attitude stabilization
-- Step 1: Motor actor (safety, watchdog)
+- Step 1: Motor actor (mixer, safety, watchdog)
 - Step 2: Separate altitude actor (outer/inner loop split)
 - Step 3: Sensor actor (hardware abstraction)
+- Mixer moved to motor_actor (platform-specific code in one place)
 
 ## Goals
 
@@ -91,13 +92,12 @@ Four actors connected via buses:
 │  │           │     ┌─────────────────┐               │             │
 │  │           │────►│ ATTITUDE ACTOR  │◄──────────────┘             │
 │  │           │     │ (rate PIDs)     │                             │
-│  └───────────┘     │ (mixer)         │                             │
-│                    └────────┬────────┘                             │
+│  └───────────┘     └────────┬────────┘                             │
 │                             │                                      │
 │                             ▼                                      │
 │                    ┌─────────────────┐     ┌───────────────────┐   │
-│                    │   Motor Bus     │────►│   MOTOR ACTOR     │   │
-│                    │                 │     │ (safety/watchdog) │   │
+│                    │   Torque Bus    │────►│   MOTOR ACTOR     │   │
+│                    │                 │     │ (mixer+safety)    │   │
 │                    └─────────────────┘     └─────────┬─────────┘   │
 │                                                      │             │
 └──────────────────────────────────────────────────────┼─────────────┘
@@ -119,8 +119,8 @@ Code is split into focused modules:
 | `pilot.c` | Main loop, platform layer, bus setup |
 | `sensor_actor.c/h` | Reads hardware, publishes to IMU bus |
 | `altitude_actor.c/h` | Outer loop: altitude PID → thrust |
-| `attitude_actor.c/h` | Inner loop: rate PIDs + mixer → motor commands |
-| `motor_actor.c/h` | Safety: limits, watchdog → hardware |
+| `attitude_actor.c/h` | Inner loop: rate PIDs → torque commands |
+| `motor_actor.c/h` | Mixer + safety: torque → motors → hardware |
 | `pid.c/h` | Reusable PID controller |
 | `types.h` | Portable data types |
 | `config.h` | All tuning parameters and constants |
@@ -139,17 +139,17 @@ platform_read_imu() ◄── called by sensor_actor
        ├──────────────────────┐
        ▼                      ▼
 Altitude Actor          Attitude Actor
-(altitude PID)          (rate PIDs + mixer)
+(altitude PID)            (rate PIDs)
        │                      │
        ▼                      │
   Thrust Bus ─────────────────┘
                               │
                               ▼
-                         Motor Bus
+                        Torque Bus
                               │
                               ▼
                         Motor Actor
-                     (safety, watchdog)
+                     (mixer + safety)
                               │
                               ▼
                 platform_write_motors()
@@ -194,7 +194,7 @@ float pid_update(pid_state_t *pid, float setpoint, float measurement, float dt) 
 
 Base thrust: 0.553 (approximate hover thrust for Webots Crazyflie model)
 
-### Mixer (Crazyflie + Configuration)
+### Mixer (in motor_actor, Crazyflie + Configuration)
 
 ```
         Front
@@ -239,8 +239,8 @@ while (wb_robot_step(TIME_STEP_MS) != -1) {
 Each `hive_step()` runs all ready actors once:
 1. Sensor actor reads hardware, publishes to IMU bus
 2. Altitude actor reads IMU bus, publishes thrust
-3. Attitude actor reads IMU + thrust, publishes motor commands
-4. Motor actor reads commands, writes to hardware
+3. Attitude actor reads IMU + thrust, publishes torque commands
+4. Motor actor applies mixer, writes to hardware
 
 ### Key Parameters
 
@@ -300,8 +300,8 @@ examples/pilot/
     pilot.c              # Main loop, platform layer, bus setup
     sensor_actor.c/h     # Hardware sensor reading → IMU bus
     altitude_actor.c/h   # Outer loop: altitude PID → thrust
-    attitude_actor.c/h   # Inner loop: rate PIDs → motor commands
-    motor_actor.c/h      # Safety: watchdog, limits → hardware
+    attitude_actor.c/h   # Inner loop: rate PIDs → torque commands
+    motor_actor.c/h      # Mixer + safety: torque → motors → hardware
     pid.c/h              # Reusable PID controller
     types.h              # Portable data types
     config.h             # Shared constants
@@ -385,25 +385,26 @@ Each step maintains a working system while improving separation of concerns.
 | **Estimator** | Raw Bus | State Bus | CRITICAL | Sensor fusion, state estimate |
 | **Setpoint** | RC/Mission | Setpoint Bus | NORMAL | Generate target state |
 | **Altitude** | State + Setpoint | Thrust Setpoint | HIGH | Outer loop (~50Hz) |
-| **Attitude** | State + Thrust | Motor Bus | CRITICAL | Inner loop (250Hz) |
-| **Motor** | Motor Bus | Hardware | CRITICAL | Safety, limits, write PWM |
+| **Attitude** | State + Thrust | Torque Bus | CRITICAL | Inner loop (250Hz), rate PIDs |
+| **Motor** | Torque Bus | Hardware | CRITICAL | Mixer, safety, limits, write PWM |
 
 ### Step 1: Motor Actor ✓
 
-Separate motor output into dedicated actor with safety features.
+Separate motor output into dedicated actor with mixer and safety features.
 
 ```
-Attitude Actor ──► Motor Bus ──► Motor Actor ──► Hardware
+Attitude Actor ──► Torque Bus ──► Motor Actor ──► Hardware
+                                  (mixer+safety)
 ```
 
-**Features:** Subscribe to motor bus, enforce limits, watchdog, platform write.
+**Features:** Subscribe to torque bus, apply mixer, enforce limits, watchdog, platform write.
 
 ### Step 2: Separate Altitude Actor ✓
 
 Split outer loop (altitude) from inner loop (attitude).
 
 ```
-IMU Bus ──► Altitude Actor ──► Thrust Bus ──► Attitude Actor ──► Motor Bus
+IMU Bus ──► Altitude Actor ──► Thrust Bus ──► Attitude Actor ──► Torque Bus
             (altitude PID)                    (rate PIDs only)
 ```
 
