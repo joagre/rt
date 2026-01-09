@@ -75,17 +75,17 @@
 #define TARGET_Y         0.0f    // meters (world frame)
 
 // Position PD gains (simple PD controller)
-#define POS_KP           0.1f    // Position gain: rad per meter error
-#define POS_KD           0.05f   // Velocity damping: rad per m/s
+#define POS_KP           0.2f    // Position gain: rad per meter error
+#define POS_KD           0.1f    // Velocity damping: rad per m/s
 
 // Maximum tilt angle for position control (safety limit)
-#define MAX_TILT_ANGLE   0.2f    // ~11 degrees
+#define MAX_TILT_ANGLE   0.35f   // ~20 degrees
 
 // Angle PID gains (angle error → rate setpoint)
-#define ANGLE_PID_KP   1.0f
+#define ANGLE_PID_KP   4.0f     // Typical autopilot: 4-8
 #define ANGLE_PID_KI   0.0f
-#define ANGLE_PID_KD   0.0f   // Derivative on error causes kick on setpoint change
-#define ANGLE_PID_OMAX 2.0f  // Max rate setpoint (rad/s)
+#define ANGLE_PID_KD   0.0f     // Derivative on error causes kick on setpoint change
+#define ANGLE_PID_OMAX 3.0f     // Max rate setpoint (rad/s)
 
 // Rate PID gains (rate error → torque)
 #define RATE_PID_KP          0.02f
