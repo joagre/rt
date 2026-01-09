@@ -9,6 +9,7 @@
 #include "pid.h"
 #include "hive_runtime.h"
 #include "hive_bus.h"
+#include <stdio.h>
 
 static bus_id s_state_bus;
 static bus_id s_angle_setpoint_bus;
@@ -34,6 +35,7 @@ void angle_actor(void *arg) {
 
     // Target angles (updated from angle_setpoint_bus)
     angle_setpoint_t angle_sp = ANGLE_SETPOINT_ZERO;
+    int count = 0;
 
     while (1) {
         state_estimate_t state;
@@ -52,6 +54,13 @@ void angle_actor(void *arg) {
             setpoint.yaw   = pid_update(&yaw_pid,   angle_sp.yaw,   state.yaw,   TIME_STEP_S);
 
             hive_bus_publish(s_rate_setpoint_bus, &setpoint, sizeof(setpoint));
+
+            // Debug: print every 50 iterations (200ms) to catch dynamics
+            if (++count % 50 == 0) {
+                printf("[ANG] sp_r=%.2f st_r=%.2f rate_r=%.2f | sp_p=%.2f st_p=%.2f rate_p=%.2f\n",
+                       angle_sp.roll * RAD_TO_DEG, state.roll * RAD_TO_DEG, setpoint.roll * RAD_TO_DEG,
+                       angle_sp.pitch * RAD_TO_DEG, state.pitch * RAD_TO_DEG, setpoint.pitch * RAD_TO_DEG);
+            }
         }
 
         hive_yield();
