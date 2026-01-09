@@ -6,12 +6,14 @@ A quadcopter autopilot example using the actor runtime with Webots simulator.
 
 **Implemented:**
 - Altitude-hold hover with attitude stabilization
+- Horizontal position hold (GPS-based XY control)
 - Step 1: Motor actor (mixer, safety, watchdog)
 - Step 2: Separate altitude actor (altitude/rate split)
 - Step 3: Sensor actor (hardware abstraction)
 - Step 4: Angle actor (attitude angle control)
 - Step 5: Estimator actor (sensor fusion, vertical velocity)
-- Mixer moved to motor_actor (platform-specific code in one place)
+- Step 6: Position actor (horizontal position hold)
+- Mixer moved to motor_actor (X-configuration for Crazyflie)
 
 ## Goals
 
@@ -49,7 +51,6 @@ cfg.max_entries = 1;  // Latest value only - correct for real-time control
 ## Non-Goals (Future Work)
 
 - Navigation (waypoint following)
-- Position hold (XY GPS-based)
 - Full state estimation (Kalman filter)
 - Failsafe handling
 - Parameter tuning UI
@@ -59,7 +60,7 @@ cfg.max_entries = 1;  // Latest value only - correct for real-time control
 
 ## Architecture Overview
 
-Six actors connected via buses:
+Seven actors connected via buses:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -94,15 +95,20 @@ Six actors connected via buses:
 │           ┌──────────────────────────────────────────┤             │
 │           │                                          │             │
 │           ▼                                          ▼             │
+│  ┌─────────────────┐     ┌───────────────────┐                     │
+│  │ ALTITUDE ACTOR  │────►│   Thrust Bus      │                     │
+│  │ (altitude PID)  │     │                   │                     │
+│  └─────────────────┘     └─────────┬─────────┘                     │
+│                                    │                               │
 │  ┌─────────────────┐     ┌───────────────────┐  ┌──────────────┐   │
-│  │ ALTITUDE ACTOR  │────►│   Thrust Bus      │  │ ANGLE ACTOR  │   │
-│  │ (altitude PID)  │     │                   │  │ (angle PIDs) │   │
-│  └─────────────────┘     └─────────┬─────────┘  └──────┬───────┘   │
-│                                    │                   │           │
-│                                    │                   ▼           │
-│                                    │      ┌───────────────────┐    │
-│                                    │      │ Rate Setpoint Bus │    │
-│                                    │      └─────────┬─────────┘    │
+│  │ POSITION ACTOR  │────►│ Angle Setpoint Bus│─►│ ANGLE ACTOR  │   │
+│  │ (position PD)   │     │                   │  │ (angle PIDs) │   │
+│  └─────────────────┘     └───────────────────┘  └──────┬───────┘   │
+│                                                        │           │
+│                                                        ▼           │
+│                                           ┌───────────────────┐    │
+│                                           │ Rate Setpoint Bus │    │
+│                                           └─────────┬─────────┘    │
 │                                    │                │              │
 │                                    ▼                ▼              │
 │                          ┌─────────────────────────────┐           │
@@ -141,6 +147,7 @@ Code is split into focused modules:
 | `sensor_actor.c/h` | Reads hardware, publishes to IMU bus |
 | `estimator_actor.c/h` | Sensor fusion → state bus |
 | `altitude_actor.c/h` | Altitude PID → thrust |
+| `position_actor.c/h` | Position PD → angle setpoints |
 | `angle_actor.c/h` | Angle PIDs → rate setpoints |
 | `attitude_actor.c/h` | Rate PIDs → torque commands |
 | `motor_actor.c/h` | Mixer + safety: torque → motors → hardware |
@@ -160,17 +167,24 @@ platform_read_imu() ◄── called by sensor_actor
    IMU Bus
        │
        ▼
-Estimator Actor ──► State Bus (includes vertical velocity)
+Estimator Actor ──► State Bus (includes XY position and velocity)
                         │
-       ┌────────────────┼────────────────────────┐
-       ▼                ▼                        ▼
-Altitude Actor    Angle Actor            Attitude Actor
-(altitude PID)   (angle PIDs)              (rate PIDs)
-       │                │                        ▲
-       ▼                ▼                        │
-  Thrust Bus     Rate Setpoint Bus ──────────────┤
-       │                                         │
-       └─────────────────────────────────────────┘
+       ┌────────────────┼────────────────┐
+       ▼                ▼                ▼
+Altitude Actor   Position Actor    Attitude Actor
+(altitude PID)   (position PD)       (rate PIDs)
+       │                │                 ▲
+       ▼                ▼                 │
+  Thrust Bus    Angle Setpoint Bus        │
+       │                │                 │
+       │                ▼                 │
+       │          Angle Actor             │
+       │          (angle PIDs)            │
+       │                │                 │
+       │                ▼                 │
+       │        Rate Setpoint Bus ────────┤
+       │                                  │
+       └──────────────────────────────────┘
                         │
                         ▼
                   Torque Bus
@@ -216,12 +230,14 @@ float pid_update(pid_state_t *pid, float setpoint, float measurement, float dt) 
 | Controller | Kp   | Ki   | Kd    | Output Max | Purpose |
 |------------|------|------|-------|------------|---------|
 | Altitude   | 0.3  | 0.05 | 0     | 0.15       | Hold 1.0m height (PI) |
-| Angle      | 4.0  | 0    | 0.1   | 2.0        | Level attitude |
+| Position   | 0.2  | -    | 0.1   | 0.35 rad   | Hold XY position (PD) |
+| Angle      | 4.0  | 0    | 0     | 3.0 rad/s  | Level attitude |
 | Roll rate  | 0.02 | 0    | 0.001 | 0.1        | Stabilize roll |
 | Pitch rate | 0.02 | 0    | 0.001 | 0.1        | Stabilize pitch |
 | Yaw rate   | 0.02 | 0    | 0.001 | 0.15       | Stabilize yaw |
 
 **Altitude velocity damping:** Kv = 0.15
+**Position control:** PD controller with velocity damping, max tilt 0.35 rad (~20°)
 
 Altitude control uses measured vertical velocity for damping instead of
 differentiating position error. This provides smoother response with less noise:
@@ -231,22 +247,27 @@ thrust = BASE_THRUST + PI_correction - Kv * vertical_velocity
 
 Base thrust: 0.553 (approximate hover thrust for Webots Crazyflie model)
 
-### Mixer (in motor_actor, Crazyflie + Configuration)
+### Mixer (in motor_actor, Crazyflie X Configuration)
+
+The Webots Crazyflie uses X-configuration where each motor affects both roll and pitch:
 
 ```
         Front
-          M1
-           │
-    M4 ────┼──── M2
-           │
-          M3
-         Rear
+      M2    M3
+        \  /
+         \/
+         /\
+        /  \
+      M1    M4
+        Rear
 
-M1 (front): thrust - pitch_torque - yaw_torque
-M2 (right): thrust - roll_torque  + yaw_torque
-M3 (rear):  thrust + pitch_torque - yaw_torque
-M4 (left):  thrust + roll_torque  + yaw_torque
+M1 (rear-left):   thrust - roll + pitch + yaw
+M2 (front-left):  thrust - roll - pitch - yaw
+M3 (front-right): thrust + roll - pitch + yaw
+M4 (rear-right):  thrust + roll + pitch - yaw
 ```
+
+This matches the official Bitcraze Webots controller.
 
 ### Motor Velocity Signs
 
@@ -277,9 +298,10 @@ Each `hive_step()` runs all ready actors once:
 1. Sensor actor reads hardware, publishes to IMU bus
 2. Estimator actor reads IMU bus, publishes state estimate
 3. Altitude actor reads state bus, publishes thrust
-4. Angle actor reads state bus, publishes rate setpoints
-5. Attitude actor reads state + thrust + rate setpoints, publishes torque commands
-6. Motor actor applies mixer, writes to hardware
+4. Position actor reads state bus, publishes angle setpoints
+5. Angle actor reads angle setpoints, publishes rate setpoints
+6. Attitude actor reads state + thrust + rate setpoints, publishes torque commands
+7. Motor actor applies mixer, writes to hardware
 
 ### Key Parameters
 
@@ -342,6 +364,7 @@ examples/pilot/
     sensor_actor.c/h     # Hardware sensor reading → IMU bus
     estimator_actor.c/h  # Sensor fusion → state bus
     altitude_actor.c/h   # Altitude PID → thrust
+    position_actor.c/h   # Position PD → angle setpoints
     angle_actor.c/h      # Angle PIDs → rate setpoints
     attitude_actor.c/h   # Rate PIDs → torque commands
     motor_actor.c/h      # Mixer + safety: torque → motors → hardware
@@ -420,17 +443,17 @@ Each step maintains a working system while improving separation of concerns.
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-### Actor Responsibilities (Target)
+### Actor Responsibilities (Current)
 
 | Actor | Input | Output | Priority | Responsibility |
 |-------|-------|--------|----------|----------------|
-| **Sensor** | Hardware | Raw Bus | CRITICAL | Read IMU/GPS, timestamp, publish |
-| **Estimator** | Raw Bus | State Bus | CRITICAL | Sensor fusion, state estimate |
-| **Setpoint** | RC/Mission | Setpoint Bus | NORMAL | Generate target state |
-| **Altitude** | State + Setpoint | Thrust Bus | HIGH | Altitude PID (~50Hz) |
-| **Angle** | State Bus | Rate Setpoint Bus | CRITICAL | Angle PIDs (250Hz) |
+| **Sensor** | Hardware | IMU Bus | CRITICAL | Read IMU/GPS, timestamp, publish |
+| **Estimator** | IMU Bus | State Bus | CRITICAL | Sensor fusion, state estimate |
+| **Altitude** | State Bus | Thrust Bus | CRITICAL | Altitude PID (250Hz) |
+| **Position** | State Bus | Angle Setpoint Bus | CRITICAL | Position PD (250Hz) |
+| **Angle** | Angle Setpoint + State | Rate Setpoint Bus | CRITICAL | Angle PIDs (250Hz) |
 | **Attitude** | State + Thrust + Rate SP | Torque Bus | CRITICAL | Rate PIDs (250Hz) |
-| **Motor** | Torque Bus | Hardware | CRITICAL | Mixer, safety, limits, write PWM |
+| **Motor** | Torque Bus | Hardware | CRITICAL | Mixer, safety, limits, write motors |
 
 ### Step 1: Motor Actor ✓
 
@@ -511,7 +534,33 @@ Sensor Actor ──► IMU Bus ──► Estimator Actor ──► State Bus ─
 - Derived values (vertical velocity) computed in one place
 - Clean abstraction for real hardware sensor fusion
 
-### Step 6: Setpoint Actor
+### Step 6: Position Actor ✓
+
+Add horizontal position hold using GPS.
+
+**Before:**
+```
+Angle Actor uses hardcoded 0.0 angle setpoints
+```
+
+**After:**
+```
+State Bus ──► Position Actor ──► Angle Setpoint Bus ──► Angle Actor
+              (position PD)                              (angle PIDs)
+```
+
+**Implementation:**
+- Simple PD controller: position error → angle command
+- Velocity damping: reduces overshoot
+- Max tilt limit: 0.35 rad (~20°) for safety
+- Sign conventions match Bitcraze Webots controller
+
+**Benefits:**
+- Drone holds XY position
+- Returns to target when displaced
+- Enables future waypoint navigation
+
+### Step 7 (Future): Setpoint Actor
 
 Add command generation actor.
 
@@ -571,9 +620,9 @@ This fits comfortably on small STM32 chips (e.g., STM32F103 with 20 KB RAM).
 
 ## Future Extensions
 
-1. **Position hold** - Add XY GPS feedback, position PID
-2. **Waypoint navigation** - Mission actor, path planning
-3. **Sensor fusion** - Complementary filter for better attitude estimation
-4. **Failsafe** - Motor failure detection, emergency landing
-5. **Telemetry** - Logging, MAVLink output
-6. **RC input** - Manual control override
+1. **Waypoint navigation** - Mission actor, path planning
+2. **Sensor fusion** - Complementary filter for better attitude estimation
+3. **Failsafe** - Motor failure detection, emergency landing
+4. **Telemetry** - Logging, MAVLink output
+5. **RC input** - Manual control override
+6. **Setpoint actor** - Command generation, mode switching
