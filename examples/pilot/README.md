@@ -116,11 +116,11 @@ to handle the ±π wrap-around correctly.
 The waypoint actor manages a list of 3D waypoints and publishes the current target
 to the target bus. Both altitude and position actors read from the target bus.
 
-**Demo route (square pattern with altitude changes):**
+**Demo route (square pattern with gentle altitude changes):**
 1. (0, 0, 1.0m) heading 0° - start at 1m
-2. (1, 0, 1.5m) heading 0° - rise to 1.5m
-3. (1, 1, 1.0m) heading 90° - drop to 1m, face east
-4. (0, 1, 2.0m) heading 180° - rise to 2m, face south
+2. (1, 0, 1.2m) heading 0° - rise to 1.2m
+3. (1, 1, 1.4m) heading 90° - rise to 1.4m, face east
+4. (0, 1, 1.2m) heading 180° - drop to 1.2m, face south
 5. (0, 0, 1.0m) heading 0° - return to 1m
 
 **Arrival detection:** The drone must satisfy all conditions before advancing:
