@@ -6,6 +6,23 @@ DEPFLAGS = -MMD -MP
 LDFLAGS :=
 LDLIBS :=
 
+# Feature toggles (set to 0 to disable)
+ENABLE_NET ?= 1
+ENABLE_FILE ?= 1
+
+# Add feature flags to compiler
+ifeq ($(ENABLE_NET),1)
+  CPPFLAGS += -DHIVE_ENABLE_NET=1
+else
+  CPPFLAGS += -DHIVE_ENABLE_NET=0
+endif
+
+ifeq ($(ENABLE_FILE),1)
+  CPPFLAGS += -DHIVE_ENABLE_FILE=1
+else
+  CPPFLAGS += -DHIVE_ENABLE_FILE=0
+endif
+
 # Directories
 SRC_DIR := src
 INC_DIR := include
@@ -17,9 +34,18 @@ MAN_DIR := man
 PREFIX ?= /usr/local
 MANPREFIX ?= $(PREFIX)/share/man
 
-# Source files
+# Source files (core, always compiled)
 SRCS := $(wildcard $(SRC_DIR)/*.c)
 ASM_SRCS := $(wildcard $(SRC_DIR)/*.S)
+
+# Exclude optional subsystems if disabled
+ifneq ($(ENABLE_NET),1)
+  SRCS := $(filter-out $(SRC_DIR)/hive_net.c,$(SRCS))
+endif
+ifneq ($(ENABLE_FILE),1)
+  SRCS := $(filter-out $(SRC_DIR)/hive_file.c,$(SRCS))
+endif
+
 OBJS := $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o) $(ASM_SRCS:$(SRC_DIR)/%.S=$(BUILD_DIR)/%.o)
 DEPS := $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.d)
 
@@ -28,6 +54,15 @@ LIB := $(BUILD_DIR)/libhive.a
 
 # Examples
 EXAMPLE_SRCS := $(wildcard $(EXAMPLES_DIR)/*.c)
+
+# Exclude examples that depend on disabled features
+ifneq ($(ENABLE_NET),1)
+  EXAMPLE_SRCS := $(filter-out $(EXAMPLES_DIR)/echo.c,$(EXAMPLE_SRCS))
+endif
+ifneq ($(ENABLE_FILE),1)
+  EXAMPLE_SRCS := $(filter-out $(EXAMPLES_DIR)/fileio.c,$(EXAMPLE_SRCS))
+endif
+
 EXAMPLES := $(EXAMPLE_SRCS:$(EXAMPLES_DIR)/%.c=$(BUILD_DIR)/%)
 
 # Benchmarks
@@ -38,6 +73,15 @@ BENCHMARKS := $(BENCHMARK_SRCS:$(BENCHMARKS_DIR)/%.c=$(BUILD_DIR)/%)
 # Tests
 TESTS_DIR := tests
 TEST_SRCS := $(wildcard $(TESTS_DIR)/*.c)
+
+# Exclude tests that depend on disabled features
+ifneq ($(ENABLE_NET),1)
+  TEST_SRCS := $(filter-out $(TESTS_DIR)/net_test.c,$(TEST_SRCS))
+endif
+ifneq ($(ENABLE_FILE),1)
+  TEST_SRCS := $(filter-out $(TESTS_DIR)/file_test.c,$(TEST_SRCS))
+endif
+
 TESTS := $(TEST_SRCS:$(TESTS_DIR)/%.c=$(BUILD_DIR)/%)
 
 # Default target
@@ -145,6 +189,12 @@ help:
 	@echo "  run-fileio        - Build and run file I/O example"
 	@echo "  run-echo          - Build and run echo server/client example"
 	@echo "  help              - Show this help message"
+	@echo ""
+	@echo "Feature toggles (set to 0 to disable):"
+	@echo "  ENABLE_NET=1      - Network I/O subsystem (default: 1)"
+	@echo "  ENABLE_FILE=1     - File I/O subsystem (default: 1)"
+	@echo ""
+	@echo "Example: make ENABLE_NET=0 ENABLE_FILE=0"
 
 # Dependencies
 .PHONY: deps
