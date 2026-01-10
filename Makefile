@@ -94,6 +94,14 @@ test: $(TESTS)
 clean:
 	rm -rf $(BUILD_DIR)
 
+# Clean Emacs backup/auto-save files recursively
+.PHONY: clean-emacs
+clean-emacs:
+	@echo "Removing Emacs backup and auto-save files..."
+	find . -name '*~' -delete
+	find . -name '#*#' -delete
+	find . -name '.#*' -delete
+
 # Run ping-pong example
 .PHONY: run-pingpong
 run-pingpong: $(BUILD_DIR)/pingpong
@@ -128,6 +136,7 @@ help:
 	@echo "Available targets:"
 	@echo "  all               - Build library, examples, and benchmarks (default)"
 	@echo "  clean             - Remove build artifacts"
+	@echo "  clean-emacs       - Remove Emacs backup files (*~, #*#, .#*)"
 	@echo "  test              - Build and run all tests"
 	@echo "  bench             - Build and run benchmark suite"
 	@echo "  install-man       - Install man pages to $(MANPREFIX)/man3"
