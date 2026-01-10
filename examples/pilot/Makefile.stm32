@@ -62,25 +62,8 @@ HIVE_SRCS = \
 #   hive_net.c  - TCP sockets (use lwIP or remove)
 #   hive_file.c - File I/O (use FATFS or remove)
 
-# HAL sources (all drivers except HAL's main.c)
-HAL_SRCS = \
-	$(HAL_DIR)/platform_stm32f4.c \
-	$(HAL_DIR)/attitude.c \
-	$(HAL_DIR)/lsm6dsl.c \
-	$(HAL_DIR)/lis2mdl.c \
-	$(HAL_DIR)/lps22hd.c \
-	$(HAL_DIR)/motors.c \
-	$(HAL_DIR)/spi1.c \
-	$(HAL_DIR)/i2c1.c \
-	$(HAL_DIR)/tim4.c \
-	$(HAL_DIR)/usart1.c \
-	$(HAL_DIR)/system_config.c \
-	$(HAL_DIR)/gpio_config.c \
-	$(HAL_DIR)/syscalls.c
-
-# Assembly sources
-ASM_SRCS = \
-	$(HAL_DIR)/startup_stm32f401.s
+# HAL library (built separately in hal/STEVAL-DRONE01/)
+HAL_LIB = $(HAL_DIR)/build/libhal.a
 
 # TODO: Add ARM Cortex-M4 context switch when you port hive
 # ASM_SRCS += $(HIVE_SRC_DIR)/hive_context_arm.s
@@ -165,12 +148,8 @@ LDFLAGS += -lm -lc
 PILOT_OBJS = $(PILOT_SRCS:%.c=$(BUILD_DIR)/pilot/%.o)
 HIVE_OBJS = $(notdir $(HIVE_SRCS:%.c=%.o))
 HIVE_OBJS := $(addprefix $(BUILD_DIR)/hive/, $(HIVE_OBJS))
-HAL_OBJS = $(notdir $(HAL_SRCS:%.c=%.o))
-HAL_OBJS := $(addprefix $(BUILD_DIR)/hal/, $(HAL_OBJS))
-ASM_OBJS = $(notdir $(ASM_SRCS:%.s=%.o))
-ASM_OBJS := $(addprefix $(BUILD_DIR)/hal/, $(ASM_OBJS))
 
-ALL_OBJS = $(PILOT_OBJS) $(HIVE_OBJS) $(HAL_OBJS) $(ASM_OBJS)
+ALL_OBJS = $(PILOT_OBJS) $(HIVE_OBJS)
 DEPS = $(ALL_OBJS:.o=.d)
 
 # ------------------------------------------------------------------------------
@@ -180,7 +159,7 @@ DEPS = $(ALL_OBJS:.o=.d)
 all: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin size
 
 # Create build directories
-$(BUILD_DIR)/pilot $(BUILD_DIR)/hive $(BUILD_DIR)/hal:
+$(BUILD_DIR)/pilot $(BUILD_DIR)/hive:
 	mkdir -p $@
 
 # Compile pilot sources
@@ -193,20 +172,16 @@ $(BUILD_DIR)/hive/%.o: $(HIVE_SRC_DIR)/%.c | $(BUILD_DIR)/hive
 	@echo "CC (hive) $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-# Compile HAL sources
-$(BUILD_DIR)/hal/%.o: $(HAL_DIR)/%.c | $(BUILD_DIR)/hal
-	@echo "CC (hal) $<"
-	@$(CC) $(CFLAGS) -c $< -o $@
+# Build HAL library (delegate to HAL Makefile)
+$(HAL_LIB):
+	@echo "Building HAL library..."
+	@$(MAKE) -C $(HAL_DIR)
 
-# Compile assembly sources
-$(BUILD_DIR)/hal/%.o: $(HAL_DIR)/%.s | $(BUILD_DIR)/hal
-	@echo "AS $<"
-	@$(AS) $(ASFLAGS) -c $< -o $@
-
-# Link
-$(BUILD_DIR)/$(TARGET).elf: $(ALL_OBJS)
+# Link (pilot + hive + HAL library)
+# HAL_LIB listed first so it builds before compiling objects that may fail
+$(BUILD_DIR)/$(TARGET).elf: $(HAL_LIB) $(ALL_OBJS)
 	@echo "LD $@"
-	@$(CC) $^ $(LDFLAGS) -o $@
+	@$(CC) $(ALL_OBJS) $(HAL_LIB) $(LDFLAGS) -o $@
 
 # Generate hex
 $(BUILD_DIR)/$(TARGET).hex: $(BUILD_DIR)/$(TARGET).elf
@@ -242,6 +217,7 @@ openocd:
 
 clean:
 	rm -rf $(BUILD_DIR)
+	@$(MAKE) -C $(HAL_DIR) clean
 
 # Include dependencies
 -include $(DEPS)
