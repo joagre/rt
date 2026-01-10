@@ -386,6 +386,27 @@ Actors receive platform functions via init:
 - Platform functions in `hal/STEVAL-DRONE01/platform_stm32f4.c`
 - Requires hive runtime ported to STM32 (context switch, timers)
 
+### Platform Differences
+
+The following differences are handled via `#ifdef PLATFORM_STEVAL_DRONE01`:
+
+| Component | Webots (Crazyflie) | STM32 (STEVAL-DRONE01) | File |
+|-----------|-------------------|------------------------|------|
+| Motor mixer | Crazyflie formula | STEVAL formula (inverted roll/yaw signs) | `motor_actor.c` |
+| Pitch sign | Negated | Not negated | `attitude_actor.c` |
+| Motor output | Signed velocity | Unsigned PWM duty cycle | `pilot.c` |
+| Main loop | `hive_step()` per sim step | `hive_run()` event-driven | `pilot.c` |
+| Sensor rate | 250 Hz (TIME_STEP_MS=4) | 400 Hz (timer-driven) | `sensor_actor.c` |
+
+**Known limitations on STM32:**
+
+| Issue | Impact | Workaround |
+|-------|--------|------------|
+| No GPS/position feedback | x,y return 0.0 | Waypoint navigation disabled; altitude-only hold works |
+| Motor pin conflict | Only 2 of 4 motors on default pins | Use port D pins (PD12-PD15) via `motors_init_full()` |
+| PID gains | Tuned for Webots Crazyflie | May need retuning for hardware |
+| TIME_STEP_S mismatch | PIDs use 4ms but STM32 runs at 2.5ms | Gains absorb difference; retune if needed |
+
 ### Portable Code (no hardware deps)
 
 - `pid.c/h` - Generic PID controller
