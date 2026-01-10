@@ -12,6 +12,19 @@
 // Internal shared types and macros for runtime implementation
 // This header is NOT part of the public API
 
+// Subsystem init/cleanup (called by hive_init/hive_cleanup)
+hive_status hive_ipc_init(void);
+hive_status hive_file_init(void);
+void hive_file_cleanup(void);
+hive_status hive_net_init(void);
+void hive_net_cleanup(void);
+hive_status hive_timer_init(void);
+void hive_timer_cleanup(void);
+hive_status hive_bus_init(void);
+void hive_bus_cleanup(void);
+hive_status hive_link_init(void);
+void hive_link_cleanup(void);
+
 // Internal tag constants (not exposed in public API)
 #define HIVE_TAG_GEN_BIT     0x08000000  // Bit 27: distinguishes generated tags
 #define HIVE_TAG_VALUE_MASK  0x07FFFFFF  // Lower 27 bits: tag value

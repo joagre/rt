@@ -1,4 +1,5 @@
 #include "hive_runtime.h"
+#include "hive_internal.h"
 #include "hive_actor.h"
 #include "hive_scheduler.h"
 #include "hive_link.h"
@@ -6,19 +7,6 @@
 #include "hive_static_config.h"
 #include <stdio.h>
 #include <stdlib.h>
-
-// Forward declarations for subsystems
-extern hive_status hive_ipc_init(void);
-extern hive_status hive_file_init(void);
-extern void hive_file_cleanup(void);
-extern hive_status hive_net_init(void);
-extern void hive_net_cleanup(void);
-extern hive_status hive_timer_init(void);
-extern void hive_timer_cleanup(void);
-extern hive_status hive_bus_init(void);
-extern void hive_bus_cleanup(void);
-extern hive_status hive_link_init(void);
-extern void hive_link_cleanup(void);
 
 hive_status hive_init(void) {
     // Initialize actor subsystem
