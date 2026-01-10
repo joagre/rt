@@ -53,7 +53,7 @@ int main(void) {
     // Test that malloc_stack still works when arena is exhausted
     printf("\nTesting malloc fallback via explicit flag...\n");
     cfg.malloc_stack = true;  // Explicitly use malloc
-    if (!HIVE_FAILED(hive_spawn_ex(simple_actor, NULL, &cfg, &id))) {
+    if (HIVE_SUCCEEDED(hive_spawn_ex(simple_actor, NULL, &cfg, &id))) {
         printf("✓ malloc_stack=true still works (spawned actor %u)\n", id);
     } else {
         printf("✗ ERROR: malloc_stack=true should work\n");

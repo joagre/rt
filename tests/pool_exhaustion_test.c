@@ -65,7 +65,7 @@ void sender_actor(void *arg) {
         data++;
         status = hive_ipc_notify(receiver, &data, sizeof(data));
 
-        if (!HIVE_FAILED(status)) {
+        if (HIVE_SUCCEEDED(status)) {
             printf("Sender: ✓ Send succeeded on attempt %d!\n", attempt + 1);
             send_succeeded = true;
             break;
@@ -81,7 +81,7 @@ void sender_actor(void *arg) {
             if (status.code == HIVE_ERR_TIMEOUT) {
                 printf("Sender:   Backoff timeout (no messages received)\n");
                 retry_count++;
-            } else if (!HIVE_FAILED(status)) {
+            } else if (HIVE_SUCCEEDED(status)) {
                 printf("Sender:   Got message during backoff from actor %u\n", msg.sender);
                 // In real code, would handle the message here
             }

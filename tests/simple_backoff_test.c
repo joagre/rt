@@ -15,7 +15,7 @@ void slow_processor_actor(void *arg) {
         hive_message msg;
         hive_status status = hive_ipc_recv(&msg, 50);  // 50ms timeout
 
-        if (!HIVE_FAILED(status)) {
+        if (HIVE_SUCCEEDED(status)) {
             processed++;
             if (processed % 50 == 0) {
                 printf("Processor: Processed %d messages (freeing pool space)...\n", processed);
@@ -48,7 +48,7 @@ void aggressive_sender_actor(void *arg) {
         int data = i;
         hive_status status = hive_ipc_notify(processor, &data, sizeof(data));
 
-        if (!HIVE_FAILED(status)) {
+        if (HIVE_SUCCEEDED(status)) {
             sent++;
         } else if (status.code == HIVE_ERR_NOMEM) {
             failed++;
@@ -64,14 +64,14 @@ void aggressive_sender_actor(void *arg) {
 
             if (recv_status.code == HIVE_ERR_TIMEOUT) {
                 // No messages during backoff - just retry
-            } else if (!HIVE_FAILED(recv_status)) {
+            } else if (HIVE_SUCCEEDED(recv_status)) {
                 // Got a message during backoff
                 printf("Sender: Received message during backoff from actor %u\n", msg.sender);
             }
 
             // Retry the send
             status = hive_ipc_notify(processor, &data, sizeof(data));
-            if (!HIVE_FAILED(status)) {
+            if (HIVE_SUCCEEDED(status)) {
                 succeeded_after_retry++;
                 if (succeeded_after_retry == 1) {
                     printf("Sender: ✓ First retry succeeded! (pool space became available)\n");

@@ -142,7 +142,7 @@ static void demo_actor(void *arg) {
     printf("Demo: Fire-and-forget (hive_ipc_notify) - sender continues immediately\n");
     int data = 42;
     hive_status status = hive_ipc_notify(hive_self(), &data, sizeof(data));
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         hive_message msg;
         hive_ipc_recv(&msg, 0);
         printf("Demo: Received self-sent message: %d\n", *(int *)msg.data);

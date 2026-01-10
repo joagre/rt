@@ -184,7 +184,7 @@ static void echo_server_actor(void *arg) {
     status = hive_net_recv(conn_fd, g_received_data, sizeof(g_received_data) - 1, &g_received_len, 2000);
 
     // Echo back with modification
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         char reply[128];
         snprintf(reply, sizeof(reply), "Echo: %.60s", g_received_data);
         size_t sent = 0;
@@ -225,7 +225,7 @@ static void echo_client_actor(void *arg) {
     // Receive reply
     size_t received = 0;
     status = hive_net_recv(fd, g_echo_reply, sizeof(g_echo_reply) - 1, &received, 2000);
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         g_echo_received = true;
     }
 
@@ -597,7 +597,7 @@ static void test10_nonblocking_send(void *arg) {
     size_t sent = 0;
     status = hive_net_send(client_fd, data, strlen(data), &sent, 0);
 
-    if (!HIVE_FAILED(status) && sent > 0) {
+    if (HIVE_SUCCEEDED(status) && sent > 0) {
         TEST_PASS("non-blocking send succeeds with available buffer");
     } else if (status.code == HIVE_ERR_WOULDBLOCK) {
         TEST_PASS("non-blocking send returns WOULDBLOCK (buffer full)");
@@ -728,7 +728,7 @@ static void test12_actor_death_during_recv(void *arg) {
     hive_timer_after(500000, &timer);  // 500ms timeout
     status = hive_ipc_recv(&msg, -1);
 
-    if (!HIVE_FAILED(status) && hive_is_exit_msg(&msg)) {
+    if (HIVE_SUCCEEDED(status) && hive_is_exit_msg(&msg)) {
         TEST_PASS("actor cleaned up after socket closed during recv");
     } else if (hive_msg_is_timer(&msg)) {
         // Actor didn't die - might still be blocked
