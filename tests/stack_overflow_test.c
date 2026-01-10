@@ -1,65 +1,78 @@
-
-/* TEST_STACK_SIZE caps stack for QEMU builds; passes through on native */
-#ifndef TEST_STACK_SIZE
-#define TEST_STACK_SIZE(x) (x)
-#endif
-// NOTE: This test intentionally causes stack overflow, which corrupts memory.
-// Valgrind will report errors - this is expected behavior for this test.
-// Run with: valgrind --error-exitcode=0 ./build/stack_overflow_test
+/**
+ * Stack Guard Detection Test
+ *
+ * This test verifies that the runtime detects stack guard corruption
+ * and properly notifies linked actors.
+ *
+ * Rather than causing an actual stack overflow (which corrupts memory
+ * unpredictably), this test directly corrupts the stack guard pattern
+ * to verify the detection mechanism works.
+ */
 
 #include "hive_runtime.h"
 #include "hive_ipc.h"
 #include "hive_link.h"
 #include <stdio.h>
-#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
 
-/* Buffer size to overflow stack - must exceed stack size */
-#ifdef QEMU_TEST_STACK_SIZE
-#define OVERFLOW_BUFFER_SIZE 3000  /* QEMU stack is 2KB, this exceeds it */
-#else
-#define OVERFLOW_BUFFER_SIZE 8200  /* Native stack is 8KB, this exceeds it */
+/* TEST_STACK_SIZE caps stack for QEMU builds; passes through on native */
+#ifndef TEST_STACK_SIZE
+#define TEST_STACK_SIZE(x) (x)
 #endif
 
-// Actor that deliberately corrupts stack guard
-void overflow_actor(void *arg) {
+/* Stack guard pattern and size (must match hive_actor.c) */
+#define STACK_GUARD_PATTERN 0xDEADBEEFCAFEBABEULL
+#define STACK_GUARD_SIZE 8
+
+/* Test-only function declared in hive_runtime.c */
+extern void *hive_test_get_stack_base(void);
+
+static void overflow_actor(void *arg) {
     (void)arg;
 
-    printf("Overflow actor: Deliberately corrupting stack guard...\n");
+    printf("Overflow actor: Getting stack base...\n");
+    void *stack_base = hive_test_get_stack_base();
 
-    // Allocate buffer that will overflow the stack
-    // Stack is 8KB (native) or 2KB (QEMU), usable is less after guards
-    // This will overflow and corrupt the guard at the bottom of the stack
-    volatile char buffer[OVERFLOW_BUFFER_SIZE];
-
-    // Touch the buffer to force allocation and prevent optimization
-    volatile int sum = 0;
-    for (int i = 0; i < 100; i++) {
-        buffer[i] = (char)i;
-        sum += buffer[i];
+    if (!stack_base) {
+        printf("Overflow actor: ERROR - could not get stack base\n");
+        hive_exit();
+        return;
     }
-    // Also touch near the end to ensure full allocation
-    buffer[OVERFLOW_BUFFER_SIZE - 1] = (char)sum;
 
-    // Yield to trigger guard check
-    printf("Overflow actor: Yielding to allow guard check...\n");
+    /* The low guard is at the very start of the stack allocation */
+    volatile uint64_t *guard_low = (volatile uint64_t *)stack_base;
+
+    printf("Overflow actor: Stack base at %p, guard value = 0x%llx\n",
+           stack_base, (unsigned long long)*guard_low);
+
+    if (*guard_low != STACK_GUARD_PATTERN) {
+        printf("Overflow actor: WARNING - guard pattern doesn't match expected\n");
+    }
+
+    printf("Overflow actor: Corrupting low guard...\n");
+    *guard_low = 0x0;  /* Corrupt the guard */
+
+    printf("Overflow actor: Yielding to trigger guard check...\n");
     hive_yield();
 
-    printf("Overflow actor: If you see this, overflow wasn't detected!\n");
+    /* Should not reach here if guard corruption was detected */
+    printf("Overflow actor: ERROR - guard corruption not detected!\n");
     hive_exit();
 }
 
-void linked_actor(void *arg) {
+static void linked_actor(void *arg) {
     actor_id overflow_id = *(actor_id *)arg;
 
     printf("Linked actor: Linking to overflow actor...\n");
     hive_link(overflow_id);
 
-    // Wait for exit notification
     printf("Linked actor: Waiting for exit notification...\n");
     hive_message msg;
-    hive_status status = hive_ipc_recv(&msg, -1);
+    hive_status status = hive_ipc_recv(&msg, 5000);
+
     if (HIVE_FAILED(status)) {
-        printf("Linked actor: ✗ FAIL - Failed to receive exit notification\n");
+        printf("Linked actor: FAIL - No notification received (timeout)\n");
         hive_exit();
     }
 
@@ -67,70 +80,62 @@ void linked_actor(void *arg) {
         hive_exit_msg exit_info;
         hive_decode_exit(&msg, &exit_info);
 
-        printf("Linked actor: ✓ PASS - Received exit notification from actor %u\n", exit_info.actor);
-        printf("Linked actor:   Exit reason: %s\n",
-               exit_info.reason == HIVE_EXIT_CRASH_STACK ? "HIVE_EXIT_CRASH_STACK (stack overflow)" :
-               exit_info.reason == HIVE_EXIT_CRASH ? "HIVE_EXIT_CRASH" :
-               exit_info.reason == HIVE_EXIT_NORMAL ? "HIVE_EXIT_NORMAL" : "UNKNOWN");
+        const char *reason_str =
+            exit_info.reason == HIVE_EXIT_CRASH_STACK ? "STACK_OVERFLOW" :
+            exit_info.reason == HIVE_EXIT_CRASH ? "CRASH" :
+            exit_info.reason == HIVE_EXIT_NORMAL ? "NORMAL" : "UNKNOWN";
+
+        printf("Linked actor: Received exit, reason=%s\n", reason_str);
 
         if (exit_info.reason == HIVE_EXIT_CRASH_STACK) {
-            printf("Linked actor: ✓ PASS - Correct exit reason for stack overflow\n");
+            printf("Linked actor: PASS - Stack guard corruption detected\n");
         } else {
-            printf("Linked actor: ✗ FAIL - Expected HIVE_EXIT_CRASH_STACK, got %d\n", exit_info.reason);
+            printf("Linked actor: FAIL - Expected STACK_OVERFLOW, got %s\n",
+                   reason_str);
         }
     } else {
-        printf("Linked actor: ✗ FAIL - Message is not an exit notification\n");
+        printf("Linked actor: FAIL - Not an exit notification\n");
     }
 
     hive_exit();
 }
 
-void witness_actor(void *arg) {
+static void witness_actor(void *arg) {
     (void)arg;
+    hive_message msg;
+    hive_ipc_recv(&msg, 200);  /* Small delay */
 
-    printf("Witness: Running after overflow actor... runtime still works!\n");
-    printf("Witness: ✓ PASS - System continued running despite stack overflow\n");
-
+    printf("Witness: PASS - Runtime still functional\n");
     hive_exit();
 }
 
 int main(void) {
-    printf("=== Stack Overflow Detection Test ===\n");
-    printf("Tests that stack overflow is detected and system continues running\n");
-    printf("Tests that links/monitors ARE notified (as per spec)\n\n");
+    printf("=== Stack Guard Detection Test ===\n");
+    printf("Tests that guard corruption is detected on yield\n\n");
 
     hive_init();
 
-    // Spawn actor with small stack (8KB) to make overflow easy
     actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
-    cfg.stack_size = TEST_STACK_SIZE(8 * 1024);  // 8KB stack
-    cfg.priority = HIVE_PRIORITY_NORMAL;
+#ifdef QEMU_TEST_STACK_SIZE
+    cfg.stack_size = 2048;
+#else
+    cfg.stack_size = 8192;
+#endif
 
     actor_id overflow;
     hive_spawn_ex(overflow_actor, NULL, &cfg, &overflow);
-    printf("Main: Spawned overflow actor (ID: %u) with %zu byte stack\n",
-           overflow, cfg.stack_size);
+    printf("Main: Spawned overflow actor (stack=%zu)\n", cfg.stack_size);
 
-    // Spawn linked actor to verify exit notification
     actor_id linked;
     hive_spawn(linked_actor, &overflow, &linked);
-    printf("Main: Spawned linked actor\n");
 
-    // Spawn witness actor to prove system still works after overflow
     actor_id witness;
-    hive_spawn(witness_actor, NULL, &witness);
-    printf("Main: Spawned witness actor\n\n");
+    cfg.stack_size = TEST_STACK_SIZE(16 * 1024);
+    hive_spawn_ex(witness_actor, NULL, &cfg, &witness);
 
     hive_run();
     hive_cleanup();
 
     printf("\n=== Test Complete ===\n");
-    printf("Expected behavior:\n");
-    printf("  1. Stack overflow detected (ERROR log)\n");
-    printf("  2. Linked actor receives exit notification with HIVE_EXIT_CRASH_STACK\n");
-    printf("  3. Witness actor runs successfully\n");
-    printf("  4. No segfault\n");
-    printf("Result: PASS if all checks passed\n");
-
     return 0;
 }
