@@ -26,6 +26,10 @@ CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -O2 -g
 CFLAGS += -I$(WEBOTS_INCLUDE) -I$(HIVE_INCLUDE) -I.
 CFLAGS += -MMD -MP
+
+# Log level: DEBUG for development (shows telemetry)
+# Use HIVE_LOG_LEVEL_INFO to hide telemetry, HIVE_LOG_LEVEL_NONE to disable all
+CFLAGS += -DHIVE_LOG_LEVEL=HIVE_LOG_LEVEL_DEBUG
 LDFLAGS = -L$(WEBOTS_LIB) -L$(HIVE_LIB)
 LDLIBS = -lController -lhive -lm
 
