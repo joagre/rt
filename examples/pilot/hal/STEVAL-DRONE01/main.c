@@ -122,14 +122,13 @@ static float s_target_yaw = TARGET_YAW;
 // Motor Mixing (X configuration)
 // ----------------------------------------------------------------------------
 //
-//         Front
-//       M2    M3
-//         \  /
-//          \/
-//          /\
-//         /  \
-//       M1    M4
-//         Rear
+//           Front
+//         M2    M3
+//           `  '
+//            ><
+//           '  `
+//         M1    M4
+//           Rear
 //
 // M1 (rear-left):   CCW, +roll, +pitch, -yaw
 // M2 (front-left):  CW,  +roll, -pitch, +yaw

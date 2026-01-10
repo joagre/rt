@@ -1,16 +1,16 @@
 // Motor PWM driver for STEVAL-DRONE01
 //
 // 4 brushed DC motors via TIM4 PWM channels.
+//
 // Motor layout (X configuration, matching pilot example):
 //
-//         Front
-//       M2    M3
-//         \  /
-//          \/
-//          /\
-//         /  \
-//       M1    M4
-//         Rear
+//           Front
+//         M2    M3
+//           `  '
+//            ><
+//           '  `
+//         M1    M4
+//           Rear
 //
 // M1 (rear-left):   TIM4_CH1, CCW
 // M2 (front-left):  TIM4_CH2, CW
