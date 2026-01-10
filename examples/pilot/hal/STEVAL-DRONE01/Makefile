@@ -17,9 +17,25 @@
 TARGET = pilot
 BUILD_DIR = build
 
+# Platform API selection:
+#   PLATFORM=webots   - Webots-compatible interface (default)
+#   PLATFORM=callback - Callback-based with built-in main loop
+PLATFORM ?= webots
+
 # ------------------------------------------------------------------------------
 # Source Files
 # ------------------------------------------------------------------------------
+
+# Platform-specific source and defines
+ifeq ($(PLATFORM),webots)
+  PLATFORM_SRC = platform_stm32f4.c
+  PLATFORM_DEF = -DPLATFORM_WEBOTS
+else ifeq ($(PLATFORM),callback)
+  PLATFORM_SRC = platform.c
+  PLATFORM_DEF = -DPLATFORM_CALLBACK
+else
+  $(error Unknown PLATFORM=$(PLATFORM). Use 'webots' or 'callback')
+endif
 
 # HAL driver sources
 SRCS = \
@@ -30,7 +46,7 @@ SRCS = \
 	i2c1.c \
 	tim4.c \
 	usart1.c \
-	platform.c \
+	$(PLATFORM_SRC) \
 	attitude.c \
 	lsm6dsl.c \
 	lis2mdl.c \
@@ -110,6 +126,7 @@ CFLAGS += -ffunction-sections -fdata-sections
 # STM32 defines
 CFLAGS += -DSTM32F401xE
 CFLAGS += -DUSE_HAL_DRIVER
+CFLAGS += $(PLATFORM_DEF)
 
 # Math library
 CFLAGS += -DARM_MATH_CM4
@@ -265,12 +282,15 @@ help:
 	@echo "  size         - Show memory usage"
 	@echo "  help         - Show this help"
 	@echo ""
+	@echo "Options:"
+	@echo "  PLATFORM=webots   - Webots-compatible API (default)"
+	@echo "  PLATFORM=callback - Callback-based API with main loop"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make                      # Build with Webots-compatible API"
+	@echo "  make PLATFORM=callback    # Build with callback-based API"
+	@echo ""
 	@echo "Requirements:"
 	@echo "  - ARM GCC toolchain: apt install gcc-arm-none-eabi"
 	@echo "  - ST-Link tools: apt install stlink-tools"
 	@echo "  - OpenOCD (optional): apt install openocd"
-	@echo ""
-	@echo "Note: This Makefile is a skeleton. For full build:"
-	@echo "  1. Generate STM32 HAL code with STM32CubeMX"
-	@echo "  2. Uncomment HAL sources and includes above"
-	@echo "  3. Copy linker script from CubeMX project"

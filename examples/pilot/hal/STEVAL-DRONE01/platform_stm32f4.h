@@ -10,6 +10,7 @@
 #define PLATFORM_STM32F4_H
 
 #include "../../types.h"
+#include <stdint.h>
 
 // ----------------------------------------------------------------------------
 // Platform Interface (matches Webots version in pilot.c)
