@@ -166,7 +166,7 @@ void hive_net_cleanup(void) {
 
 // Helper: Try non-blocking I/O, add to epoll if would block
 static hive_status try_or_epoll(int fd, uint32_t epoll_events, int operation,
-                               void *buf, size_t len, int32_t timeout_ms) {
+                                void *buf, size_t len, int32_t timeout_ms) {
     HIVE_REQUIRE_ACTOR_CONTEXT();
     actor *current = hive_actor_current();
 
