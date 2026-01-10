@@ -138,9 +138,9 @@ to use heap allocation instead (not recommended for embedded systems).
 .SS Stack Sizing
 Default stack size is 64 KB (HIVE_DEFAULT_STACK_SIZE). Embedded applications
 should carefully size stacks based on worst-case call depth. Stack overflow
-is detected via guard patterns and results in
+results in undefined behavior. The
 .B HIVE_EXIT_CRASH_STACK
-notification to linked/monitoring actors.
+exit reason is reserved for future hardware-based detection (MPU/mprotect).
 .SS Spawn from Main vs Actor
 Actors can be spawned from main() before
 .BR hive_run ()

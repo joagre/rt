@@ -114,7 +114,7 @@ Memory usage is deterministic and calculable at link time
 .IP \(bu 2
 No dynamic allocation in steady state enables certification
 .IP \(bu 2
-Stack overflow detection via guard patterns (16-byte overhead per actor)
+Configurable per-actor stack sizes with arena allocator
 .SH EXAMPLE
 .nf
 #include <hive_runtime.h>
