@@ -41,7 +41,7 @@ void waypoint_actor_init(bus_id state_bus, bus_id target_bus) {
 void waypoint_actor(void *arg) {
     (void)arg;
 
-    assert(!HIVE_FAILED(hive_bus_subscribe(s_state_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_subscribe(s_state_bus)));
 
     int waypoint_index = 0;
     int hover_ticks = 0;

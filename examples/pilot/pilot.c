@@ -63,7 +63,7 @@
     _cfg.priority = HIVE_PRIORITY_CRITICAL; \
     _cfg.name = name_str; \
     hive_status _status = hive_spawn_ex(func, NULL, &_cfg, &id); \
-    assert(!HIVE_FAILED(_status)); \
+    assert(HIVE_SUCCEEDED(_status)); \
 } while (0)
 
 // ============================================================================
@@ -184,13 +184,13 @@ int main(void) {
     // Create buses (single entry = latest value only)
     hive_bus_config cfg = HIVE_BUS_CONFIG_DEFAULT;
     cfg.max_entries = 1;
-    assert(!HIVE_FAILED(hive_bus_create(&cfg, &s_imu_bus)));
-    assert(!HIVE_FAILED(hive_bus_create(&cfg, &s_state_bus)));
-    assert(!HIVE_FAILED(hive_bus_create(&cfg, &s_thrust_bus)));
-    assert(!HIVE_FAILED(hive_bus_create(&cfg, &s_target_bus)));
-    assert(!HIVE_FAILED(hive_bus_create(&cfg, &s_angle_setpoint_bus)));
-    assert(!HIVE_FAILED(hive_bus_create(&cfg, &s_rate_setpoint_bus)));
-    assert(!HIVE_FAILED(hive_bus_create(&cfg, &s_torque_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_imu_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_state_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_thrust_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_target_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_angle_setpoint_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_rate_setpoint_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_torque_bus)));
 
     // Initialize actors with platform-specific callbacks
 #ifdef PLATFORM_STEVAL_DRONE01
