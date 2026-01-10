@@ -81,7 +81,8 @@ This HAL provides bare-metal drivers for STM32F401, enabling the pilot example t
 | File | Description |
 |------|-------------|
 | `main.c` | Example PID flight controller with altitude hold |
-| `platform.h/c` | 400Hz control loop, sensor reading, motor output |
+| `platform.h/c` | Callback-based API with built-in 400Hz control loop |
+| `platform_stm32f4.h/c` | Webots-compatible interface for porting pilot.c |
 | `attitude.h/c` | Complementary filter for roll/pitch/yaw estimation |
 
 ### Sensor Drivers
@@ -339,7 +340,7 @@ attitude_update_mag(mag);              // Optional yaw correction (50Hz)
 attitude_get(&att);                    // Get roll, pitch, yaw (radians)
 ```
 
-### Platform
+### Platform (Callback-based)
 
 ```c
 #include "platform.h"
@@ -355,6 +356,37 @@ platform_calibrate();                  // Keep drone still!
 platform_arm();
 platform_run();                        // Never returns
 ```
+
+### Platform (Webots-compatible)
+
+For porting pilot.c from Webots simulation to STM32:
+
+```c
+#include "platform_stm32f4.h"
+
+// Replace Webots functions with platform equivalents
+platform_init();                       // Instead of wb_robot_init()
+platform_calibrate();                  // Calibrate sensors
+
+while (1) {
+    platform_update();                 // Call at 400Hz (sensor fusion)
+
+    imu_data_t imu;
+    platform_read_imu(&imu);           // Get attitude, rates, altitude
+
+    // Your PID control logic here...
+
+    motor_cmd_t cmd = {.motor = {m1, m2, m3, m4}};
+    platform_write_motors(&cmd);       // Output to motors
+
+    platform_delay_us(2500);           // 400Hz loop
+}
+```
+
+Key differences from Webots:
+- No x/y position (no GPS) - `imu.x` and `imu.y` always return 0
+- Must call `platform_update()` manually at 400Hz for sensor fusion
+- Altitude is relative (barometer-based), not absolute
 
 ## Motor Layout
 
@@ -435,7 +467,8 @@ Tuning procedure:
 - [x] LPS22HD driver (I2C) - **Fully integrated**
 - [x] Motor driver (TIM4) - **Fully integrated**
 - [x] Complementary filter for attitude
-- [x] Platform init and main loop
+- [x] Platform init and main loop (callback-based)
+- [x] Webots-compatible platform interface (platform_stm32f4.h/c)
 - [x] Example main.c with PID control
 - [x] Makefile for ARM GCC build
 - [x] Linker script (stm32f401_flash.ld)
