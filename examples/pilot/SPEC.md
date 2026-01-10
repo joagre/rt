@@ -366,8 +366,8 @@ examples/pilot/
     pid.c/h              # Reusable PID controller
     types.h              # Portable data types
     config.h             # Shared constants
-    Makefile             # Webots simulation build
-    Makefile.STEVAL-DRONE01       # STM32 hardware build
+    Makefile                 # Webots simulation build
+    Makefile.STEVAL-DRONE01  # STM32 hardware build
     SPEC.md              # This specification
     README.md            # Usage instructions
     worlds/
