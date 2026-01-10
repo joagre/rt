@@ -23,10 +23,16 @@
 @   offset 24: r9
 @   offset 28: r10
 @   offset 32: r11
+@
+@ The return address is stored on the stack (pushed by init or previous switch).
+@ We use 'pop {pc}' to return, which loads the address from stack into PC.
 
 hive_context_switch_asm:
+    @ Push LR onto stack (save return address for when we switch back)
+    push {lr}
+
     @ Save current context to 'from' (r0)
-    @ Save callee-saved registers r4-r11 and sp
+    @ Save callee-saved registers r4-r11 and sp (after push)
     str sp,  [r0, #0]
     str r4,  [r0, #4]
     str r5,  [r0, #8]
@@ -48,10 +54,9 @@ hive_context_switch_asm:
     ldr r10, [r1, #28]
     ldr r11, [r1, #32]
 
-    @ Return to caller (or to new context entry point)
-    @ The return address was pushed on the stack during context_init
-    @ or is in LR from a previous call
-    bx lr
+    @ Return to entry point (for new context) or saved return address
+    @ Pop the return address from stack into PC
+    pop {pc}
 
     .size hive_context_switch_asm, .-hive_context_switch_asm
 

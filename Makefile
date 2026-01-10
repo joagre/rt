@@ -198,6 +198,124 @@ uninstall-man:
 	@echo "Removing man pages from $(MANPREFIX)/man3/"
 	rm -f $(MANPREFIX)/man3/hive_*.3
 
+# ============================================================================
+# QEMU Testing (Cross-compile for Cortex-M3 and run in QEMU)
+# ============================================================================
+
+QEMU_DIR := qemu
+QEMU_BUILD_DIR := $(BUILD_DIR)/qemu
+
+# ARM cross-compiler
+ARM_CC := arm-none-eabi-gcc
+ARM_OBJCOPY := arm-none-eabi-objcopy
+ARM_SIZE := arm-none-eabi-size
+
+# ARM compiler flags for Cortex-M3
+ARM_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -O2 -g \
+              -mcpu=cortex-m3 -mthumb -mfloat-abi=soft \
+              -ffunction-sections -fdata-sections -fno-common \
+              -ffreestanding -nostdlib
+
+# QEMU test uses smaller config values suitable for 64KB RAM
+# Override static config via -D flags (all values use #ifndef in hive_static_config.h)
+ARM_CPPFLAGS := -Iinclude -I$(QEMU_DIR) \
+                -DHIVE_PLATFORM_STM32 -DHIVE_ENABLE_NET=0 -DHIVE_ENABLE_FILE=0 \
+                -DHIVE_MAX_ACTORS=8 \
+                -DHIVE_MAX_BUSES=4 \
+                -DHIVE_MAILBOX_ENTRY_POOL_SIZE=32 \
+                -DHIVE_MESSAGE_DATA_POOL_SIZE=32 \
+                -DHIVE_LINK_ENTRY_POOL_SIZE=16 \
+                -DHIVE_MONITOR_ENTRY_POOL_SIZE=16 \
+                -DHIVE_TIMER_ENTRY_POOL_SIZE=16 \
+                -DHIVE_MAX_BUS_SUBSCRIBERS=4 \
+                -DHIVE_MAX_BUS_ENTRIES=8 \
+                -DHIVE_MAX_MESSAGE_SIZE=128 \
+                -DHIVE_DEFAULT_STACK_SIZE=2048 \
+                '-DHIVE_STACK_ARENA_SIZE=(16*1024)'
+
+ARM_LDFLAGS := -T$(QEMU_DIR)/lm3s6965.ld \
+               -mcpu=cortex-m3 -mthumb \
+               -Wl,--gc-sections \
+               -nostartfiles -specs=nosys.specs
+
+# QEMU source files
+QEMU_CORE_SRCS := hive_actor.c hive_bus.c hive_context.c hive_ipc.c \
+                  hive_link.c hive_log.c hive_pool.c hive_runtime.c \
+                  hive_scheduler_stm32.c hive_timer_stm32.c
+
+QEMU_SRCS := $(addprefix $(SRC_DIR)/,$(QEMU_CORE_SRCS))
+QEMU_ASM := $(SRC_DIR)/hive_context_arm_cm.S
+QEMU_TEST_SRCS := $(QEMU_DIR)/startup.S $(QEMU_DIR)/semihosting.c $(QEMU_DIR)/test_main.c
+
+QEMU_OBJS := $(QEMU_SRCS:$(SRC_DIR)/%.c=$(QEMU_BUILD_DIR)/%.o) \
+             $(QEMU_ASM:$(SRC_DIR)/%.S=$(QEMU_BUILD_DIR)/%.o) \
+             $(QEMU_BUILD_DIR)/startup.o \
+             $(QEMU_BUILD_DIR)/semihosting.o \
+             $(QEMU_BUILD_DIR)/test_main.o
+
+# QEMU test binary
+QEMU_ELF := $(QEMU_BUILD_DIR)/test.elf
+QEMU_BIN := $(QEMU_BUILD_DIR)/test.bin
+
+# Create QEMU build directory
+$(QEMU_BUILD_DIR):
+	mkdir -p $(QEMU_BUILD_DIR)
+
+# Compile runtime sources for ARM
+$(QEMU_BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(QEMU_BUILD_DIR)
+	$(ARM_CC) $(ARM_CFLAGS) $(ARM_CPPFLAGS) -c $< -o $@
+
+# Compile ARM assembly
+$(QEMU_BUILD_DIR)/%.o: $(SRC_DIR)/%.S | $(QEMU_BUILD_DIR)
+	$(ARM_CC) $(ARM_CFLAGS) $(ARM_CPPFLAGS) -c $< -o $@
+
+# Compile QEMU test sources
+$(QEMU_BUILD_DIR)/startup.o: $(QEMU_DIR)/startup.S | $(QEMU_BUILD_DIR)
+	$(ARM_CC) $(ARM_CFLAGS) $(ARM_CPPFLAGS) -c $< -o $@
+
+$(QEMU_BUILD_DIR)/semihosting.o: $(QEMU_DIR)/semihosting.c | $(QEMU_BUILD_DIR)
+	$(ARM_CC) $(ARM_CFLAGS) $(ARM_CPPFLAGS) -c $< -o $@
+
+$(QEMU_BUILD_DIR)/test_main.o: $(QEMU_DIR)/test_main.c | $(QEMU_BUILD_DIR)
+	$(ARM_CC) $(ARM_CFLAGS) $(ARM_CPPFLAGS) -c $< -o $@
+
+# Link QEMU test binary
+$(QEMU_ELF): $(QEMU_OBJS)
+	$(ARM_CC) $(ARM_LDFLAGS) $^ -o $@
+	$(ARM_SIZE) $@
+
+# Create binary image
+$(QEMU_BIN): $(QEMU_ELF)
+	$(ARM_OBJCOPY) -O binary $< $@
+
+# Build QEMU test
+.PHONY: qemu-build
+qemu-build: $(QEMU_ELF)
+	@echo "QEMU test binary built: $(QEMU_ELF)"
+
+# Run QEMU test
+.PHONY: qemu-test
+qemu-test: $(QEMU_ELF)
+	@echo "Running QEMU test..."
+	@qemu-system-arm -M lm3s6965evb -nographic \
+		-semihosting-config enable=on,target=native \
+		-kernel $(QEMU_ELF) \
+		|| true
+	@echo "QEMU test completed"
+
+# Run QEMU test with timeout
+.PHONY: qemu-test-ci
+qemu-test-ci: $(QEMU_ELF)
+	@echo "Running QEMU test with timeout..."
+	@timeout 10 qemu-system-arm -M lm3s6965evb -nographic \
+		-semihosting-config enable=on,target=native \
+		-kernel $(QEMU_ELF) \
+		|| ([ $$? -eq 124 ] && echo "Test timed out" && exit 1)
+
+# ============================================================================
+# Help
+# ============================================================================
+
 # Help
 .PHONY: help
 help:
@@ -212,6 +330,9 @@ help:
 	@echo "  run-pingpong      - Build and run ping-pong example"
 	@echo "  run-fileio        - Build and run file I/O example"
 	@echo "  run-echo          - Build and run echo server/client example"
+	@echo "  qemu-build        - Cross-compile for Cortex-M3 (QEMU target)"
+	@echo "  qemu-test         - Run runtime tests in QEMU emulator"
+	@echo "  qemu-test-ci      - Run QEMU tests with timeout (for CI)"
 	@echo "  help              - Show this help message"
 	@echo ""
 	@echo "Platform selection:"
@@ -222,10 +343,15 @@ help:
 	@echo "  ENABLE_NET=1      - Network I/O subsystem (default: 1 on linux, 0 on stm32)"
 	@echo "  ENABLE_FILE=1     - File I/O subsystem (default: 1 on linux, 0 on stm32)"
 	@echo ""
+	@echo "QEMU testing:"
+	@echo "  Requires: arm-none-eabi-gcc, qemu-system-arm"
+	@echo "  Install: sudo apt install gcc-arm-none-eabi qemu-system-arm"
+	@echo ""
 	@echo "Examples:"
 	@echo "  make                              - Build for Linux with all features"
 	@echo "  make ENABLE_NET=0 ENABLE_FILE=0   - Build for Linux without net/file"
 	@echo "  make PLATFORM=stm32               - Build for STM32 (placeholder)"
+	@echo "  make qemu-test                    - Test ARM code in QEMU emulator"
 
 # Dependencies
 .PHONY: deps
