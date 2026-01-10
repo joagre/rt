@@ -8,10 +8,6 @@
 #include <errno.h>
 #include <fcntl.h>
 
-// Forward declarations for internal functions
-hive_status hive_file_init(void);
-void hive_file_cleanup(void);
-
 // File I/O subsystem state
 static struct {
     bool initialized;
