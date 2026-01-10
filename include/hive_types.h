@@ -62,6 +62,7 @@ typedef struct {
 
 // Convenience macros
 #define HIVE_SUCCESS ((hive_status){HIVE_OK, NULL})
+#define HIVE_SUCCEEDED(s) ((s).code == HIVE_OK)
 #define HIVE_FAILED(s) ((s).code != HIVE_OK)
 #define HIVE_ERROR(c, m) ((hive_status){(c), (m)})
 #define HIVE_ERR_STR(s) ((s).msg ? (s).msg : "unknown error")

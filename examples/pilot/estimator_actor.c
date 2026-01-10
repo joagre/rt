@@ -23,7 +23,7 @@ void estimator_actor_init(bus_id imu_bus, bus_id state_bus) {
 void estimator_actor(void *arg) {
     (void)arg;
 
-    assert(!HIVE_FAILED(hive_bus_subscribe(s_imu_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_subscribe(s_imu_bus)));
 
     // State for velocity estimation (differentiate GPS position)
     float prev_x = 0.0f, prev_y = 0.0f, prev_altitude = 0.0f;

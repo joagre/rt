@@ -32,7 +32,7 @@ void sensor_actor(void *arg) {
     // STM32: Use periodic timer for 400Hz control loop
     timer_id timer;
     hive_status status = hive_timer_every(SENSOR_INTERVAL_US, &timer);
-    assert(!HIVE_FAILED(status));
+    assert(HIVE_SUCCEEDED(status));
 
     while (1) {
         hive_message msg;
