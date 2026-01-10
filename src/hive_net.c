@@ -20,10 +20,6 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 
-// Forward declarations for internal functions
-hive_status hive_net_init(void);
-void hive_net_cleanup(void);
-
 // Network operation types (used in io_source.data.net.operation)
 enum {
     NET_OP_ACCEPT,

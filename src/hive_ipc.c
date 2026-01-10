@@ -23,9 +23,6 @@ hive_pool g_message_pool_mgr;  // Non-static so hive_link.c can access
 // Tag generator for request/reply correlation
 static uint32_t g_next_tag = 1;
 
-// Forward declaration for init function
-hive_status hive_ipc_init(void);
-
 // -----------------------------------------------------------------------------
 // Header Encoding/Decoding
 // -----------------------------------------------------------------------------

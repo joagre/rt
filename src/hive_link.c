@@ -12,10 +12,7 @@
 
 // Use shared SLIST_APPEND from hive_internal.h
 
-
-// Forward declarations
-hive_status hive_link_init(void);
-void hive_link_cleanup(void);
+// Forward declarations for internal functions
 void hive_link_cleanup_actor(actor_id id);
 static bool send_exit_notification(actor *recipient, actor_id dying_id, hive_exit_reason reason);
 

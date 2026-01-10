@@ -18,9 +18,7 @@ _Static_assert(HIVE_MAX_BUS_SUBSCRIBERS <= 32,
 // External IPC pools (defined in hive_ipc.c)
 extern hive_pool g_message_pool_mgr;
 
-// Forward declarations
-hive_status hive_bus_init(void);
-void hive_bus_cleanup(void);
+// Forward declaration for internal function
 void hive_bus_cleanup_actor(actor_id id);
 
 // Bus entry in ring buffer
