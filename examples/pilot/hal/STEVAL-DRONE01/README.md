@@ -7,8 +7,11 @@ This HAL provides bare-metal drivers for STM32F401, enabling the pilot example t
 ## Quick Start
 
 ```bash
-# Build
+# Build with Webots-compatible API (default)
 make
+
+# Build with callback-based API
+make PLATFORM=callback
 
 # Flash via ST-Link
 make flash
@@ -19,16 +22,16 @@ make debug
 
 ## Two Platform APIs
 
-This HAL provides two platform interfaces - choose based on your needs:
+This HAL provides two platform interfaces - select via `PLATFORM=` option:
 
-| API | Header | Use Case |
-|-----|--------|----------|
-| **Callback-based** | `platform.h` | Standalone STM32 application with built-in main loop |
-| **Webots-compatible** | `platform_stm32f4.h` | Porting pilot.c from Webots with minimal changes |
+| Option | Header | Use Case |
+|--------|--------|----------|
+| `PLATFORM=webots` (default) | `platform_stm32f4.h` | Porting pilot.c from Webots with minimal changes |
+| `PLATFORM=callback` | `platform.h` | Standalone STM32 application with built-in main loop |
 
-**Callback-based (`platform.h`):** You provide callbacks and the platform runs the 400Hz control loop for you. Best for new STM32-native applications.
+**Webots-compatible (`PLATFORM=webots`):** Drop-in replacements for Webots API functions. You write your own main loop calling `platform_update()` at 400Hz. Best for porting existing Webots code.
 
-**Webots-compatible (`platform_stm32f4.h`):** Drop-in replacements for Webots API functions. Best for porting existing Webots code with minimal restructuring.
+**Callback-based (`PLATFORM=callback`):** You provide callbacks and the platform runs the 400Hz control loop for you via `platform_run()`. Best for new STM32-native applications.
 
 ## Hardware Overview
 
@@ -107,6 +110,7 @@ This HAL provides two platform interfaces - choose based on your needs:
 | File | Description |
 |------|-------------|
 | `main.c` | Example PID flight controller with altitude hold |
+| `platform_types.h` | Shared types and timing constants for both APIs |
 | `platform.h/c` | Callback-based API with built-in 400Hz control loop |
 | `platform_stm32f4.h/c` | Webots-compatible interface for porting pilot.c |
 | `attitude.h/c` | Complementary filter for roll/pitch/yaw estimation |
