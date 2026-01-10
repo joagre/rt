@@ -201,6 +201,12 @@ actor_id hive_self(void) {
     return current ? current->id : ACTOR_ID_INVALID;
 }
 
+/* Test-only function to get current actor's stack base for guard testing */
+void *hive_test_get_stack_base(void) {
+    actor *current = hive_actor_current();
+    return current ? current->stack : NULL;
+}
+
 void hive_yield(void) {
     hive_scheduler_yield();
 }
