@@ -11,6 +11,7 @@
 #include "lps22hd.h"
 #include "motors.h"
 #include "attitude.h"
+#include <stddef.h>
 
 // ----------------------------------------------------------------------------
 // Static state

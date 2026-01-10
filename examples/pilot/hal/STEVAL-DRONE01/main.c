@@ -9,6 +9,11 @@
 #include "platform.h"
 #include <math.h>
 
+// Math constants (not always defined in embedded math.h)
+#ifndef M_PI
+#define M_PI 3.14159265358979323846f
+#endif
+
 // TODO: Include STM32 HAL for GPIO (LED, button)
 // #include "stm32f4xx_hal.h"
 
