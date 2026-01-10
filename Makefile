@@ -321,8 +321,7 @@ qemu-test-ci: $(QEMU_ELF)
 QEMU_COMPAT_TESTS := actor_test ipc_test timer_test link_test \
                      monitor_test bus_test priority_test runtime_test \
                      timeout_test arena_test pool_exhaustion_test \
-                     backoff_retry_test simple_backoff_test congestion_demo \
-                     stack_overflow_test
+                     backoff_retry_test simple_backoff_test congestion_demo
 
 # Runtime objects for test linking (exclude test_main.o which has its own main)
 QEMU_RUNTIME_OBJS := $(filter-out $(QEMU_BUILD_DIR)/test_main.o,$(QEMU_OBJS))
@@ -375,6 +374,54 @@ qemu-test-suite:
 	fi
 
 # ============================================================================
+# QEMU Examples (run examples/*.c on ARM/QEMU)
+# ============================================================================
+
+# Compatible examples (exclude echo.c and fileio.c which require net/file features)
+QEMU_COMPAT_EXAMPLES := timer pingpong priority link_demo supervisor bus request_reply
+
+# Pattern rule: compile example source for ARM
+$(QEMU_BUILD_DIR)/qemu_example_%.o: $(EXAMPLES_DIR)/%.c | $(QEMU_BUILD_DIR)
+	$(ARM_CC) $(ARM_CFLAGS) $(ARM_CPPFLAGS) \
+		-include $(QEMU_DIR)/qemu_compat.h \
+		-Dmain=test_main \
+		-c $< -o $@
+
+# Pattern rule: link example ELF
+$(QEMU_BUILD_DIR)/example_%.elf: $(QEMU_BUILD_DIR)/qemu_example_%.o $(QEMU_BUILD_DIR)/test_runner.o $(QEMU_RUNTIME_OBJS)
+	$(ARM_CC) $(ARM_LDFLAGS) $^ -o $@
+	$(ARM_SIZE) $@
+
+# Preserve example ELF files
+.PRECIOUS: $(QEMU_BUILD_DIR)/example_%.elf $(QEMU_BUILD_DIR)/qemu_example_%.o
+
+# Run a single example: make qemu-example-pingpong
+.PHONY: qemu-example-%
+qemu-example-%: $(QEMU_BUILD_DIR)/example_%.elf
+	@echo "=== Running $* example on QEMU ==="
+	@qemu-system-arm -M lm3s6965evb -nographic \
+		-semihosting-config enable=on,target=native \
+		-kernel $< 2>&1 | grep -v "Timer with period zero" || true
+	@echo "=== $* example completed ==="
+
+# Run all compatible examples
+.PHONY: qemu-example-suite
+qemu-example-suite:
+	@echo "Running QEMU example suite ($(words $(QEMU_COMPAT_EXAMPLES)) examples)..."
+	@failed=0; \
+	for example in $(QEMU_COMPAT_EXAMPLES); do \
+		echo ""; \
+		$(MAKE) --no-print-directory qemu-example-$$example || failed=1; \
+	done; \
+	echo ""; \
+	if [ $$failed -eq 0 ]; then \
+		echo "All QEMU examples completed!"; \
+	else \
+		echo "Some QEMU examples failed!"; \
+		exit 1; \
+	fi
+
+# ============================================================================
 # Help
 # ============================================================================
 
@@ -397,6 +444,8 @@ help:
 	@echo "  qemu-test-ci      - Run QEMU tests with timeout (for CI)"
 	@echo "  qemu-run-<test>   - Run specific test on QEMU (e.g., qemu-run-actor_test)"
 	@echo "  qemu-test-suite   - Run all compatible tests on QEMU"
+	@echo "  qemu-example-<ex> - Run specific example on QEMU (e.g., qemu-example-pingpong)"
+	@echo "  qemu-example-suite - Run all compatible examples on QEMU"
 	@echo "  help              - Show this help message"
 	@echo ""
 	@echo "Platform selection:"

@@ -128,9 +128,15 @@ int main(void) {
     hive_bus_config bus_cfg = HIVE_BUS_CONFIG_DEFAULT;
     bus_cfg.consume_after_reads = 0;        // Unlimited readers (data persists)
     bus_cfg.max_age_ms = 0;         // No time-based expiry
+#ifdef QEMU_TEST_STACK_SIZE
+    bus_cfg.max_entries = 4;        // Reduced for QEMU
+    bus_cfg.max_entry_size = 64;
+    bus_cfg.max_subscribers = 4;
+#else
     bus_cfg.max_entries = 16;       // Ring buffer size
     bus_cfg.max_entry_size = 256;   // Max payload size
     bus_cfg.max_subscribers = 32;   // Maximum concurrent subscribers
+#endif
 
     status = hive_bus_create(&bus_cfg, &g_sensor_bus);
     if (HIVE_FAILED(status)) {
@@ -144,7 +150,11 @@ int main(void) {
     // Spawn subscriber actors
     actor_config actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT;
     actor_cfg.name = "subscriber_a";
+#ifdef QEMU_TEST_STACK_SIZE
+    actor_cfg.stack_size = 2048;  // Reduced for QEMU
+#else
     actor_cfg.stack_size = 128 * 1024;  // Increase stack size
+#endif
     actor_id sub_a;
     if (HIVE_FAILED(hive_spawn_ex(subscriber_actor, (void *)"Subscriber A", &actor_cfg, &sub_a))) {
         fprintf(stderr, "Failed to spawn subscriber A\n");
@@ -162,7 +172,7 @@ int main(void) {
 
     // Spawn publisher actor
     actor_cfg.name = "publisher";
-    actor_cfg.stack_size = 128 * 1024;  // Increase stack size
+    // Stack size already set above (reuse actor_cfg)
     actor_id pub;
     if (HIVE_FAILED(hive_spawn_ex(publisher_actor, NULL, &actor_cfg, &pub))) {
         fprintf(stderr, "Failed to spawn publisher\n");
