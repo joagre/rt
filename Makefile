@@ -6,6 +6,25 @@ DEPFLAGS = -MMD -MP
 LDFLAGS :=
 LDLIBS :=
 
+# Platform selection (linux or stm32)
+PLATFORM ?= linux
+
+# Platform-specific settings
+ifeq ($(PLATFORM),linux)
+  CPPFLAGS += -DHIVE_PLATFORM_LINUX
+  PLATFORM_SRCS := hive_scheduler_linux.c hive_timer_linux.c
+  PLATFORM_ASM := hive_context_x86_64.S
+else ifeq ($(PLATFORM),stm32)
+  CPPFLAGS += -DHIVE_PLATFORM_STM32
+  PLATFORM_SRCS := hive_scheduler_stm32.c hive_timer_stm32.c
+  PLATFORM_ASM := hive_context_arm_cm.S
+  # STM32 defaults: disable net and file
+  ENABLE_NET ?= 0
+  ENABLE_FILE ?= 0
+else
+  $(error Unknown PLATFORM: $(PLATFORM). Use 'linux' or 'stm32')
+endif
+
 # Feature toggles (set to 0 to disable)
 ENABLE_NET ?= 1
 ENABLE_FILE ?= 1
@@ -34,17 +53,22 @@ MAN_DIR := man
 PREFIX ?= /usr/local
 MANPREFIX ?= $(PREFIX)/share/man
 
-# Source files (core, always compiled)
-SRCS := $(wildcard $(SRC_DIR)/*.c)
-ASM_SRCS := $(wildcard $(SRC_DIR)/*.S)
+# Core source files (platform-independent)
+CORE_SRCS := hive_actor.c hive_bus.c hive_context.c hive_ipc.c \
+             hive_link.c hive_log.c hive_pool.c hive_runtime.c
 
-# Exclude optional subsystems if disabled
-ifneq ($(ENABLE_NET),1)
-  SRCS := $(filter-out $(SRC_DIR)/hive_net.c,$(SRCS))
+# Feature-specific source files
+FEATURE_SRCS :=
+ifeq ($(ENABLE_NET),1)
+  FEATURE_SRCS += hive_net.c
 endif
-ifneq ($(ENABLE_FILE),1)
-  SRCS := $(filter-out $(SRC_DIR)/hive_file.c,$(SRCS))
+ifeq ($(ENABLE_FILE),1)
+  FEATURE_SRCS += hive_file.c
 endif
+
+# Combine all source files
+SRCS := $(addprefix $(SRC_DIR)/,$(CORE_SRCS) $(PLATFORM_SRCS) $(FEATURE_SRCS))
+ASM_SRCS := $(addprefix $(SRC_DIR)/,$(PLATFORM_ASM))
 
 OBJS := $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o) $(ASM_SRCS:$(SRC_DIR)/%.S=$(BUILD_DIR)/%.o)
 DEPS := $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.d)
@@ -190,11 +214,18 @@ help:
 	@echo "  run-echo          - Build and run echo server/client example"
 	@echo "  help              - Show this help message"
 	@echo ""
-	@echo "Feature toggles (set to 0 to disable):"
-	@echo "  ENABLE_NET=1      - Network I/O subsystem (default: 1)"
-	@echo "  ENABLE_FILE=1     - File I/O subsystem (default: 1)"
+	@echo "Platform selection:"
+	@echo "  PLATFORM=linux    - Linux x86-64 (default)"
+	@echo "  PLATFORM=stm32    - STM32 ARM Cortex-M (requires cross-compiler)"
 	@echo ""
-	@echo "Example: make ENABLE_NET=0 ENABLE_FILE=0"
+	@echo "Feature toggles (set to 0 to disable):"
+	@echo "  ENABLE_NET=1      - Network I/O subsystem (default: 1 on linux, 0 on stm32)"
+	@echo "  ENABLE_FILE=1     - File I/O subsystem (default: 1 on linux, 0 on stm32)"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make                              - Build for Linux with all features"
+	@echo "  make ENABLE_NET=0 ENABLE_FILE=0   - Build for Linux without net/file"
+	@echo "  make PLATFORM=stm32               - Build for STM32 (placeholder)"
 
 # Dependencies
 .PHONY: deps
