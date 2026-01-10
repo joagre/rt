@@ -26,7 +26,6 @@ void hive_file_cleanup(void) {
     g_file.initialized = false;
 }
 
-// All file operations are now direct synchronous syscalls
 // On embedded systems (FATFS/littlefs), these operations are fast (<1ms typically)
 // Blocking the scheduler briefly is acceptable
 
