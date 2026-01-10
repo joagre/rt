@@ -33,7 +33,7 @@ static timer_entry g_timer_pool[HIVE_TIMER_ENTRY_POOL_SIZE];
 static bool g_timer_used[HIVE_TIMER_ENTRY_POOL_SIZE];
 static hive_pool g_timer_pool_mgr;
 
-// Timer subsystem state (simplified - no worker thread!)
+// Timer subsystem state
 static struct {
     bool        initialized;
     timer_entry *timers;      // Active timers list
@@ -46,10 +46,6 @@ static void timer_close_fd(timer_entry *entry) {
     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, entry->fd, NULL);
     close(entry->fd);
 }
-
-// Forward declarations for internal functions
-hive_status hive_timer_init(void);
-void hive_timer_cleanup(void);
 
 // Handle timer event from scheduler (called when timerfd fires)
 void hive_timer_handle_event(io_source *source) {
