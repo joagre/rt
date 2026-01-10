@@ -334,7 +334,7 @@ Actors receive platform functions via init:
 - Uses `webots/robot.h` APIs
 
 **STM32 hardware (STEVAL-DRONE01):**
-- Build with: `make -f Makefile.stm32`
+- Build with: `make -f Makefile.STEVAL-DRONE01`
 - Platform functions in `hal/STEVAL-DRONE01/platform_stm32f4.c`
 - Requires hive runtime ported to STM32 (context switch, timers)
 
@@ -367,7 +367,7 @@ examples/pilot/
     types.h              # Portable data types
     config.h             # Shared constants
     Makefile             # Webots simulation build
-    Makefile.stm32       # STM32 hardware build
+    Makefile.STEVAL-DRONE01       # STM32 hardware build
     SPEC.md              # This specification
     README.md            # Usage instructions
     worlds/

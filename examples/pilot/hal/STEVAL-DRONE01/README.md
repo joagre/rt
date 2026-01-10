@@ -9,8 +9,8 @@ This HAL provides bare-metal drivers for STM32F401, enabling the pilot example t
 ```bash
 # Build full firmware (from examples/pilot/)
 cd ..
-make -f Makefile.stm32
-make -f Makefile.stm32 flash
+make -f Makefile.STEVAL-DRONE01
+make -f Makefile.STEVAL-DRONE01 flash
 
 # Or build just the HAL library (from this directory)
 make          # Build libhal.a
@@ -23,7 +23,7 @@ This HAL is designed to be linked with `pilot.c` and the hive runtime. The platf
 
 Build the complete firmware from `examples/pilot/`:
 ```bash
-make -f Makefile.stm32
+make -f Makefile.STEVAL-DRONE01
 ```
 
 ## Hardware Overview
@@ -234,9 +234,9 @@ make clean    # Remove build artifacts
 make help     # Show targets
 
 # Build full firmware (from examples/pilot/)
-make -f Makefile.stm32           # Build pilot_stm32.elf
-make -f Makefile.stm32 flash     # Flash to device
-make -f Makefile.stm32 debug     # Start GDB session
+make -f Makefile.STEVAL-DRONE01           # Build pilot_STEVAL-DRONE01.elf
+make -f Makefile.STEVAL-DRONE01 flash     # Flash to device
+make -f Makefile.STEVAL-DRONE01 debug     # Start GDB session
 ```
 
 ## API Reference
@@ -467,7 +467,7 @@ Tuning procedure:
 - [x] Motor driver (TIM4)
 - [x] Complementary filter for attitude
 - [x] Webots-compatible platform interface (platform_stm32f4.h/c)
-- [x] Makefile.stm32 for pilot+hive+HAL integration
+- [x] Makefile.STEVAL-DRONE01 for pilot+hive+HAL integration
 - [x] Linker script (stm32f401_flash.ld)
 - [x] Startup code (startup_stm32f401.s)
 - [x] System clock configuration (84MHz)
