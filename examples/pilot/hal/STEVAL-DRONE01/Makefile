@@ -114,6 +114,9 @@ CFLAGS += -DPLATFORM_STEVAL_DRONE01
 # Math library
 CFLAGS += -DARM_MATH_CM4
 
+# Log level: NONE for production (all logging compiled out)
+CFLAGS += -DHIVE_LOG_LEVEL=HIVE_LOG_LEVEL_NONE
+
 # Include paths
 CFLAGS += $(INCLUDES)
 

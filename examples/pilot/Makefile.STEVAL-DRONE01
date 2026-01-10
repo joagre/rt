@@ -118,6 +118,9 @@ CFLAGS += -DHIVE_PLATFORM_STM32
 CFLAGS += -DHIVE_NO_NET        # Disable network I/O
 CFLAGS += -DHIVE_NO_FILE       # Disable file I/O
 
+# Log level: NONE for production (all logging compiled out)
+CFLAGS += -DHIVE_LOG_LEVEL=HIVE_LOG_LEVEL_NONE
+
 CFLAGS += $(INCLUDES)
 CFLAGS += -MMD -MP
 
