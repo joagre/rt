@@ -1,4 +1,4 @@
-#VRML_SIM R2023b utf8
+#VRML_SIM R2025a utf8
 
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackground.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
@@ -15,9 +15,10 @@ WorldInfo {
   }
 }
 Viewpoint {
-  orientation -0.2 0.2 0.96 1.6
-  position 0.5 -1.5 1.0
+  orientation -0.19984019174435785 0.19984019174435785 0.9592329203729176 1.6
+  position 0.5026599832572946 -1.2949099494818956 0.9112692791226891
   follow "Crazyflie"
+  followType "None"
 }
 TexturedBackground {
 }
@@ -27,8 +28,5 @@ RectangleArena {
   floorSize 4 4
 }
 Crazyflie {
-  translation 0 0 0.5
-  rotation 0 0 1 0
-  name "Crazyflie"
   controller "pilot"
 }
