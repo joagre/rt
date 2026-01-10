@@ -47,8 +47,8 @@ Then open `worlds/hover_test.wbt` in Webots and start the simulation.
 ### STM32 Hardware (STEVAL-DRONE01)
 
 ```bash
-make -f Makefile.stm32        # Build firmware (requires hive STM32 port)
-make -f Makefile.stm32 flash  # Flash to device
+make -f Makefile.STEVAL-DRONE01        # Build firmware (requires hive STM32 port)
+make -f Makefile.STEVAL-DRONE01 flash  # Flash to device
 ```
 
 See `hal/STEVAL-DRONE01/README.md` for hardware details.
@@ -77,7 +77,7 @@ See `hal/STEVAL-DRONE01/README.md` for hardware details.
 | File | Description |
 |------|-------------|
 | `Makefile` | Webots simulation build |
-| `Makefile.stm32` | STM32 hardware build (links hive + pilot + HAL) |
+| `Makefile.STEVAL-DRONE01` | STM32 hardware build (links hive + pilot + HAL) |
 
 ### Documentation
 

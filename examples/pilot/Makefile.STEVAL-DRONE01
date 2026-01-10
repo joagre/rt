@@ -1,4 +1,4 @@
-# Makefile.stm32 - Build pilot for STEVAL-DRONE01 (STM32F401)
+# Makefile.STEVAL-DRONE01 - Build pilot for STEVAL-DRONE01 (STM32F401)
 #
 # Links together:
 #   - Hive runtime (requires STM32 port)
@@ -6,9 +6,9 @@
 #   - STEVAL-DRONE01 HAL (sensors, motors, platform)
 #
 # Usage:
-#   make -f Makefile.stm32          # Build firmware
-#   make -f Makefile.stm32 flash    # Flash to device
-#   make -f Makefile.stm32 clean    # Clean all build artifacts
+#   make -f Makefile.STEVAL-DRONE01          # Build firmware
+#   make -f Makefile.STEVAL-DRONE01 flash    # Flash to device
+#   make -f Makefile.STEVAL-DRONE01 clean    # Clean all build artifacts
 #
 # Prerequisites:
 #   - ARM GCC: apt install gcc-arm-none-eabi
@@ -19,8 +19,8 @@
 # Project Configuration
 # ------------------------------------------------------------------------------
 
-TARGET = pilot_stm32
-BUILD_DIR = build_stm32
+TARGET = pilot_STEVAL-DRONE01
+BUILD_DIR = build_STEVAL-DRONE01
 
 # Paths relative to examples/pilot/
 HIVE_SRC_DIR = ../../src
@@ -229,7 +229,7 @@ clean:
 # ------------------------------------------------------------------------------
 
 help:
-	@echo "Pilot STM32 Build System"
+	@echo "Pilot STEVAL-DRONE01 Build System"
 	@echo ""
 	@echo "This Makefile links together:"
 	@echo "  - Hive runtime (actor framework)"
@@ -251,5 +251,5 @@ help:
 	@echo "  3. Port hive_timer.c (use hardware timers instead of timerfd)"
 	@echo ""
 	@echo "Usage:"
-	@echo "  make -f Makefile.stm32"
-	@echo "  make -f Makefile.stm32 flash"
+	@echo "  make -f Makefile.STEVAL-DRONE01"
+	@echo "  make -f Makefile.STEVAL-DRONE01 flash"

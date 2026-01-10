@@ -1,7 +1,7 @@
 # Makefile for STEVAL-DRONE01 HAL (STM32F401)
 #
 # Builds HAL drivers as a static library for use with pilot.
-# For full firmware build, use: make -f Makefile.stm32 (from examples/pilot/)
+# For full firmware build, use: make -f Makefile.STEVAL-DRONE01 (from examples/pilot/)
 #
 # Requires: ARM GCC toolchain (arm-none-eabi-gcc)
 # Install: apt install gcc-arm-none-eabi
@@ -179,7 +179,7 @@ help:
 	@echo "STEVAL-DRONE01 HAL Build System"
 	@echo ""
 	@echo "This builds HAL drivers as a static library (libhal.a)."
-	@echo "For full firmware, use: make -f Makefile.stm32 (from examples/pilot/)"
+	@echo "For full firmware, use: make -f Makefile.STEVAL-DRONE01 (from examples/pilot/)"
 	@echo ""
 	@echo "Targets:"
 	@echo "  all   - Build HAL library (default)"
