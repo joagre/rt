@@ -5,6 +5,7 @@
 #include "spi1.h"
 #include "system_config.h"
 #include "gpio_config.h"
+#include <stddef.h>
 
 // ----------------------------------------------------------------------------
 // SPI1 Register Definitions
