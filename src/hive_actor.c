@@ -256,8 +256,6 @@ void hive_actor_free(actor *a) {
     }
 
     // Cleanup links/monitors and send death notifications
-    // This happens even on stack overflow - the guard pattern detection means
-    // the overflow is localized to the stack, and actor metadata is intact
     hive_link_cleanup_actor(a->id);
 
     // Cleanup bus subscriptions

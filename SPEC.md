@@ -405,7 +405,7 @@ if (net_event_pending) {
 
 Each actor has a fixed-size stack allocated at spawn time. Stack size is configurable per actor via `actor_config.stack_size`, with a system-wide default (`HIVE_DEFAULT_STACK_SIZE`). Different actors can use different stack sizes to optimize memory usage.
 
-Stack growth/reallocation is not supported. Stack overflow is detected via guard patterns (see "Stack Overflow Detection" section below) with defined, safe behavior.
+Stack growth/reallocation is not supported. Stack overflow results in undefined behavior - proper stack sizing is required (see "Stack Overflow" section).
 
 ### Memory Allocation
 
@@ -1828,7 +1828,7 @@ void hive_cleanup(void);
 
 When an actor dies (via `hive_exit()`, crash, or external kill):
 
-**Exception:** The exception in this section applies **only when stack corruption prevents safe cleanup** (e.g., guard pattern so corrupted that detection itself is unsafe, or runtime metadata is damaged). When overflow **is detected** via guard checks (see Stack Overflow section), the **normal cleanup path below is used** — links/monitors are notified, mailbox cleared, timers cancelled, resources cleaned up. The guard pattern detection isolates the overflow to the stack area, leaving actor metadata intact for safe cleanup.
+**Note:** Stack overflow results in undefined behavior since there is no runtime detection. The cleanup below assumes normal actor death. If stack overflow corrupts runtime metadata, the system may crash before cleanup completes.
 
 **Normal death cleanup:**
 
@@ -2126,91 +2126,50 @@ Platform selection sets `HIVE_PLATFORM_LINUX` or `HIVE_PLATFORM_STM32` preproces
 
 ## Stack Overflow
 
-### Behavior Contract
+### No Runtime Detection
 
-**Detection-dependent behavior:** Stack overflow semantics depend on whether the overflow is detected by guard pattern checks.
+The runtime does **not** perform stack overflow detection. Stack overflow results in **undefined behavior**.
 
----
+**Rationale:** Pattern-based guard detection (checking magic values on context switch) was removed because:
+1. Detection occurred too late - after memory corruption had already happened
+2. Severe overflows corrupt memory beyond the guard, causing crashes before detection
+3. The mechanism gave a false sense of security while not providing reliable protection
+4. Proper stack sizing is the only reliable solution
 
-#### **When Overflow IS Detected (Guard Check Succeeds)**
+### Behavior on Overflow
 
-**Guaranteed behavior:**
-1. **Actor terminates** with exit reason `HIVE_EXIT_CRASH_STACK`
-2. **Links/monitors are notified** (receive exit message with `HIVE_EXIT_CRASH_STACK`)
-3. **Runtime remains stable** (other actors continue running)
-4. **Actor resources cleaned up** (stack freed, mailbox cleared, timers cancelled)
-5. **Error logged:** "Actor N stack overflow detected"
+**Undefined behavior.** Possible outcomes:
+- **Segfault** (most likely on Linux)
+- **Corruption of adjacent actor stacks** (arena allocator places stacks contiguously)
+- **Corruption of runtime state** (if overflow is severe)
+- **Silent data corruption** (worst case - no immediate crash)
 
-**Why this is usually safe:**
-- Guard patterns are stored **outside** the actor's usable stack region
-- Actor metadata (struct actor, links, monitors, mailbox) is stored in **static global arrays**, not on the actor's stack
-- Overflow is *intended* to corrupt only the actor's stack data; runtime metadata is stored separately and usually remains intact
-- Therefore: Cleanup and notification can proceed safely *when detection succeeds*
+**Links/monitors are NOT notified.** The `HIVE_EXIT_CRASH_STACK` exit reason exists but is not currently triggered.
 
-**Caveat:** Without MPU-based stack isolation (future work), there is no hardware guarantee that overflow stays confined. The layout minimizes risk but does not eliminate it.
+### Required Mitigation
 
-**Implementation:** Guard patterns checked on every context switch (platform-specific scheduler)
+Stack overflow prevention is the **application's responsibility**:
 
----
+1. **Size stacks conservatively** - Use 2-3x safety margin over measured worst-case
+2. **Profile stack usage** - Measure actual usage under worst-case conditions
+3. **Use static analysis** - Tools like `gcc -fstack-usage` report per-function stack use
+4. **Test thoroughly** - Include stress tests with deep call stacks
+5. **Use AddressSanitizer** - `-fsanitize=address` catches stack issues during development
 
-#### **When Overflow is NOT Detected (Guard Check Fails to Trigger)**
+### System-Level Protection
 
-**Actual behavior: UNDEFINED**
-
-If stack overflow is severe enough to corrupt guard patterns before the next context switch, or if corruption propagates beyond stack boundaries:
-
-- **May segfault** (most likely on Linux with default stack allocation)
-- **May corrupt other actors' stacks** (if stacks are adjacent in memory)
-- **May corrupt runtime state** (if overflow is extreme)
-- **May go undetected indefinitely** (if guards are overwritten with valid-looking data)
-
-**Links/monitors are NOT guaranteed to be notified.** Runtime stability is NOT guaranteed.
-
-**System-level mitigation required:**
+For production systems:
 - **Watchdog timer:** Detect hung system, trigger reboot/failsafe
-- **Stack sizing discipline:** Size stacks with 2-3x safety margin based on profiling
-- **Production hardware:** Use MPU guard pages (ARM Cortex-M) for hardware-guaranteed traps
-- **Supervisor architecture:** Critical subsystems monitor less-trusted actors, reboot on anomaly
+- **Supervisor architecture:** Monitor actors, restart on anomaly
+- **Memory isolation:** Hardware MPU (ARM Cortex-M) can provide hardware-guaranteed protection
 
-**This is NOT a runtime bug** - it is the inherent limitation of best-effort guard pattern detection. Safety-critical systems must not rely solely on overflow detection; they must architect for graceful degradation or system reset on memory corruption.
+### Future Considerations
 
----
+Hardware-based protection may be added in future versions:
+- **Linux:** `mprotect()` guard pages (immediate SIGSEGV on overflow)
+- **ARM Cortex-M:** MPU guard regions (immediate HardFault on overflow)
 
-### Detection Mechanism (Best-Effort)
-
-**Implementation:** Guard pattern detection (Linux/STM32)
-
-**Mechanism:**
-- 8-byte guard patterns placed at both ends of each actor stack
-- Guards checked on every context switch
-- Pattern: `0xDEADBEEFCAFEBABE` (uint64_t)
-- Overhead: 16 bytes per stack (8 bytes × 2)
-
-**Detection quality:**
-- **Best-effort:** Catches most overflows during normal operation
-- **Post-facto:** Detection occurs on next context switch after overflow
-- **Not guaranteed:** Severe overflows may corrupt guards before check
-- **Timing:** Overflow -> corruption -> next context switch -> detection
-
-**Comparison with alternatives:**
-
-| Detection Method | Overhead | Reliability | Timing |
-|------------------|----------|-------------|--------|
-| **Guard patterns (current)** | 16 bytes/stack | Best-effort (post-facto) | Next context switch |
-| **MPU guard pages (future)** | 0 bytes | Hardware-guaranteed | Immediate trap |
-| **Canaries at runtime** | Function call overhead | Function-level | At function return |
-| **Static analysis** | Compile-time only | Depends on analysis | Before runtime |
-
-**Future improvements:**
-- **ARM Cortex-M:** MPU guard pages for zero-overhead hardware traps
-- **Debug builds:** Stack usage watermarking and high-water tracking
-- **Telemetry:** Stack usage statistics per actor
-
-**Best practices:**
-- Size stacks with 2-3x safety margin
-- Test worst-case call depth (including interrupts on embedded)
-- Use static analysis tools to verify stack usage
-- Monitor stack overflow errors in production (should be rare)
+These would provide immediate, hardware-guaranteed detection with zero runtime overhead.
 
 ## Future Considerations
 

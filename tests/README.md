@@ -284,21 +284,6 @@ Tests stack arena exhaustion and malloc fallback.
 
 ---
 
-#### `stack_overflow_test.c`
-Tests stack overflow detection and handling.
-
-**NOTE:** This test intentionally causes stack overflow, which corrupts memory. Valgrind will report errors - this is expected behavior for this test.
-
-**Tests:**
-- Stack guard corruption is detected
-- Linked actors receive RT_EXIT_CRASH_STACK notification
-- System continues running after stack overflow
-- No segfault
-
-**Run with:** `valgrind --error-exitcode=0 ./build/stack_overflow_test`
-
----
-
 ## Test Insights
 
 ### Why Retries Don't Always Trigger

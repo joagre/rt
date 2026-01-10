@@ -46,7 +46,7 @@ man man/man3/hive_ipc.3
 - Statically bounded memory - Deterministic footprint, zero fragmentation, heap optional only for actor stacks
 - Cooperative multitasking with manual x86-64 context switching
 - Priority-based round-robin scheduler (4 priority levels)
-- Stack overflow detection with guard patterns (16-byte overhead per actor)
+- Configurable per-actor stack sizes with arena allocator
 - Actor lifecycle management (spawn, exit)
 - IPC with selective receive and request/reply
 - Message classes: NOTIFY (async), REQUEST/REPLY, TIMER, SYSTEM
@@ -414,11 +414,9 @@ valgrind --leak-check=full ./build/actor_test
 valgrind --leak-check=full ./build/ipc_test
 # ... etc for each test
 
-# Note: stack_overflow_test intentionally corrupts memory to test
-# overflow detection - valgrind errors are expected for this test
 ```
 
-The test suite includes 18 test programs covering actors, IPC, timers, bus, networking, file I/O, linking, monitoring, and edge cases like pool exhaustion and stack overflow detection.
+The test suite includes 17 test programs covering actors, IPC, timers, bus, networking, file I/O, linking, monitoring, and edge cases like pool exhaustion.
 
 ## Building
 
@@ -434,6 +432,26 @@ make ENABLE_NET=0 ENABLE_FILE=0
 
 # STM32 defaults to ENABLE_NET=0 ENABLE_FILE=0
 ```
+
+## QEMU Testing
+
+The runtime can be tested on ARM Cortex-M via QEMU emulation:
+
+```bash
+# Install prerequisites
+sudo apt install gcc-arm-none-eabi qemu-system-arm
+
+# Build and run tests on QEMU
+make qemu-test-suite           # Run all compatible tests (14 tests)
+make qemu-run-actor_test       # Run specific test
+
+# Build and run examples on QEMU
+make qemu-example-suite        # Run all compatible examples (7 examples)
+make qemu-example-pingpong     # Run specific example
+```
+
+Compatible tests exclude `net_test` and `file_test` (require ENABLE_NET/ENABLE_FILE).
+Compatible examples exclude `echo` and `fileio` (same reason).
 
 ## Future Work
 
