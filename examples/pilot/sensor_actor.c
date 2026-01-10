@@ -1,7 +1,6 @@
 // Sensor actor - Timer-driven sensor reading
 //
-// Reads sensors from platform layer at control loop frequency,
-// publishes to IMU bus.
+// Periodically reads sensors from platform layer, publishes to IMU bus.
 
 #include "sensor_actor.h"
 #include "config.h"
