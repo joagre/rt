@@ -17,10 +17,6 @@ extern actor_table *hive_actor_get_table(void);
 // External timer functions (from hive_timer_stm32.c)
 extern void hive_timer_process_pending(void);
 
-// Stack overflow detection (must match hive_actor.c)
-#define STACK_GUARD_PATTERN 0xDEADBEEFCAFEBABEULL
-#define STACK_GUARD_SIZE 8
-
 // Scheduler state
 static struct {
     hive_context scheduler_ctx;
@@ -28,21 +24,6 @@ static struct {
     bool       initialized;
     size_t     last_run_idx[HIVE_PRIORITY_COUNT];  // Last run actor index for each priority
 } g_scheduler = {0};
-
-// Check stack guard patterns for overflow detection
-static bool check_stack_guard(actor *a) {
-    if (!a || !a->stack) {
-        return true;  // No stack to check
-    }
-
-    // Use 32-bit pattern for ARM (8 bytes = two 32-bit words)
-    uint32_t *guard_low = (uint32_t *)a->stack;
-    uint32_t *guard_high = (uint32_t *)((uint8_t *)a->stack + a->stack_size - STACK_GUARD_SIZE);
-
-    // Check both words of the 64-bit pattern
-    return (guard_low[0] == 0xCAFEBABE && guard_low[1] == 0xDEADBEEF &&
-            guard_high[0] == 0xCAFEBABE && guard_high[1] == 0xDEADBEEF);
-}
 
 // Process pending events (timers on STM32)
 static void dispatch_events(void) {
@@ -65,13 +46,6 @@ static void run_single_actor(actor *a) {
 
     // Context switch to actor
     hive_context_switch(&g_scheduler.scheduler_ctx, &a->ctx);
-
-    // Check for stack overflow
-    if (!check_stack_guard(a)) {
-        HIVE_LOG_ERROR("Actor %u stack overflow detected", a->id);
-        a->exit_reason = HIVE_EXIT_CRASH_STACK;
-        a->state = ACTOR_STATE_DEAD;
-    }
 
     // Actor has yielded or exited
     HIVE_LOG_TRACE("Scheduler: Actor %u yielded, state=%d", a->id, a->state);

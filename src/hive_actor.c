@@ -23,10 +23,6 @@ typedef struct {
 #define STACK_ALIGNMENT 16
 #define MIN_BLOCK_SIZE 64
 
-// Stack overflow detection
-#define STACK_GUARD_PATTERN 0xDEADBEEFCAFEBABEULL
-#define STACK_GUARD_SIZE 8  // sizeof(uint64_t)
-
 // Static arena storage (16-byte aligned)
 static uint8_t g_stack_arena_memory[HIVE_STACK_ARENA_SIZE] __attribute__((aligned(16)));
 static stack_arena g_stack_arena = {0};
@@ -227,13 +223,6 @@ actor *hive_actor_alloc(actor_fn fn, void *arg, const actor_config *cfg) {
         return NULL;
     }
 
-    // Initialize stack guard patterns for overflow detection
-    // Layout: [GUARD_LOW][usable stack][GUARD_HIGH]
-    uint64_t *guard_low = (uint64_t *)stack;
-    uint64_t *guard_high = (uint64_t *)((uint8_t *)stack + stack_size - STACK_GUARD_SIZE);
-    *guard_low = STACK_GUARD_PATTERN;
-    *guard_high = STACK_GUARD_PATTERN;
-
     // Initialize actor
     memset(a, 0, sizeof(actor));
     a->id = g_actor_table.next_id++;
@@ -249,10 +238,8 @@ actor *hive_actor_alloc(actor_fn fn, void *arg, const actor_config *cfg) {
     a->recv_filter_class = HIVE_MSG_ANY;
     a->recv_filter_tag = HIVE_TAG_ANY;
 
-    // Initialize context with usable stack area (excluding guards)
-    void *usable_stack = (uint8_t *)stack + STACK_GUARD_SIZE;
-    size_t usable_size = stack_size - (2 * STACK_GUARD_SIZE);
-    hive_context_init(&a->ctx, usable_stack, usable_size, fn, arg);
+    // Initialize context with full stack area
+    hive_context_init(&a->ctx, stack, stack_size, fn, arg);
 
     g_actor_table.num_actors++;
 
