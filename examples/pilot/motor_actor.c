@@ -1,7 +1,6 @@
-// Motor actor - Mixer and safety layer
+// Motor actor - Mixer and output layer
 //
-// Subscribes to torque bus, applies mixer, enforces limits, implements watchdog,
-// writes to hardware.
+// Subscribes to torque bus, applies mixer, enforces limits, writes to hardware.
 
 #include "motor_actor.h"
 #include "config.h"
@@ -9,7 +8,6 @@
 #include "hive_bus.h"
 #include "hive_log.h"
 #include <assert.h>
-#include <stdbool.h>
 
 static bus_id s_torque_bus;
 static write_motors_fn s_write_motors;
@@ -22,8 +20,8 @@ static write_motors_fn s_write_motors;
 //       M2    M3
 //         \  /
 //          \/
-//          /\
-//         /  \
+//          /\.
+//         /  \.
 //       M1    M4
 //         Rear
 //
@@ -69,32 +67,15 @@ void motor_actor(void *arg) {
 
     assert(HIVE_SUCCEEDED(hive_bus_subscribe(s_torque_bus)));
 
-    int watchdog = 0;
     motor_cmd_t cmd = MOTOR_CMD_ZERO;
-    bool armed = false;
 
     while (1) {
         torque_cmd_t torque;
 
-        if (BUS_READ(s_torque_bus, &torque)) {
-            watchdog = 0;
+        // Block until torque command available
+        BUS_READ_WAIT(s_torque_bus, &torque);
 
-            mixer_apply(&torque, &cmd);
-            armed = true;
-
-            s_write_motors(&cmd);
-        } else {
-            watchdog++;
-
-            if (watchdog >= MOTOR_WATCHDOG_TIMEOUT && armed) {
-                HIVE_LOG_WARN("MOTOR WATCHDOG: No commands for %dms - cutting motors!",
-                              MOTOR_WATCHDOG_TIMEOUT * TIME_STEP_MS);
-                cmd = (motor_cmd_t)MOTOR_CMD_ZERO;
-                s_write_motors(&cmd);
-                armed = false;
-            }
-        }
-
-        hive_yield();
+        mixer_apply(&torque, &cmd);
+        s_write_motors(&cmd);
     }
 }

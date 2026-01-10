@@ -42,29 +42,28 @@ void altitude_actor(void *arg) {
         state_estimate_t state;
         position_target_t target;
 
-        // Read target altitude from waypoint actor
+        // Block until state available
+        BUS_READ_WAIT(s_state_bus, &state);
+
+        // Read target altitude (non-blocking, use last known if not available)
         if (BUS_READ(s_target_bus, &target)) {
             target_altitude = target.z;
         }
 
-        if (BUS_READ(s_state_bus, &state)) {
-            // Position control (PI)
-            float pos_correction = pid_update(&alt_pid, target_altitude, state.altitude, TIME_STEP_S);
+        // Position control (PI)
+        float pos_correction = pid_update(&alt_pid, target_altitude, state.altitude, TIME_STEP_S);
 
-            // Velocity damping: reduce thrust when moving up, increase when moving down
-            float vel_damping = -VVEL_DAMPING_GAIN * state.vertical_velocity;
+        // Velocity damping: reduce thrust when moving up, increase when moving down
+        float vel_damping = -VVEL_DAMPING_GAIN * state.vertical_velocity;
 
-            float thrust = CLAMPF(BASE_THRUST + pos_correction + vel_damping, 0.0f, 1.0f);
+        float thrust = CLAMPF(BASE_THRUST + pos_correction + vel_damping, 0.0f, 1.0f);
 
-            thrust_cmd_t cmd = {.thrust = thrust};
-            hive_bus_publish(s_thrust_bus, &cmd, sizeof(cmd));
+        thrust_cmd_t cmd = {.thrust = thrust};
+        hive_bus_publish(s_thrust_bus, &cmd, sizeof(cmd));
 
-            if (++count % DEBUG_PRINT_INTERVAL == 0) {
-                HIVE_LOG_DEBUG("[ALT] tgt=%.2f alt=%.2f vvel=%.2f thrust=%.3f",
-                               target_altitude, state.altitude, state.vertical_velocity, thrust);
-            }
+        if (++count % DEBUG_PRINT_INTERVAL == 0) {
+            HIVE_LOG_DEBUG("[ALT] tgt=%.2f alt=%.2f vvel=%.2f thrust=%.3f",
+                           target_altitude, state.altitude, state.vertical_velocity, thrust);
         }
-
-        hive_yield();
     }
 }

@@ -47,6 +47,10 @@ void attitude_actor(void *arg) {
         thrust_cmd_t thrust_cmd;
         rate_setpoint_t new_rate_sp;
 
+        // Block until state available
+        BUS_READ_WAIT(s_state_bus, &state);
+
+        // Read thrust and rate setpoints (non-blocking, use last known)
         if (BUS_READ(s_thrust_bus, &thrust_cmd)) {
             thrust = thrust_cmd.thrust;
         }
@@ -55,29 +59,25 @@ void attitude_actor(void *arg) {
             rate_sp = new_rate_sp;
         }
 
-        if (BUS_READ(s_state_bus, &state)) {
-            // X-config mixer output conventions:
-            // - Roll: positive output = right wing down
-            // - Yaw: positive output = clockwise rotation
-            // - Pitch: platform-specific sign (sensor coordinate conventions differ)
-            torque_cmd_t cmd;
-            cmd.thrust = thrust;
-            cmd.roll   = pid_update(&roll_pid,  rate_sp.roll,  state.roll_rate, TIME_STEP_S);
+        // X-config mixer output conventions:
+        // - Roll: positive output = right wing down
+        // - Yaw: positive output = clockwise rotation
+        // - Pitch: platform-specific sign (sensor coordinate conventions differ)
+        torque_cmd_t cmd;
+        cmd.thrust = thrust;
+        cmd.roll   = pid_update(&roll_pid,  rate_sp.roll,  state.roll_rate, TIME_STEP_S);
 #ifdef PLATFORM_STEVAL_DRONE01
-            cmd.pitch  = pid_update(&pitch_pid, rate_sp.pitch, state.pitch_rate, TIME_STEP_S);
+        cmd.pitch  = pid_update(&pitch_pid, rate_sp.pitch, state.pitch_rate, TIME_STEP_S);
 #else
-            cmd.pitch  = -pid_update(&pitch_pid, rate_sp.pitch, state.pitch_rate, TIME_STEP_S);
+        cmd.pitch  = -pid_update(&pitch_pid, rate_sp.pitch, state.pitch_rate, TIME_STEP_S);
 #endif
-            cmd.yaw    = pid_update(&yaw_pid,   rate_sp.yaw,   state.yaw_rate,   TIME_STEP_S);
+        cmd.yaw    = pid_update(&yaw_pid,   rate_sp.yaw,   state.yaw_rate,   TIME_STEP_S);
 
-            hive_bus_publish(s_torque_bus, &cmd, sizeof(cmd));
+        hive_bus_publish(s_torque_bus, &cmd, sizeof(cmd));
 
-            if (++count % DEBUG_PRINT_INTERVAL == 0) {
-                HIVE_LOG_DEBUG("[ATT] roll=%.1f pitch=%.1f yaw=%.1f",
-                               state.roll * RAD_TO_DEG, state.pitch * RAD_TO_DEG, state.yaw * RAD_TO_DEG);
-            }
+        if (++count % DEBUG_PRINT_INTERVAL == 0) {
+            HIVE_LOG_DEBUG("[ATT] roll=%.1f pitch=%.1f yaw=%.1f",
+                           state.roll * RAD_TO_DEG, state.pitch * RAD_TO_DEG, state.yaw * RAD_TO_DEG);
         }
-
-        hive_yield();
     }
 }

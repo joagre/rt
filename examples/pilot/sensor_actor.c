@@ -1,9 +1,7 @@
 // Sensor actor - Hardware sensor reading
 //
 // Reads sensors from platform layer and publishes to IMU bus.
-//
-// STM32: Timer-driven at 400Hz for power-efficient operation with WFI.
-// Webots: Yields each step, driven by external wb_robot_step() loop.
+// Timer-driven: fires at control loop frequency on all platforms.
 
 #include "sensor_actor.h"
 #include "config.h"
@@ -13,8 +11,9 @@
 #include "hive_ipc.h"
 #include <assert.h>
 
-// 400Hz = 2500us period
-#define SENSOR_INTERVAL_US  2500
+// Sensor interval matches control loop period
+// TIME_STEP_MS is defined in config.h (4ms = 250Hz for Webots)
+#define SENSOR_INTERVAL_US  (TIME_STEP_MS * 1000)
 
 static bus_id s_imu_bus;
 static read_imu_fn s_read_imu;
@@ -28,8 +27,7 @@ void sensor_actor_init(bus_id imu_bus, read_imu_fn read_imu) {
 void sensor_actor(void *arg) {
     (void)arg;
 
-#ifdef PLATFORM_STEVAL_DRONE01
-    // STM32: Use periodic timer for 400Hz control loop
+    // Timer-driven sensor reading on all platforms
     timer_id timer;
     hive_status status = hive_timer_every(SENSOR_INTERVAL_US, &timer);
     assert(HIVE_SUCCEEDED(status));
@@ -42,14 +40,4 @@ void sensor_actor(void *arg) {
         s_read_imu(&imu);
         hive_bus_publish(s_imu_bus, &imu, sizeof(imu));
     }
-#else
-    // Webots: Yield each step, external loop calls hive_step()
-    while (1) {
-        imu_data_t imu;
-        s_read_imu(&imu);
-        hive_bus_publish(s_imu_bus, &imu, sizeof(imu));
-
-        hive_yield();
-    }
-#endif
 }

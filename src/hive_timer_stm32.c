@@ -211,9 +211,24 @@ hive_status hive_sleep(uint32_t delay_us) {
 
     // Wait specifically for THIS timer message
     // Other messages remain in mailbox (selective receive)
-    hive_msg_class class = HIVE_MSG_TIMER;
-    uint32_t tag = timer;
     hive_message msg;
+    return hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
+}
 
-    return hive_ipc_recv_match(NULL, &class, &tag, &msg, -1);
+// Advance simulation time (microseconds) and process expired timers
+// On STM32, this directly advances the tick counter (similar to ISR)
+void hive_timer_advance_time(uint64_t delta_us) {
+    if (!g_timer.initialized) {
+        return;
+    }
+
+    // Convert microseconds to ticks
+    uint32_t ticks = (uint32_t)((delta_us + HIVE_TIMER_TICK_US - 1) / HIVE_TIMER_TICK_US);
+
+    // Advance tick count
+    g_timer.tick_count += ticks;
+    g_timer.tick_pending = true;
+
+    // Process expired timers immediately
+    hive_timer_process_pending();
 }

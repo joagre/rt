@@ -289,7 +289,8 @@ if (hive_is_exit_msg(&msg)) {
 
 - `hive_init()` - Initialize the runtime
 - `hive_run()` - Run the scheduler (blocks until all actors exit)
-- `hive_step()` - Run each ready actor once (for external event loop integration, e.g., Webots)
+- `hive_run_until_blocked()` - Run actors until all are blocked (for external event loop integration)
+- `hive_advance_time(delta_us)` - Advance simulation time and fire due timers
 - `hive_cleanup()` - Cleanup and free resources
 - `hive_shutdown()` - Request graceful shutdown
 - `hive_actor_alive(id)` - Check if actor is still alive

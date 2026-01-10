@@ -33,48 +33,47 @@ void estimator_actor(void *arg) {
     while (1) {
         imu_data_t imu;
 
-        if (BUS_READ(s_imu_bus, &imu)) {
-            state_estimate_t state;
+        // Block until IMU data available
+        BUS_READ_WAIT(s_imu_bus, &imu);
 
-            // Pass through attitude (Webots inertial_unit is already fused)
-            state.roll = imu.roll;
-            state.pitch = imu.pitch;
-            state.yaw = imu.yaw;
+        state_estimate_t state;
 
-            // Map gyro axes to roll/pitch/yaw rates (body frame → semantic names)
-            state.roll_rate = imu.gyro_x;
-            state.pitch_rate = imu.gyro_y;
-            state.yaw_rate = imu.gyro_z;
+        // Pass through attitude (Webots inertial_unit is already fused)
+        state.roll = imu.roll;
+        state.pitch = imu.pitch;
+        state.yaw = imu.yaw;
 
-            // Pass through position
-            state.x = imu.x;
-            state.y = imu.y;
-            state.altitude = imu.altitude;
+        // Map gyro axes to roll/pitch/yaw rates (body frame → semantic names)
+        state.roll_rate = imu.gyro_x;
+        state.pitch_rate = imu.gyro_y;
+        state.yaw_rate = imu.gyro_z;
 
-            // Compute velocities by differentiating position
-            if (first_sample) {
-                x_velocity = 0.0f;
-                y_velocity = 0.0f;
-                vertical_velocity = 0.0f;
-                first_sample = false;
-            } else {
-                float raw_vx = (imu.x - prev_x) / TIME_STEP_S;
-                float raw_vy = (imu.y - prev_y) / TIME_STEP_S;
-                float raw_vvel = (imu.altitude - prev_altitude) / TIME_STEP_S;
-                x_velocity = LPF(x_velocity, raw_vx, HVEL_FILTER_ALPHA);
-                y_velocity = LPF(y_velocity, raw_vy, HVEL_FILTER_ALPHA);
-                vertical_velocity = LPF(vertical_velocity, raw_vvel, VVEL_FILTER_ALPHA);
-            }
-            prev_x = imu.x;
-            prev_y = imu.y;
-            prev_altitude = imu.altitude;
-            state.x_velocity = x_velocity;
-            state.y_velocity = y_velocity;
-            state.vertical_velocity = vertical_velocity;
+        // Pass through position
+        state.x = imu.x;
+        state.y = imu.y;
+        state.altitude = imu.altitude;
 
-            hive_bus_publish(s_state_bus, &state, sizeof(state));
+        // Compute velocities by differentiating position
+        if (first_sample) {
+            x_velocity = 0.0f;
+            y_velocity = 0.0f;
+            vertical_velocity = 0.0f;
+            first_sample = false;
+        } else {
+            float raw_vx = (imu.x - prev_x) / TIME_STEP_S;
+            float raw_vy = (imu.y - prev_y) / TIME_STEP_S;
+            float raw_vvel = (imu.altitude - prev_altitude) / TIME_STEP_S;
+            x_velocity = LPF(x_velocity, raw_vx, HVEL_FILTER_ALPHA);
+            y_velocity = LPF(y_velocity, raw_vy, HVEL_FILTER_ALPHA);
+            vertical_velocity = LPF(vertical_velocity, raw_vvel, VVEL_FILTER_ALPHA);
         }
+        prev_x = imu.x;
+        prev_y = imu.y;
+        prev_altitude = imu.altitude;
+        state.x_velocity = x_velocity;
+        state.y_velocity = y_velocity;
+        state.vertical_velocity = vertical_velocity;
 
-        hive_yield();
+        hive_bus_publish(s_state_bus, &state, sizeof(state));
     }
 }

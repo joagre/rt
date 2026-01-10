@@ -308,21 +308,16 @@ hive_status hive_ipc_notify_ex(actor_id to, hive_msg_class class,
 
 hive_status hive_ipc_recv(hive_message *msg, int32_t timeout_ms) {
     // Use recv_match with wildcards for all filters
-    return hive_ipc_recv_match(NULL, NULL, NULL, msg, timeout_ms);
+    return hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_ANY, HIVE_TAG_ANY, msg, timeout_ms);
 }
 
-hive_status hive_ipc_recv_match(const actor_id *from, const hive_msg_class *class,
-                            const uint32_t *tag, hive_message *msg, int32_t timeout_ms) {
+hive_status hive_ipc_recv_match(actor_id from, hive_msg_class class,
+                            uint32_t tag, hive_message *msg, int32_t timeout_ms) {
     HIVE_REQUIRE_ACTOR_CONTEXT();
     actor *current = hive_actor_current();
 
-    // Convert filter pointers to values (use wildcards if NULL)
-    actor_id filter_from = from ? *from : HIVE_SENDER_ANY;
-    hive_msg_class filter_class = class ? *class : HIVE_MSG_ANY;
-    uint32_t filter_tag = tag ? *tag : HIVE_TAG_ANY;
-
     HIVE_LOG_TRACE("IPC recv_match: actor %u (from=%u, class=%d, tag=%u)",
-                 current->id, filter_from, filter_class, filter_tag);
+                 current->id, from, class, tag);
 
     // Auto-release previous active message if any
     if (current->active_msg) {
@@ -333,7 +328,7 @@ hive_status hive_ipc_recv_match(const actor_id *from, const hive_msg_class *clas
     timer_id timeout_timer = TIMER_ID_INVALID;
 
     // Search mailbox for matching message
-    mailbox_entry *entry = mailbox_find_match(&current->mailbox, filter_from, filter_class, filter_tag);
+    mailbox_entry *entry = mailbox_find_match(&current->mailbox, from, class, tag);
 
     if (!entry) {
         if (timeout_ms == 0) {
@@ -342,9 +337,9 @@ hive_status hive_ipc_recv_match(const actor_id *from, const hive_msg_class *clas
         }
 
         // Set up filters for wake-on-match
-        current->recv_filter_sender = filter_from;
-        current->recv_filter_class = filter_class;
-        current->recv_filter_tag = filter_tag;
+        current->recv_filter_sender = from;
+        current->recv_filter_class = class;
+        current->recv_filter_tag = tag;
 
         if (timeout_ms > 0) {
             // Blocking with timeout - create a timer
@@ -373,7 +368,7 @@ hive_status hive_ipc_recv_match(const actor_id *from, const hive_msg_class *clas
         }
 
         // Re-scan mailbox for match
-        entry = mailbox_find_match(&current->mailbox, filter_from, filter_class, filter_tag);
+        entry = mailbox_find_match(&current->mailbox, from, class, tag);
         if (!entry) {
             return HIVE_ERROR(HIVE_ERR_WOULDBLOCK, "No matching messages available after wakeup");
         }
@@ -424,8 +419,7 @@ hive_status hive_ipc_request(actor_id to, const void *request, size_t req_len,
     }
 
     // Wait for HIVE_MSG_REPLY with matching tag from the callee
-    hive_msg_class reply_class = HIVE_MSG_REPLY;
-    return hive_ipc_recv_match(&to, &reply_class, &call_tag, reply, timeout_ms);
+    return hive_ipc_recv_match(to, HIVE_MSG_REPLY, call_tag, reply, timeout_ms);
 }
 
 hive_status hive_ipc_reply(const hive_message *request, const void *data, size_t len) {
