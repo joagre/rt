@@ -5,9 +5,19 @@
 // waypoint navigation, position control, and RC input handling.
 //
 // Build with STM32CubeIDE or Makefile targeting STM32F401.
+//
+// Platform selection (set via Makefile PLATFORM=webots|callback):
+//   - PLATFORM_WEBOTS: Webots-compatible API with user-driven main loop
+//   - PLATFORM_CALLBACK: Callback-based API with platform_run()
 
-#include "platform.h"
+#include "platform_types.h"  // Shared types: platform_sensors_t, platform_motors_t
+#ifdef PLATFORM_WEBOTS
+#include "platform_stm32f4.h"  // Webots-compatible API functions
+#else
+#include "platform.h"         // Callback-based API
+#endif
 #include <math.h>
+#include <stdbool.h>
 
 // Math constants (not always defined in embedded math.h)
 #ifndef M_PI
@@ -263,16 +273,78 @@ static void on_state_change(platform_state_t old_state,
 // Main Entry Point
 // ----------------------------------------------------------------------------
 
+#ifdef PLATFORM_WEBOTS
+// Webots-compatible main loop
 int main(void) {
-    // TODO: STM32 HAL initialization
-    // HAL_Init();
-    // SystemClock_Config();
-    // MX_GPIO_Init();
-    // MX_SPI1_Init();
-    // MX_I2C1_Init();
-    // MX_TIM4_Init();
-    // MX_TIM2_Init();  // For microsecond timing
+    // Initialize platform hardware
+    if (platform_init() != 0) {
+        // Initialization failed - flash error LED
+        while (1) {
+            platform_delay_ms(100);
+        }
+    }
 
+    // Initialize PID controllers
+    on_init();
+
+    // Calibrate sensors (drone must be stationary and level!)
+    platform_delay_ms(2000);  // 2 second delay for user to set drone down
+
+    if (platform_calibrate() != 0) {
+        // Calibration failed
+        while (1) {
+            platform_delay_ms(200);
+        }
+    }
+
+    // For testing: auto-arm after 3 seconds
+    // WARNING: Remove this in production! Use RC arm command instead.
+    platform_delay_ms(3000);
+    platform_arm();
+    s_flying = true;
+
+    // Main control loop (400Hz)
+    imu_data_t imu;
+    motor_cmd_t motors;
+    platform_sensors_t sensors;
+
+    while (1) {
+        // Update sensor fusion
+        platform_update();
+
+        // Read IMU data
+        platform_read_imu(&imu);
+
+        // Convert to platform_sensors_t for on_control()
+        sensors.roll = imu.roll;
+        sensors.pitch = imu.pitch;
+        sensors.yaw = imu.yaw;
+        sensors.roll_rate = imu.gyro_x;
+        sensors.pitch_rate = imu.gyro_y;
+        sensors.yaw_rate = imu.gyro_z;
+        sensors.altitude = imu.altitude;
+
+        // Run control logic
+        platform_motors_t motor_out = {0};
+        on_control(&sensors, &motor_out);
+
+        // Convert and write motor commands
+        motors.motor[0] = motor_out.m1;
+        motors.motor[1] = motor_out.m2;
+        motors.motor[2] = motor_out.m3;
+        motors.motor[3] = motor_out.m4;
+        platform_write_motors(&motors);
+
+        // 400Hz loop timing (2.5ms)
+        platform_delay_us(2500);
+    }
+
+    return 0;
+}
+
+#else
+// Callback-based main (platform handles the loop)
+int main(void) {
     // Configure platform callbacks
     platform_callbacks_t callbacks = {
         .on_init = on_init,
@@ -284,25 +356,19 @@ int main(void) {
     if (!platform_init(&callbacks)) {
         // Initialization failed - flash error LED
         while (1) {
-            // TODO: Toggle error LED
             platform_delay_ms(100);
         }
     }
 
     // Calibrate sensors (drone must be stationary and level!)
-    // TODO: Wait for user button press or RC command
     platform_delay_ms(2000);  // 2 second delay for user to set drone down
 
     if (!platform_calibrate()) {
         // Calibration failed
         while (1) {
-            // TODO: Flash error LED differently
             platform_delay_ms(200);
         }
     }
-
-    // Ready for flight!
-    // TODO: Wait for arm command from RC or button
 
     // For testing: auto-arm after 3 seconds
     // WARNING: Remove this in production! Use RC arm command instead.
@@ -315,6 +381,7 @@ int main(void) {
 
     return 0;
 }
+#endif
 
 // ----------------------------------------------------------------------------
 // STM32 HAL Callbacks (required stubs)
