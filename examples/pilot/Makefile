@@ -27,15 +27,24 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -g
 CFLAGS += -I$(WEBOTS_INCLUDE) -I$(HIVE_INCLUDE) -I.
 CFLAGS += -MMD -MP
 
+# Webots simulation uses simulated time
+CFLAGS += -DSIMULATED_TIME
+
 # Log level: DEBUG for development (shows telemetry)
 # Use HIVE_LOG_LEVEL_INFO to hide telemetry, HIVE_LOG_LEVEL_NONE to disable all
 CFLAGS += -DHIVE_LOG_LEVEL=HIVE_LOG_LEVEL_DEBUG
+
 LDFLAGS = -L$(WEBOTS_LIB) -L$(HIVE_LIB)
 LDLIBS = -lController -lhive -lm
 
 # Target
 TARGET = pilot
-SRCS = pilot.c pid.c sensor_actor.c estimator_actor.c altitude_actor.c waypoint_actor.c position_actor.c angle_actor.c attitude_actor.c motor_actor.c
+
+# Source files: actors + main + HAL
+ACTOR_SRCS = sensor_actor.c estimator_actor.c altitude_actor.c waypoint_actor.c \
+             position_actor.c angle_actor.c attitude_actor.c motor_actor.c
+HAL_SRCS = hal/webots-crazyflie/hal_webots.c
+SRCS = pilot.c pid.c $(ACTOR_SRCS) $(HAL_SRCS)
 OBJS = $(SRCS:.c=.o)
 DEPS = $(SRCS:.c=.d)
 

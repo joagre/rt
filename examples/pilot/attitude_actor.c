@@ -59,18 +59,11 @@ void attitude_actor(void *arg) {
             rate_sp = new_rate_sp;
         }
 
-        // X-config mixer output conventions:
-        // - Roll: positive output = right wing down
-        // - Yaw: positive output = clockwise rotation
-        // - Pitch: platform-specific sign (sensor coordinate conventions differ)
+        // Torque command uses standard conventions (HAL handles platform differences)
         torque_cmd_t cmd;
         cmd.thrust = thrust;
-        cmd.roll   = pid_update(&roll_pid,  rate_sp.roll,  state.roll_rate, TIME_STEP_S);
-#ifdef PLATFORM_STEVAL_DRONE01
+        cmd.roll   = pid_update(&roll_pid,  rate_sp.roll,  state.roll_rate,  TIME_STEP_S);
         cmd.pitch  = pid_update(&pitch_pid, rate_sp.pitch, state.pitch_rate, TIME_STEP_S);
-#else
-        cmd.pitch  = -pid_update(&pitch_pid, rate_sp.pitch, state.pitch_rate, TIME_STEP_S);
-#endif
         cmd.yaw    = pid_update(&yaw_pid,   rate_sp.yaw,   state.yaw_rate,   TIME_STEP_S);
 
         hive_bus_publish(s_torque_bus, &cmd, sizeof(cmd));
