@@ -22,8 +22,10 @@
 typedef struct timer_entry {
     timer_id            id;
     actor_id            owner;
-    int                 fd;        // timerfd
+    int                 fd;        // timerfd (only used in real-time mode)
     bool                periodic;
+    uint64_t            expiry_us;   // Expiry time in microseconds (simulation mode)
+    uint64_t            interval_us; // Interval for periodic timers (simulation mode)
     struct timer_entry *next;
     io_source           source;    // For epoll registration
 } timer_entry;
@@ -38,13 +40,18 @@ static struct {
     bool        initialized;
     timer_entry *timers;      // Active timers list
     timer_id    next_id;
+    bool        sim_mode;     // Simulation time mode (enabled by hive_advance_time)
+    uint64_t    sim_time_us;  // Current simulation time in microseconds
 } g_timer = {0};
 
-// Helper: Close timer fd and remove from epoll
+// Helper: Close timer fd and remove from epoll (only in real-time mode)
 static void timer_close_fd(timer_entry *entry) {
-    int epoll_fd = hive_scheduler_get_epoll_fd();
-    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, entry->fd, NULL);
-    close(entry->fd);
+    if (entry->fd >= 0) {
+        int epoll_fd = hive_scheduler_get_epoll_fd();
+        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, entry->fd, NULL);
+        close(entry->fd);
+        entry->fd = -1;
+    }
 }
 
 // Handle timer event from scheduler (called when timerfd fires)
@@ -129,70 +136,83 @@ static hive_status create_timer(uint32_t interval_us, bool periodic, timer_id *o
     HIVE_REQUIRE_ACTOR_CONTEXT();
     actor *current = hive_actor_current();
 
-    // Create timerfd
-    int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
-    if (tfd < 0) {
-        return HIVE_ERROR(HIVE_ERR_IO, "timerfd_create failed");
-    }
-
-    // Set timer
-    // Note: timerfd treats (0, 0) as "disarm timer", so we use minimum 1ns for zero delay
-    struct itimerspec its;
-    if (interval_us == 0) {
-        its.it_value.tv_sec = 0;
-        its.it_value.tv_nsec = 1;  // Minimum 1 nanosecond to avoid disarming
-    } else {
-        its.it_value.tv_sec = interval_us / HIVE_USEC_PER_SEC;
-        its.it_value.tv_nsec = (interval_us % HIVE_USEC_PER_SEC) * 1000;
-    }
-
-    if (periodic) {
-        // Periodic - set interval
-        its.it_interval.tv_sec = its.it_value.tv_sec;
-        its.it_interval.tv_nsec = its.it_value.tv_nsec;
-    } else {
-        // One-shot - no interval
-        its.it_interval.tv_sec = 0;
-        its.it_interval.tv_nsec = 0;
-    }
-
-    if (timerfd_settime(tfd, 0, &its, NULL) < 0) {
-        close(tfd);
-        return HIVE_ERROR(HIVE_ERR_IO, "timerfd_settime failed");
-    }
-
     // Allocate timer entry from pool
     timer_entry *entry = hive_pool_alloc(&g_timer_pool_mgr);
     if (!entry) {
-        close(tfd);
         return HIVE_ERROR(HIVE_ERR_NOMEM, "Timer entry pool exhausted");
     }
 
-    // Initialize timer entry
+    // Initialize common fields
     entry->id = g_timer.next_id++;
     entry->owner = current->id;
-    entry->fd = tfd;
     entry->periodic = periodic;
+    entry->interval_us = interval_us;  // Always store for potential sim mode conversion
     entry->next = g_timer.timers;
-    g_timer.timers = entry;
 
-    // Setup io_source for epoll
-    entry->source.type = IO_SOURCE_TIMER;
-    entry->source.data.timer = entry;
+    if (g_timer.sim_mode) {
+        // Simulation mode: store expiry time, no timerfd
+        entry->fd = -1;
+        entry->expiry_us = g_timer.sim_time_us + interval_us;
+        HIVE_LOG_DEBUG("Timer %u created in sim mode (expiry=%lu, sim_time=%lu)",
+                     entry->id, (unsigned long)entry->expiry_us,
+                     (unsigned long)g_timer.sim_time_us);
+    } else {
+        // Real-time mode: use timerfd
+        int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+        if (tfd < 0) {
+            hive_pool_free(&g_timer_pool_mgr, entry);
+            return HIVE_ERROR(HIVE_ERR_IO, "timerfd_create failed");
+        }
 
-    // Add to scheduler's epoll
-    int epoll_fd = hive_scheduler_get_epoll_fd();
-    struct epoll_event ev;
-    ev.events = EPOLLIN;
-    ev.data.ptr = &entry->source;
+        // Set timer
+        // Note: timerfd treats (0, 0) as "disarm timer", so we use minimum 1ns for zero delay
+        struct itimerspec its;
+        if (interval_us == 0) {
+            its.it_value.tv_sec = 0;
+            its.it_value.tv_nsec = 1;  // Minimum 1 nanosecond to avoid disarming
+        } else {
+            its.it_value.tv_sec = interval_us / HIVE_USEC_PER_SEC;
+            its.it_value.tv_nsec = (interval_us % HIVE_USEC_PER_SEC) * 1000;
+        }
 
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, tfd, &ev) < 0) {
-        SLIST_REMOVE(g_timer.timers, entry);
-        close(tfd);
-        hive_pool_free(&g_timer_pool_mgr, entry);
-        return HIVE_ERROR(HIVE_ERR_IO, "epoll_ctl failed");
+        if (periodic) {
+            // Periodic - set interval
+            its.it_interval.tv_sec = its.it_value.tv_sec;
+            its.it_interval.tv_nsec = its.it_value.tv_nsec;
+        } else {
+            // One-shot - no interval
+            its.it_interval.tv_sec = 0;
+            its.it_interval.tv_nsec = 0;
+        }
+
+        if (timerfd_settime(tfd, 0, &its, NULL) < 0) {
+            close(tfd);
+            hive_pool_free(&g_timer_pool_mgr, entry);
+            return HIVE_ERROR(HIVE_ERR_IO, "timerfd_settime failed");
+        }
+
+        entry->fd = tfd;
+        entry->interval_us = interval_us;
+        entry->expiry_us = 0;  // Not used in real-time mode
+
+        // Setup io_source for epoll
+        entry->source.type = IO_SOURCE_TIMER;
+        entry->source.data.timer = entry;
+
+        // Add to scheduler's epoll
+        int epoll_fd = hive_scheduler_get_epoll_fd();
+        struct epoll_event ev;
+        ev.events = EPOLLIN;
+        ev.data.ptr = &entry->source;
+
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, tfd, &ev) < 0) {
+            close(tfd);
+            hive_pool_free(&g_timer_pool_mgr, entry);
+            return HIVE_ERROR(HIVE_ERR_IO, "epoll_ctl failed");
+        }
     }
 
+    g_timer.timers = entry;
     *out = entry->id;
     return HIVE_SUCCESS;
 }
@@ -231,9 +251,100 @@ hive_status hive_sleep(uint32_t delay_us) {
 
     // Wait specifically for THIS timer message
     // Other messages remain in mailbox (selective receive)
-    hive_msg_class class = HIVE_MSG_TIMER;
-    uint32_t tag = timer;
     hive_message msg;
+    return hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
+}
 
-    return hive_ipc_recv_match(NULL, &class, &tag, &msg, -1);
+// Advance simulation time and fire due timers
+// Calling this function enables simulation mode (disables timerfd)
+void hive_timer_advance_time(uint64_t delta_us) {
+    if (!g_timer.initialized) {
+        return;
+    }
+
+    // Enable simulation mode on first call
+    if (!g_timer.sim_mode) {
+        g_timer.sim_mode = true;
+        HIVE_LOG_INFO("Simulation time mode enabled");
+
+        // Convert any existing timerfd-based timers to simulation mode
+        for (timer_entry *entry = g_timer.timers; entry; entry = entry->next) {
+            if (entry->fd >= 0) {
+                // Close timerfd and unregister from epoll
+                timer_close_fd(entry);
+                // Set expiry based on interval (fires on first advance after interval)
+                entry->expiry_us = entry->interval_us;
+            }
+        }
+    }
+
+    // Advance time
+    g_timer.sim_time_us += delta_us;
+
+    // Fire all due timers
+    // We need to iterate carefully since firing a timer may cause actor to create/cancel timers
+    bool fired_any;
+    do {
+        fired_any = false;
+        timer_entry *entry = g_timer.timers;
+        timer_entry *prev = NULL;
+
+        while (entry) {
+            timer_entry *next = entry->next;
+
+            // Check if timer is due (only for simulation mode timers)
+            if (entry->fd < 0 && entry->expiry_us <= g_timer.sim_time_us) {
+                // Get the actor
+                actor *a = hive_actor_get(entry->owner);
+                if (!a) {
+                    // Actor is dead - cleanup timer
+                    if (prev) {
+                        prev->next = next;
+                    } else {
+                        g_timer.timers = next;
+                    }
+                    hive_pool_free(&g_timer_pool_mgr, entry);
+                    entry = next;
+                    continue;
+                }
+
+                // Send timer tick message to actor
+                HIVE_LOG_DEBUG("Timer %u fired for actor %u (sim_time=%lu, expiry=%lu)",
+                             entry->id, entry->owner,
+                             (unsigned long)g_timer.sim_time_us,
+                             (unsigned long)entry->expiry_us);
+
+                hive_status status = hive_ipc_notify_internal(
+                    entry->owner, entry->owner, HIVE_MSG_TIMER,
+                    entry->id, NULL, 0);
+
+                if (HIVE_FAILED(status)) {
+                    HIVE_LOG_ERROR("Failed to send timer tick: %s", status.msg);
+                    prev = entry;
+                    entry = next;
+                    continue;
+                }
+
+                fired_any = true;
+
+                if (entry->periodic) {
+                    // Reschedule periodic timer
+                    entry->expiry_us += entry->interval_us;
+                    prev = entry;
+                } else {
+                    // Remove one-shot timer
+                    if (prev) {
+                        prev->next = next;
+                    } else {
+                        g_timer.timers = next;
+                    }
+                    hive_pool_free(&g_timer_pool_mgr, entry);
+                }
+            } else {
+                prev = entry;
+            }
+
+            entry = next;
+        }
+    } while (fired_any);  // Repeat if we fired any (handles multiple fires for large delta)
 }

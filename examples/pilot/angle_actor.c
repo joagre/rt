@@ -40,26 +40,25 @@ void angle_actor(void *arg) {
         state_estimate_t state;
         angle_setpoint_t new_angle_sp;
 
-        // Read angle setpoints from position controller
+        // Block until state available
+        BUS_READ_WAIT(s_state_bus, &state);
+
+        // Read angle setpoints from position controller (non-blocking, use last known)
         if (BUS_READ(s_angle_setpoint_bus, &new_angle_sp)) {
             angle_sp = new_angle_sp;
         }
 
-        if (BUS_READ(s_state_bus, &state)) {
-            rate_setpoint_t setpoint;
-            setpoint.roll  = pid_update(&roll_pid,  angle_sp.roll,  state.roll,  TIME_STEP_S);
-            setpoint.pitch = pid_update(&pitch_pid, angle_sp.pitch, state.pitch, TIME_STEP_S);
-            setpoint.yaw   = pid_update_angle(&yaw_pid, angle_sp.yaw, state.yaw, TIME_STEP_S);
+        rate_setpoint_t setpoint;
+        setpoint.roll  = pid_update(&roll_pid,  angle_sp.roll,  state.roll,  TIME_STEP_S);
+        setpoint.pitch = pid_update(&pitch_pid, angle_sp.pitch, state.pitch, TIME_STEP_S);
+        setpoint.yaw   = pid_update_angle(&yaw_pid, angle_sp.yaw, state.yaw, TIME_STEP_S);
 
-            hive_bus_publish(s_rate_setpoint_bus, &setpoint, sizeof(setpoint));
+        hive_bus_publish(s_rate_setpoint_bus, &setpoint, sizeof(setpoint));
 
-            if (++count % DEBUG_PRINT_INTERVAL == 0) {
-                HIVE_LOG_DEBUG("[ANG] sp_r=%.2f st_r=%.2f rate_r=%.2f | sp_p=%.2f st_p=%.2f rate_p=%.2f",
-                               angle_sp.roll * RAD_TO_DEG, state.roll * RAD_TO_DEG, setpoint.roll * RAD_TO_DEG,
-                               angle_sp.pitch * RAD_TO_DEG, state.pitch * RAD_TO_DEG, setpoint.pitch * RAD_TO_DEG);
-            }
+        if (++count % DEBUG_PRINT_INTERVAL == 0) {
+            HIVE_LOG_DEBUG("[ANG] sp_r=%.2f st_r=%.2f rate_r=%.2f | sp_p=%.2f st_p=%.2f rate_p=%.2f",
+                           angle_sp.roll * RAD_TO_DEG, state.roll * RAD_TO_DEG, setpoint.roll * RAD_TO_DEG,
+                           angle_sp.pitch * RAD_TO_DEG, state.pitch * RAD_TO_DEG, setpoint.pitch * RAD_TO_DEG);
         }
-
-        hive_yield();
     }
 }

@@ -559,7 +559,7 @@ static void test12_selective_receive(void *arg) {
 
     // Use selective receive to filter by sender
     hive_message msg;
-    hive_status status = hive_ipc_recv_match(&sender, NULL, NULL, &msg, 100);
+    hive_status status = hive_ipc_recv_match(sender, HIVE_MSG_ANY, HIVE_TAG_ANY, &msg, 100);
 
     if (HIVE_SUCCEEDED(status)) {
         if (msg.sender == sender) {

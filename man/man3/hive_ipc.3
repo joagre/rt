@@ -10,8 +10,8 @@ hive_ipc_notify, hive_ipc_notify_ex, hive_ipc_recv, hive_ipc_recv_match, hive_ip
 .BI "hive_status hive_ipc_notify_ex(actor_id " to ", hive_msg_class " class ", uint32_t " tag ","
 .BI "                               const void *" data ", size_t " len ");"
 .BI "hive_status hive_ipc_recv(hive_message *" msg ", int32_t " timeout_ms ");"
-.BI "hive_status hive_ipc_recv_match(const actor_id *" from ", const hive_msg_class *" class ","
-.BI "                            const uint32_t *" tag ", hive_message *" msg ", int32_t " timeout_ms ");"
+.BI "hive_status hive_ipc_recv_match(actor_id " from ", hive_msg_class " class ","
+.BI "                            uint32_t " tag ", hive_message *" msg ", int32_t " timeout_ms ");"
 .BI "hive_status hive_ipc_request(actor_id " to ", const void *" request ", size_t " req_len ","
 .BI "                         hive_message *" reply ", int32_t " timeout_ms ");"
 .BI "hive_status hive_ipc_reply(const hive_message *" request ", const void *" data ", size_t " len ");"
@@ -106,8 +106,7 @@ if exceeded.
 .PP
 .BR hive_ipc_recv_match ()
 performs selective receive, scanning the mailbox for a message matching all
-specified filter criteria. Pass NULL or the appropriate wildcard constant to
-match any value:
+specified filter criteria. Use the wildcard constants to match any value:
 .IP \(bu 2
 .B HIVE_SENDER_ANY
 \- match any sender

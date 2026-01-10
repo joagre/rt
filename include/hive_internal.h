@@ -165,6 +165,9 @@ _Noreturn void hive_exit_crash(void);
 // Handle timer event (timerfd ready)
 void hive_timer_handle_event(io_source *source);
 
+// Advance simulation time and fire due timers (called by hive_advance_time)
+void hive_timer_advance_time(uint64_t delta_us);
+
 #if HIVE_ENABLE_NET
 // Handle network event (socket ready)
 void hive_net_handle_event(io_source *source);

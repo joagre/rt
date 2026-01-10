@@ -78,8 +78,7 @@ void receiver_actor(void *arg) {
         printf("Receiver: Waiting for sender DONE signal...\n");
         fflush(stdout);
 
-        uint32_t done_tag = TAG_DONE;
-        hive_status status = hive_ipc_recv_match(NULL, NULL, &done_tag, &msg, 5000);
+        hive_status status = hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_ANY, TAG_DONE, &msg, 5000);
 
         if (HIVE_SUCCEEDED(status)) {
             printf("Receiver: Got DONE signal\n");

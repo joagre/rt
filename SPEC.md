@@ -1936,34 +1936,71 @@ procedure hive_run():
                     wake_actor(source.owner)
 ```
 
-### hive_step() - External Event Loop Integration
+### Simulation Time Integration
 
-For integration with external event loops (e.g., Webots simulator), use `hive_step()`:
+For integration with external event loops (e.g., Webots simulator), use `hive_advance_time()` and `hive_run_until_blocked()`:
 
 ```
-procedure hive_step():
-    # 1. Poll for I/O events (non-blocking)
-    events = epoll_wait(epoll_fd, timeout=0)
-    dispatch_io_events(events)
+procedure hive_advance_time(delta_us):
+    # Enable simulation time mode on first call
+    if not sim_mode:
+        sim_mode = true
 
-    # 2. Run each READY actor exactly once (priority order)
-    for prio in [CRITICAL, HIGH, NORMAL, LOW]:
-        for actor in actors where state == READY and priority == prio:
-            context_switch(scheduler_ctx, actor.ctx)
-            # Actor runs until it yields or exits
-            # Even if actor yields and becomes READY again, skip it this step
+    # Advance simulation time
+    sim_time_us += delta_us
 
-    return HIVE_OK if ran_any else HIVE_ERR_WOULDBLOCK
+    # Fire all timers that are now due
+    for timer in active_timers:
+        while timer.expiry_us <= sim_time_us:
+            send_timer_message(timer.owner, timer.id)
+            if timer.periodic:
+                timer.expiry_us += timer.interval_us
+            else:
+                remove_timer(timer)
+                break
+
+procedure hive_run_until_blocked():
+    # Run actors until all are blocked (WAITING) or dead
+    while not shutdown_requested and num_actors > 0:
+        # Poll for I/O events (non-blocking)
+        events = epoll_wait(epoll_fd, timeout=0)
+        dispatch_io_events(events)
+
+        # Find next ready actor (priority-based round-robin)
+        actor = find_next_runnable()
+        if actor is None:
+            break  # All actors blocked or dead
+
+        context_switch(scheduler_ctx, actor.ctx)
+
+    return HIVE_OK
 ```
 
 **Use case:** Simulation integration where an external loop controls time:
 ```c
-while (wb_robot_step(TIME_STEP) != -1) {
-    publish_sensors_to_bus();
-    hive_step();  // Each actor runs once
-    read_motors_from_bus();
+// All actors use timers (same code as production)
+void sensor_actor(void *arg) {
+    timer_id timer;
+    hive_timer_every(TIME_STEP_MS * 1000, &timer);  // Timer-driven
+    while (1) {
+        hive_ipc_recv_match(...);  // Wait for timer
+        read_sensors();
+        publish_to_bus();
+    }
+}
+
+// Main loop advances simulation time
+while (wb_robot_step(TIME_STEP_MS) != -1) {
+    hive_advance_time(TIME_STEP_MS * 1000);  // Fire due timers
+    hive_run_until_blocked();                 // Run until all blocked
 }
 ```
+
+**Benefits of simulation time mode:**
+- Same actor code runs in simulation and production
+- Deterministic, reproducible behavior
+- Timer granularity matches simulation time step
+- No wall-clock dependencies in actors
 
 ## Event Loop Architecture
 

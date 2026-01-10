@@ -101,8 +101,12 @@ void hive_run(void) {
     hive_scheduler_run();
 }
 
-hive_status hive_step(void) {
-    return hive_scheduler_step();
+hive_status hive_run_until_blocked(void) {
+    return hive_scheduler_run_until_blocked();
+}
+
+void hive_advance_time(uint64_t delta_us) {
+    hive_timer_advance_time(delta_us);
 }
 
 void hive_shutdown(void) {

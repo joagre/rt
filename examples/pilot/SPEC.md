@@ -26,7 +26,7 @@ A quadcopter autopilot example using the actor runtime. Supports Webots simulati
 3. **Beautiful code** - show how an autopilot can be elegantly written using actors
 4. **Hover control** - maintain stable altitude and attitude
 5. **Clean architecture** - portable control code with platform abstraction
-6. **Webots integration** - use `hive_step()` per simulation step
+6. **Webots integration** - use `hive_advance_time()` + `hive_run_until_blocked()` per simulation step
 
 The pilot serves dual purposes: a real-world stress test that exposes runtime weaknesses, and a showcase of clean actor-based embedded design.
 
@@ -319,11 +319,12 @@ The main loop is minimal - all logic lives in actors:
 
 ```c
 while (wb_robot_step(TIME_STEP_MS) != -1) {
-    hive_step();
+    hive_advance_time(TIME_STEP_MS * 1000);  // Fire due timers
+    hive_run_until_blocked();                 // Run actors until blocked
 }
 ```
 
-Each `hive_step()` runs all ready actors once:
+Each simulation step fires the sensor_actor's timer, which triggers the control chain:
 1. Sensor actor reads hardware, publishes to IMU bus
 2. Estimator actor reads IMU bus, publishes state estimate
 3. Altitude actor reads state bus, publishes thrust
@@ -395,8 +396,8 @@ The following differences are handled via `#ifdef PLATFORM_STEVAL_DRONE01`:
 | Motor mixer | Crazyflie formula | STEVAL formula (inverted roll/yaw signs) | `motor_actor.c` |
 | Pitch sign | Negated | Not negated | `attitude_actor.c` |
 | Motor output | Signed velocity | Unsigned PWM duty cycle | `pilot.c` |
-| Main loop | `hive_step()` per sim step | `hive_run()` event-driven | `pilot.c` |
-| Sensor rate | 250 Hz (TIME_STEP_MS=4) | 400 Hz (timer-driven) | `sensor_actor.c` |
+| Main loop | `hive_advance_time()` + `hive_run_until_blocked()` | `hive_run()` event-driven | `pilot.c` |
+| Sensor rate | 250 Hz (timer-driven, TIME_STEP_MS=4) | 250 Hz (timer-driven) | `sensor_actor.c` |
 
 **Known limitations on STM32:**
 
@@ -544,11 +545,11 @@ IMU Bus ──► Altitude Actor ──► Thrust Bus ──► Attitude Actor �
 Move sensor reading from main loop into actor.
 
 ```
-Main Loop: hive_step() only
-Sensor Actor: platform_read_imu() ──► IMU Bus
+Main Loop: hive_advance_time() + hive_run_until_blocked()
+Sensor Actor: timer ──► platform_read_imu() ──► IMU Bus
 ```
 
-**Benefits:** Main loop is now just `hive_step()`, all logic in actors.
+**Benefits:** Main loop is minimal, all logic in timer-driven actors.
 
 ### Step 4: Angle Actor ✓
 

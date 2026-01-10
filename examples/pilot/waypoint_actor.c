@@ -50,6 +50,9 @@ void waypoint_actor(void *arg) {
     while (1) {
         state_estimate_t state;
 
+        // Block until state available
+        BUS_READ_WAIT(s_state_bus, &state);
+
         // Get current waypoint
         const waypoint_t *wp = &waypoints[waypoint_index];
 
@@ -62,8 +65,8 @@ void waypoint_actor(void *arg) {
         };
         hive_bus_publish(s_target_bus, &target, sizeof(target));
 
-        // Check arrival if we have state data
-        if (BUS_READ(s_state_bus, &state)) {
+        // Check arrival
+        {
             // Compute horizontal distance to waypoint
             float dx = wp->x - state.x;
             float dy = wp->y - state.y;
@@ -109,7 +112,5 @@ void waypoint_actor(void *arg) {
                                arrived ? " ARRIVED" : "");
             }
         }
-
-        hive_yield();
     }
 }

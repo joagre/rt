@@ -218,15 +218,17 @@ The main loop is minimal - all logic is in actors:
 
 ```c
 while (wb_robot_step(TIME_STEP_MS) != -1) {
-    hive_step();
+    hive_advance_time(TIME_STEP_MS * 1000);  // Advance simulation time (ms -> us)
+    hive_run_until_blocked();                 // Run actors until all blocked
 }
 ```
 
 Webots controls time via `wb_robot_step()`. Each call:
 1. Blocks until Webots simulates TIME_STEP milliseconds
-2. Returns, allowing `hive_step()` to run all actors once
-3. Actors read sensors, compute, publish results
-4. Loop repeats
+2. Returns, `hive_advance_time()` fires due timers
+3. `hive_run_until_blocked()` runs all ready actors
+4. Actors read sensors, compute, publish results
+5. Loop repeats
 
 ## Webots Device Names
 

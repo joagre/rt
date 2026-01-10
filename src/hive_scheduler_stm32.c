@@ -136,7 +136,7 @@ void hive_scheduler_run(void) {
     HIVE_LOG_INFO("Scheduler stopped");
 }
 
-hive_status hive_scheduler_step(void) {
+hive_status hive_scheduler_run_until_blocked(void) {
     if (!g_scheduler.initialized) {
         return HIVE_ERROR(HIVE_ERR_INVALID, "Scheduler not initialized");
     }
@@ -146,24 +146,22 @@ hive_status hive_scheduler_step(void) {
         return HIVE_ERROR(HIVE_ERR_INVALID, "Actor table not initialized");
     }
 
-    // Process any pending events (timers)
-    dispatch_events();
+    // Run actors until all are blocked (WAITING) or dead
+    while (!g_scheduler.shutdown_requested && table->num_actors > 0) {
+        // Process any pending events (timers)
+        dispatch_events();
 
-    // Run each READY actor exactly once (priority order)
-    bool ran_any = false;
-
-    for (hive_priority_level prio = HIVE_PRIORITY_CRITICAL; prio < HIVE_PRIORITY_COUNT; prio++) {
-        for (size_t i = 0; i < table->max_actors; i++) {
-            actor *a = &table->actors[i];
-
-            if (a->state == ACTOR_STATE_READY && a->priority == prio) {
-                run_single_actor(a);
-                ran_any = true;
-            }
+        // Find next ready actor
+        actor *next = find_next_runnable();
+        if (!next) {
+            // No ready actors - all are blocked or dead
+            break;
         }
+
+        run_single_actor(next);
     }
 
-    return ran_any ? HIVE_SUCCESS : HIVE_ERROR(HIVE_ERR_WOULDBLOCK, "No actors ready");
+    return HIVE_SUCCESS;
 }
 
 void hive_scheduler_shutdown(void) {

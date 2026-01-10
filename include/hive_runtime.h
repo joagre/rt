@@ -9,11 +9,20 @@ hive_status hive_init(void);
 // Run scheduler (blocks until all actors exit or hive_shutdown called)
 void hive_run(void);
 
-// Run each ready actor once (for external event loop integration, e.g., Webots)
-// Polls for I/O events (non-blocking), then gives each READY actor one execution slot.
-// Actors run in priority order. Each actor runs until it yields or exits.
-// Returns: HIVE_OK if at least one actor ran, HIVE_ERR_WOULDBLOCK if no actors were ready
-hive_status hive_step(void);
+// Run actors until all are blocked (for external event loop integration, e.g., Webots)
+// Runs actors in priority order until no actor is READY (all are WAITING or DEAD).
+// Use with hive_advance_time() for simulation integration.
+// Returns: HIVE_OK on success
+hive_status hive_run_until_blocked(void);
+
+// Advance simulation time (microseconds) and fire due timers
+// Calling this function enables simulation mode (timers use simulation time, not wall-clock).
+// Use with hive_run_until_blocked() for simulation integration:
+//   while (simulation_running) {
+//       hive_advance_time(time_step_us);
+//       hive_run_until_blocked();
+//   }
+void hive_advance_time(uint64_t delta_us);
 
 // Request graceful shutdown
 void hive_shutdown(void);

@@ -1,14 +1,15 @@
-.\" Man page for hive_init, hive_run, hive_step, hive_shutdown, hive_cleanup
+.\" Man page for hive_init, hive_run, hive_run_until_blocked, hive_advance_time, hive_shutdown, hive_cleanup
 .TH HIVE_INIT 3 "January 2025" "Hive 1.0" "Actor Runtime Manual"
 .SH NAME
-hive_init, hive_run, hive_step, hive_shutdown, hive_cleanup \- initialize and control the actor runtime
+hive_init, hive_run, hive_run_until_blocked, hive_advance_time, hive_shutdown, hive_cleanup \- initialize and control the actor runtime
 .SH SYNOPSIS
 .nf
 .B #include <hive_runtime.h>
 .PP
 .BI "hive_status hive_init(void);"
 .BI "void hive_run(void);"
-.BI "hive_status hive_step(void);"
+.BI "hive_status hive_run_until_blocked(void);"
+.BI "void hive_advance_time(uint64_t " delta_us ");"
 .BI "void hive_shutdown(void);"
 .BI "void hive_cleanup(void);"
 .fi
@@ -32,16 +33,22 @@ runnable, the scheduler efficiently waits for I/O events using
 .BR epoll_wait (2)
 on Linux or WFI (Wait For Interrupt) on STM32.
 .PP
-.BR hive_step ()
-runs each READY actor exactly once (in priority order) and returns immediately.
-This function is designed for integration with external event loops such as
-simulation environments (e.g., Webots). It polls for I/O events non-blocking,
-then gives each ready actor one execution slot. Unlike
-.BR hive_run (),
-it does not block waiting for I/O events and returns after each actor has had
-one opportunity to run. If an actor yields and becomes READY again, it will not
-run again until the next call to
-.BR hive_step ().
+.BR hive_run_until_blocked ()
+runs actors in priority order until all actors are blocked (WAITING state) or
+dead. This function is designed for integration with external event loops such
+as simulation environments (e.g., Webots). It polls for I/O events non-blocking,
+then runs ready actors until none remain ready. Use with
+.BR hive_advance_time ()
+to drive timer-based actors in simulation.
+.PP
+.BR hive_advance_time ()
+advances simulation time by
+.I delta_us
+microseconds and fires any timers that become due. Calling this function enables
+simulation time mode: timers use simulation time instead of wall-clock time.
+This allows external event loops to control time progression. Typically used with
+.BR hive_run_until_blocked ()
+for simulation integration.
 .PP
 .BR hive_shutdown ()
 requests graceful shutdown of the runtime. All actors will be allowed to
@@ -68,12 +75,10 @@ indicates the error and
 .I status.msg
 contains a descriptive string.
 .PP
-.BR hive_step ()
+.BR hive_run_until_blocked ()
 returns
 .B HIVE_OK
-if at least one actor executed, or
-.B HIVE_ERR_WOULDBLOCK
-if no actors were ready to run.
+on success.
 .PP
 The other functions do not return values.
 .SH ERRORS
@@ -106,6 +111,21 @@ and must only be called from actor context (the scheduler thread).
 Runtime APIs are not reentrant. Actors must not call runtime APIs from
 signal handlers or interrupt service routines. Violating this constraint
 results in undefined behavior.
+.SS Simulation Time
+When
+.BR hive_advance_time ()
+is called, the runtime switches to simulation time mode. In this mode:
+.IP \(bu 2
+Timers use simulation time instead of wall-clock time
+.IP \(bu 2
+Time only advances when
+.BR hive_advance_time ()
+is called
+.IP \(bu 2
+Timer granularity is bounded by the advance interval
+.PP
+This enables deterministic, reproducible simulations where the same sequence
+of time advances produces the same behavior.
 .SS Embedded Considerations
 .IP \(bu 2
 Total static memory footprint is approximately 1.2 MB (configurable)
@@ -143,24 +163,41 @@ int main(void) {
 .fi
 .PP
 Example using
-.BR hive_step ()
+.BR hive_advance_time ()
+and
+.BR hive_run_until_blocked ()
 for simulation integration:
 .nf
 
 /* Webots controller example */
 #include <hive_runtime.h>
+#include <hive_timer.h>
 #include <webots/robot.h>
+
+#define TIME_STEP_MS 4
+
+void sensor_actor(void *arg) {
+    timer_id timer;
+    hive_timer_every(TIME_STEP_MS * 1000, &timer);
+
+    while (1) {
+        hive_message msg;
+        hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
+        /* Read sensors, publish to bus */
+    }
+}
 
 int main(void) {
     wb_robot_init();
     hive_init();
 
-    /* Spawn actors, create buses... */
+    /* Spawn timer-driven actors */
+    actor_id sensor;
+    hive_spawn(sensor_actor, NULL, &sensor);
 
-    while (wb_robot_step(TIME_STEP) != -1) {
-        publish_sensors_to_bus();
-        hive_step();   /* Each actor runs once */
-        read_motors_from_bus();
+    while (wb_robot_step(TIME_STEP_MS) != -1) {
+        hive_advance_time(TIME_STEP_MS * 1000);  /* ms -> us */
+        hive_run_until_blocked();
     }
 
     hive_cleanup();
@@ -172,4 +209,5 @@ int main(void) {
 .BR hive_spawn (3),
 .BR hive_exit (3),
 .BR hive_ipc (3),
+.BR hive_timer (3),
 .BR hive_types (3)
