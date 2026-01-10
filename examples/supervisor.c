@@ -101,7 +101,11 @@ int main(void) {
     // Spawn supervisor with larger stack (needs space for arrays and nested spawns)
     actor_config sup_cfg = HIVE_ACTOR_CONFIG_DEFAULT;
     sup_cfg.name = "supervisor";
+#ifdef QEMU_TEST_STACK_SIZE
+    sup_cfg.stack_size = 2048;  // Reduced for QEMU
+#else
     sup_cfg.stack_size = 128 * 1024;  // 128KB stack
+#endif
 
     actor_id supervisor;
     if (HIVE_FAILED(hive_spawn_ex(supervisor_actor, NULL, &sup_cfg, &supervisor))) {
