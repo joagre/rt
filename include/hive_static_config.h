@@ -10,6 +10,21 @@
 // Edit these values and recompile to change system limits.
 
 // -----------------------------------------------------------------------------
+// Feature Toggles
+// -----------------------------------------------------------------------------
+// Enable/disable optional subsystems. Set to 0 to disable.
+
+// Network I/O subsystem (BSD sockets on Linux, lwIP on STM32)
+#ifndef HIVE_ENABLE_NET
+#define HIVE_ENABLE_NET 1
+#endif
+
+// File I/O subsystem (POSIX on Linux, FATFS/littlefs on STM32)
+#ifndef HIVE_ENABLE_FILE
+#define HIVE_ENABLE_FILE 1
+#endif
+
+// -----------------------------------------------------------------------------
 // Actor System Configuration
 // -----------------------------------------------------------------------------
 

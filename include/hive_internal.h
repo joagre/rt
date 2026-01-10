@@ -14,16 +14,22 @@
 
 // Subsystem init/cleanup (called by hive_init/hive_cleanup)
 hive_status hive_ipc_init(void);
-hive_status hive_file_init(void);
-void hive_file_cleanup(void);
-hive_status hive_net_init(void);
-void hive_net_cleanup(void);
 hive_status hive_timer_init(void);
 void hive_timer_cleanup(void);
 hive_status hive_bus_init(void);
 void hive_bus_cleanup(void);
 hive_status hive_link_init(void);
 void hive_link_cleanup(void);
+
+#if HIVE_ENABLE_FILE
+hive_status hive_file_init(void);
+void hive_file_cleanup(void);
+#endif
+
+#if HIVE_ENABLE_NET
+hive_status hive_net_init(void);
+void hive_net_cleanup(void);
+#endif
 
 // Internal tag constants (not exposed in public API)
 #define HIVE_TAG_GEN_BIT     0x08000000  // Bit 27: distinguishes generated tags
@@ -150,8 +156,10 @@ _Noreturn void hive_exit_crash(void);
 // Handle timer event (timerfd ready)
 void hive_timer_handle_event(io_source *source);
 
+#if HIVE_ENABLE_NET
 // Handle network event (socket ready)
 void hive_net_handle_event(io_source *source);
+#endif
 
 // Clear mailbox entries (used during actor cleanup)
 void hive_ipc_mailbox_clear(mailbox *mailbox);

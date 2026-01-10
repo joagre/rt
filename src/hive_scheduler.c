@@ -50,9 +50,12 @@ static void dispatch_epoll_events(int timeout_ms) {
 
         if (source->type == IO_SOURCE_TIMER) {
             hive_timer_handle_event(source);
-        } else if (source->type == IO_SOURCE_NETWORK) {
+        }
+#if HIVE_ENABLE_NET
+        else if (source->type == IO_SOURCE_NETWORK) {
             hive_net_handle_event(source);
         }
+#endif
     }
 }
 

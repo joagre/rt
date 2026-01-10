@@ -38,6 +38,7 @@ hive_status hive_init(void) {
         return status;
     }
 
+#if HIVE_ENABLE_FILE
     // Initialize file I/O subsystem
     status = hive_file_init();
     if (HIVE_FAILED(status)) {
@@ -46,22 +47,31 @@ hive_status hive_init(void) {
         hive_actor_cleanup();
         return status;
     }
+#endif
 
+#if HIVE_ENABLE_NET
     // Initialize network I/O subsystem
     status = hive_net_init();
     if (HIVE_FAILED(status)) {
+#if HIVE_ENABLE_FILE
         hive_file_cleanup();
+#endif
         hive_link_cleanup();
         hive_scheduler_cleanup();
         hive_actor_cleanup();
         return status;
     }
+#endif
 
     // Initialize timer subsystem
     status = hive_timer_init();
     if (HIVE_FAILED(status)) {
+#if HIVE_ENABLE_NET
         hive_net_cleanup();
+#endif
+#if HIVE_ENABLE_FILE
         hive_file_cleanup();
+#endif
         hive_link_cleanup();
         hive_scheduler_cleanup();
         hive_actor_cleanup();
@@ -72,8 +82,12 @@ hive_status hive_init(void) {
     status = hive_bus_init();
     if (HIVE_FAILED(status)) {
         hive_timer_cleanup();
+#if HIVE_ENABLE_NET
         hive_net_cleanup();
+#endif
+#if HIVE_ENABLE_FILE
         hive_file_cleanup();
+#endif
         hive_link_cleanup();
         hive_scheduler_cleanup();
         hive_actor_cleanup();
@@ -98,8 +112,12 @@ void hive_shutdown(void) {
 void hive_cleanup(void) {
     hive_bus_cleanup();
     hive_timer_cleanup();
+#if HIVE_ENABLE_NET
     hive_net_cleanup();
+#endif
+#if HIVE_ENABLE_FILE
     hive_file_cleanup();
+#endif
     hive_link_cleanup();
     hive_scheduler_cleanup();
     hive_actor_cleanup();
