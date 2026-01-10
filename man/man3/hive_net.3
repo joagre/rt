@@ -149,7 +149,7 @@ when the peer closes the connection. This is normal EOF, not an error:
 .nf
 size_t n;
 hive_status s = hive_net_recv(fd, buf, sizeof(buf), &n, -1);
-if (!HIVE_FAILED(s) && n == 0) {
+if (HIVE_SUCCEEDED(s) && n == 0) {
     /* Peer closed connection */
 }
 .fi
@@ -289,7 +289,7 @@ void client(void *arg) {
     char buf[256];
     size_t n;
     s = hive_net_recv(fd, buf, sizeof(buf) - 1, &n, 1000);
-    if (!HIVE_FAILED(s) && n > 0) {
+    if (HIVE_SUCCEEDED(s) && n > 0) {
         buf[n] = '\\0';
         printf("Response: %s\\n", buf);
     }

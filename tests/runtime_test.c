@@ -278,7 +278,7 @@ static void test7_stack_sizes(void *arg) {
     small_cfg.stack_size = 8 * 1024;  // 8KB
 
     actor_id small;
-    if (!HIVE_FAILED(hive_spawn_ex(small_stack_actor, NULL, &small_cfg, &small))) {
+    if (HIVE_SUCCEEDED(hive_spawn_ex(small_stack_actor, NULL, &small_cfg, &small))) {
         hive_link(small);
         hive_message msg;
         hive_ipc_recv(&msg, 500);
@@ -297,7 +297,7 @@ static void test7_stack_sizes(void *arg) {
     large_cfg.stack_size = 32 * 1024;  // 32KB
 
     actor_id large;
-    if (!HIVE_FAILED(hive_spawn_ex(large_stack_actor, NULL, &large_cfg, &large))) {
+    if (HIVE_SUCCEEDED(hive_spawn_ex(large_stack_actor, NULL, &large_cfg, &large))) {
         hive_link(large);
         hive_message msg;
         hive_ipc_recv(&msg, 500);

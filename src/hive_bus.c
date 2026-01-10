@@ -518,7 +518,7 @@ hive_status hive_bus_read_wait(bus_id id, void *buf, size_t max_len,
 
     // Try non-blocking read first
     hive_status status = hive_bus_read(id, buf, max_len, actual_len);
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         return status;
     }
 

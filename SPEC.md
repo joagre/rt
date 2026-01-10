@@ -1199,7 +1199,7 @@ if (status.code == HIVE_ERR_NOMEM) {
     hive_message msg;
     status = hive_ipc_recv(&msg, 10);  // Backoff 10ms
 
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         // Got message during backoff, handle it first
         handle_message(&msg);
     }

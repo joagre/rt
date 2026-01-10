@@ -238,7 +238,7 @@ static void run_file_tests(void *arg) {
     {
         // Create a small test file
         hive_status status = hive_file_open(TEST_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644, &fd);
-        if (!HIVE_FAILED(status)) {
+        if (HIVE_SUCCEEDED(status)) {
             const char *data = "short";
             size_t written = 0;
             hive_file_write(fd, data, 5, &written);
@@ -246,12 +246,12 @@ static void run_file_tests(void *arg) {
 
             // Open for reading
             status = hive_file_open(TEST_FILE, O_RDONLY, 0, &fd);
-            if (!HIVE_FAILED(status)) {
+            if (HIVE_SUCCEEDED(status)) {
                 char buf[64] = {0};
                 size_t actual = 0;
                 // Read at offset 1000 (way beyond the 5 byte file)
                 status = hive_file_pread(fd, buf, sizeof(buf), 1000, &actual);
-                if (!HIVE_FAILED(status) && actual == 0) {
+                if (HIVE_SUCCEEDED(status) && actual == 0) {
                     TEST_PASS("pread beyond EOF returns 0 bytes");
                 } else if (HIVE_FAILED(status)) {
                     TEST_PASS("pread beyond EOF returns error");
@@ -270,7 +270,7 @@ static void run_file_tests(void *arg) {
     printf("\nTest 14: Double close\n");
     {
         hive_status status = hive_file_open(TEST_FILE, O_RDONLY, 0, &fd);
-        if (!HIVE_FAILED(status)) {
+        if (HIVE_SUCCEEDED(status)) {
             int saved_fd = fd;
 
             // First close should succeed
@@ -295,14 +295,14 @@ static void run_file_tests(void *arg) {
     printf("\nTest 15: Zero-length read/write\n");
     {
         hive_status status = hive_file_open(TEST_FILE, O_RDWR, 0, &fd);
-        if (!HIVE_FAILED(status)) {
+        if (HIVE_SUCCEEDED(status)) {
             size_t actual = 0;
 
             // Zero-length write
             status = hive_file_write(fd, "x", 0, &actual);
-            if (!HIVE_FAILED(status) && actual == 0) {
+            if (HIVE_SUCCEEDED(status) && actual == 0) {
                 TEST_PASS("zero-length write succeeds");
-            } else if (!HIVE_FAILED(status)) {
+            } else if (HIVE_SUCCEEDED(status)) {
                 printf("    Zero-length write returned %zu bytes\n", actual);
                 TEST_FAIL("zero-length write should return 0 bytes");
             } else {
@@ -312,9 +312,9 @@ static void run_file_tests(void *arg) {
             // Zero-length read
             char buf[1];
             status = hive_file_read(fd, buf, 0, &actual);
-            if (!HIVE_FAILED(status) && actual == 0) {
+            if (HIVE_SUCCEEDED(status) && actual == 0) {
                 TEST_PASS("zero-length read succeeds");
-            } else if (!HIVE_FAILED(status)) {
+            } else if (HIVE_SUCCEEDED(status)) {
                 printf("    Zero-length read returned %zu bytes\n", actual);
                 TEST_FAIL("zero-length read should return 0 bytes");
             } else {

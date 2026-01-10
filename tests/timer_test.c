@@ -112,7 +112,7 @@ static void run_timer_tests(void *arg) {
         hive_message msg;
         hive_status status = hive_ipc_recv(&msg, -1);
 
-        if (!HIVE_FAILED(status) && hive_msg_is_timer(&msg)) {
+        if (HIVE_SUCCEEDED(status) && hive_msg_is_timer(&msg)) {
             TEST_PASS("timer message detected by hive_msg_is_timer");
         } else {
             TEST_FAIL("timer message not detected");
@@ -124,7 +124,7 @@ static void run_timer_tests(void *arg) {
         hive_ipc_notify(self, data, 12);
 
         status = hive_ipc_recv(&msg, 100);
-        if (!HIVE_FAILED(status) && !hive_msg_is_timer(&msg)) {
+        if (HIVE_SUCCEEDED(status) && !hive_msg_is_timer(&msg)) {
             TEST_PASS("regular message NOT detected as timer tick");
         } else {
             TEST_FAIL("could not distinguish regular message");
@@ -166,7 +166,7 @@ static void run_timer_tests(void *arg) {
 
         uint64_t elapsed = time_ms() - start;
 
-        if (!HIVE_FAILED(status) && hive_msg_is_timer(&msg)) {
+        if (HIVE_SUCCEEDED(status) && hive_msg_is_timer(&msg)) {
             printf("    Short timer fired after %lu ms\n", (unsigned long)elapsed);
             TEST_PASS("short delay timer works");
         } else {
@@ -272,7 +272,7 @@ static void run_timer_tests(void *arg) {
             for (int i = 0; i < 3; i++) {
                 hive_message msg;
                 status = hive_ipc_recv(&msg, 100);  // 100ms timeout
-                if (!HIVE_FAILED(status) && hive_msg_is_timer(&msg)) {
+                if (HIVE_SUCCEEDED(status) && hive_msg_is_timer(&msg)) {
                     ticks++;
                 }
             }
@@ -289,7 +289,7 @@ static void run_timer_tests(void *arg) {
                 if (status.code == HIVE_ERR_TIMEOUT) {
                     printf("    Received %d ticks before cancel, then stopped\n", ticks);
                     TEST_PASS("periodic timer stops after cancel");
-                } else if (!HIVE_FAILED(status) && hive_msg_is_timer(&msg)) {
+                } else if (HIVE_SUCCEEDED(status) && hive_msg_is_timer(&msg)) {
                     TEST_FAIL("received tick after cancel");
                 } else {
                     TEST_PASS("periodic timer stops after cancel");
@@ -346,7 +346,7 @@ static void run_timer_tests(void *arg) {
             status = hive_ipc_recv(&msg, 100);  // 100ms timeout
             uint64_t elapsed = time_ms() - start;
 
-            if (!HIVE_FAILED(status) && hive_msg_is_timer(&msg)) {
+            if (HIVE_SUCCEEDED(status) && hive_msg_is_timer(&msg)) {
                 printf("    Zero delay timer fired after %lu ms\n", (unsigned long)elapsed);
                 TEST_PASS("zero delay timer fires immediately");
             } else {
@@ -375,7 +375,7 @@ static void run_timer_tests(void *arg) {
             for (int i = 0; i < 5; i++) {
                 hive_message msg;
                 status = hive_ipc_recv(&msg, 10);  // 10ms timeout
-                if (!HIVE_FAILED(status) && hive_msg_is_timer(&msg)) {
+                if (HIVE_SUCCEEDED(status) && hive_msg_is_timer(&msg)) {
                     ticks++;
                 }
             }

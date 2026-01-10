@@ -90,7 +90,7 @@ static void subscriber_actor(void *arg) {
     size_t actual_len;
     status = hive_bus_read_wait(g_shared_bus, buf, sizeof(buf), &actual_len, 500);
 
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         g_subscriber_received[id] = 1;
     }
 
@@ -167,7 +167,7 @@ static void max_readers_subscriber(void *arg) {
     size_t actual_len;
     hive_status status = hive_bus_read_wait(g_max_readers_bus, buf, sizeof(buf), &actual_len, 500);
 
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         g_max_readers_success[id] = 1;
     }
 
@@ -373,7 +373,7 @@ static void test7_destroy_with_subscribers(void *arg) {
     // Unsubscribe and destroy should work
     hive_bus_unsubscribe(bus);
     status = hive_bus_destroy(bus);
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         TEST_PASS("destroy succeeds after unsubscribe");
     } else {
         TEST_FAIL("destroy should succeed after unsubscribe");
@@ -480,7 +480,7 @@ static void test9_max_age_expiry(void *arg) {
     status = hive_bus_read(bus, buf, sizeof(buf), &actual_len);
     if (status.code == HIVE_ERR_WOULDBLOCK) {
         TEST_PASS("entry expired after max_age_ms");
-    } else if (!HIVE_FAILED(status)) {
+    } else if (HIVE_SUCCEEDED(status)) {
         printf("    Entry still readable after expiry (data: %s)\n", buf);
         TEST_FAIL("entry should have expired");
     } else {

@@ -202,11 +202,11 @@ static void test5_send_to_self(void *arg) {
     int data = 42;
 
     hive_status status = hive_ipc_notify(self, &data, sizeof(data));
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         // Receive the message we sent to ourselves
         hive_message msg;
         status = hive_ipc_recv(&msg, 100);
-        if (!HIVE_FAILED(status)) {
+        if (HIVE_SUCCEEDED(status)) {
             const void *payload;
             hive_msg_decode(&msg, NULL, NULL, &payload, NULL);
             if (*(int *)payload == 42) {
@@ -381,7 +381,7 @@ static void test8_nonblocking_recv(void *arg) {
     hive_ipc_notify(self, &data, sizeof(data));
 
     status = hive_ipc_recv(&msg, 0);
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         TEST_PASS("non-blocking recv succeeds with message present");
     } else {
         TEST_FAIL("non-blocking recv should succeed with message present");
@@ -454,7 +454,7 @@ static void test10_block_forever_recv(void *arg) {
     hive_status status = hive_ipc_recv(&msg, -1);  // Block forever
     uint64_t elapsed = time_ms() - start;
 
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         TEST_PASS("block forever recv succeeds when message arrives");
     } else {
         TEST_FAIL("block forever recv should not fail");
@@ -490,7 +490,7 @@ static void test11_message_size_limits(void *arg) {
     memset(max_msg, 'A', sizeof(max_msg));
 
     hive_status status = hive_ipc_notify(self, max_msg, max_payload_size);
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         TEST_PASS("can send message at max payload size");
     } else {
         printf("    Error: %s\n", status.msg ? status.msg : "unknown");
@@ -501,7 +501,7 @@ static void test11_message_size_limits(void *arg) {
     hive_message msg;
     status = hive_ipc_recv(&msg, 100);
     // msg.len is payload length (excludes 4-byte header)
-    if (!HIVE_FAILED(status) && msg.len == max_payload_size) {
+    if (HIVE_SUCCEEDED(status) && msg.len == max_payload_size) {
         TEST_PASS("received max size message");
     } else {
         printf("    msg.len = %zu, expected %zu\n", msg.len, max_payload_size);
@@ -556,7 +556,7 @@ static void test12_selective_receive(void *arg) {
     hive_message msg;
     hive_status status = hive_ipc_recv_match(&sender, NULL, NULL, &msg, 100);
 
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         if (msg.sender == sender) {
             const void *payload;
             hive_msg_decode(&msg, NULL, NULL, &payload, NULL);
@@ -572,7 +572,7 @@ static void test12_selective_receive(void *arg) {
     }
 
     // Drain remaining messages
-    while (!HIVE_FAILED(hive_ipc_recv(&msg, 0))) {}
+    while (HIVE_SUCCEEDED(hive_ipc_recv(&msg, 0))) {}
 
     hive_exit();
 }
@@ -588,7 +588,7 @@ static void test13_zero_length_message(void *arg) {
     actor_id self = hive_self();
 
     hive_status status = hive_ipc_notify(self, NULL, 0);
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         TEST_PASS("can send zero-length payload");
 
         hive_message msg;
@@ -596,7 +596,7 @@ static void test13_zero_length_message(void *arg) {
         // msg.len includes 4-byte header, so zero-payload message has len=4
         size_t payload_len;
         hive_msg_decode(&msg, NULL, NULL, NULL, &payload_len);
-        if (!HIVE_FAILED(status) && payload_len == 0) {
+        if (HIVE_SUCCEEDED(status) && payload_len == 0) {
             TEST_PASS("received zero-length payload message");
         } else {
             printf("    payload_len = %zu (expected 0)\n", payload_len);
@@ -673,7 +673,7 @@ static void test15_message_pool_info(void *arg) {
     // Drain all messages
     hive_message msg;
     int received = 0;
-    while (!HIVE_FAILED(hive_ipc_recv(&msg, 0))) {
+    while (HIVE_SUCCEEDED(hive_ipc_recv(&msg, 0))) {
         received++;
     }
 
@@ -748,7 +748,7 @@ static void test17_spawn_death_cycle_leak(void *arg) {
         // Wait for message from child
         hive_message msg;
         hive_status status = hive_ipc_recv(&msg, 500);
-        if (!HIVE_FAILED(status)) {
+        if (HIVE_SUCCEEDED(status)) {
             messages_received++;
         }
 

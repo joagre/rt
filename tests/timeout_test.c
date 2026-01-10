@@ -34,7 +34,7 @@ void test_timeout_actor(void *arg) {
     status = hive_ipc_recv(&msg, 100);  // 100ms timeout
     elapsed = get_time_ms() - start;
 
-    if (!HIVE_FAILED(status)) {
+    if (HIVE_SUCCEEDED(status)) {
         int *received = (int *)msg.data;
         printf("  ✓ Got message before timeout: %d (after %lu ms)\n", *received, elapsed);
     } else {

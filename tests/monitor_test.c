@@ -222,7 +222,7 @@ static void target_waits_for_exit(void *arg) {
     hive_message msg;
     hive_status status = hive_ipc_recv(&msg, 500);  // 500ms timeout
 
-    if (!HIVE_FAILED(status) && hive_is_exit_msg(&msg)) {
+    if (HIVE_SUCCEEDED(status) && hive_is_exit_msg(&msg)) {
         g_target_received_exit = true;
     }
 

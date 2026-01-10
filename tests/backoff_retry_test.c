@@ -40,7 +40,7 @@ void receiver_actor(void *arg) {
         if (status.code == HIVE_ERR_WOULDBLOCK) {
             break;
         }
-        if (!HIVE_FAILED(status)) {
+        if (HIVE_SUCCEEDED(status)) {
             uint32_t tag;
             hive_msg_decode(&msg, NULL, &tag, NULL, NULL);
             if (scanned < 5 || tag == TAG_START || tag == TAG_DONE) {
@@ -76,7 +76,7 @@ void receiver_actor(void *arg) {
         uint32_t done_tag = TAG_DONE;
         hive_status status = hive_ipc_recv_match(NULL, NULL, &done_tag, &msg, 5000);
 
-        if (!HIVE_FAILED(status)) {
+        if (HIVE_SUCCEEDED(status)) {
             printf("Receiver: Got DONE signal\n");
         } else {
             printf("Receiver: Timeout waiting for DONE (%s)\n",
@@ -127,7 +127,7 @@ void sender_actor(void *arg) {
         hive_status status = hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
         if (status.code == HIVE_ERR_NOMEM) {
             failed_count++;
-        } else if (!HIVE_FAILED(status)) {
+        } else if (HIVE_SUCCEEDED(status)) {
             extra_sent++;
         }
     }
@@ -166,7 +166,7 @@ void sender_actor(void *arg) {
         data++;
         status = hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
 
-        if (!HIVE_FAILED(status)) {
+        if (HIVE_SUCCEEDED(status)) {
             printf("Sender: ✓ Send succeeded on attempt %d!\n", attempt + 1);
             send_succeeded = true;
             break;

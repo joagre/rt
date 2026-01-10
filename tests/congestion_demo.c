@@ -26,7 +26,7 @@ void worker_actor(void *arg) {
             break;
         }
 
-        if (!HIVE_FAILED(status)) {
+        if (HIVE_SUCCEEDED(status)) {
             processed++;
         }
     }
@@ -66,19 +66,19 @@ void coordinator_actor(void *arg) {
 
                 // Retry
                 status = hive_ipc_notify(args->workers[w], &data, sizeof(data));
-                if (!HIVE_FAILED(status)) {
+                if (HIVE_SUCCEEDED(status)) {
                     retry_success++;
                     total_sent++;
                 } else {
                     // Even retry failed - aggressive backoff
                     hive_ipc_recv(&msg, 20);
                     status = hive_ipc_notify(args->workers[w], &data, sizeof(data));
-                    if (!HIVE_FAILED(status)) {
+                    if (HIVE_SUCCEEDED(status)) {
                         retry_success++;
                         total_sent++;
                     }
                 }
-            } else if (!HIVE_FAILED(status)) {
+            } else if (HIVE_SUCCEEDED(status)) {
                 total_sent++;
             }
         }

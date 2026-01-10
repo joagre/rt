@@ -33,7 +33,7 @@ static void actor_a_links_to_b(void *arg) {
     hive_message msg;
     status = hive_ipc_recv(&msg, 1000);
 
-    if (!HIVE_FAILED(status) && hive_is_exit_msg(&msg)) {
+    if (HIVE_SUCCEEDED(status) && hive_is_exit_msg(&msg)) {
         hive_exit_msg exit_info;
         hive_decode_exit(&msg, &exit_info);
         if (exit_info.actor == actor_b) {
@@ -105,7 +105,7 @@ static void target_waits_for_linker(void *arg) {
     hive_message msg;
     hive_status status = hive_ipc_recv(&msg, 500);
 
-    if (!HIVE_FAILED(status) && hive_is_exit_msg(&msg)) {
+    if (HIVE_SUCCEEDED(status) && hive_is_exit_msg(&msg)) {
         hive_exit_msg exit_info;
         hive_decode_exit(&msg, &exit_info);
         if (exit_info.actor == g_linker_id) {
@@ -176,7 +176,7 @@ static void actor_unlinks_before_death(void *arg) {
     hive_message msg;
     hive_status status = hive_ipc_recv(&msg, 300);
 
-    if (!HIVE_FAILED(status) && hive_is_exit_msg(&msg)) {
+    if (HIVE_SUCCEEDED(status) && hive_is_exit_msg(&msg)) {
         g_unlinked_received_notification = true;
     }
 
@@ -278,7 +278,7 @@ static void multi_linker(void *arg) {
     for (int i = 0; i < 3; i++) {
         hive_message msg;
         hive_status status = hive_ipc_recv(&msg, 500);
-        if (!HIVE_FAILED(status) && hive_is_exit_msg(&msg)) {
+        if (HIVE_SUCCEEDED(status) && hive_is_exit_msg(&msg)) {
             g_multi_link_count++;
         }
     }
@@ -334,7 +334,7 @@ static void link_target_waits(void *arg) {
     (void)arg;
     hive_message msg;
     hive_status status = hive_ipc_recv(&msg, 300);
-    if (!HIVE_FAILED(status) && hive_is_exit_msg(&msg)) {
+    if (HIVE_SUCCEEDED(status) && hive_is_exit_msg(&msg)) {
         g_link_target_got_notification = true;
     }
     hive_exit();
@@ -344,7 +344,7 @@ static void monitor_target_waits(void *arg) {
     (void)arg;
     hive_message msg;
     hive_status status = hive_ipc_recv(&msg, 300);
-    if (!HIVE_FAILED(status) && hive_is_exit_msg(&msg)) {
+    if (HIVE_SUCCEEDED(status) && hive_is_exit_msg(&msg)) {
         g_monitor_target_got_notification = true;
     }
     hive_exit();
@@ -418,7 +418,7 @@ static void link_receiver_checks_reason(void *arg) {
 
     hive_message msg;
     hive_status status = hive_ipc_recv(&msg, 500);
-    if (!HIVE_FAILED(status) && hive_is_exit_msg(&msg)) {
+    if (HIVE_SUCCEEDED(status) && hive_is_exit_msg(&msg)) {
         hive_exit_msg exit_info;
         hive_decode_exit(&msg, &exit_info);
         g_received_reason = exit_info.reason;
