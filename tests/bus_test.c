@@ -21,7 +21,7 @@
     .max_entry_size = 128 \
 }
 #else
-#define TEST_BUS_CONFIG TEST_BUS_CONFIG
+#define TEST_BUS_CONFIG HIVE_BUS_CONFIG_DEFAULT
 #endif
 
 // Test results
