@@ -211,6 +211,9 @@ int main(void) {
     // All CRITICAL priority, round-robin within priority follows spawn order.
     // Order: sensor → estimator → altitude → waypoint → position → angle → attitude → motor
     // This ensures each actor sees fresh data from upstream actors in same step.
+    //
+    // Actor IDs are kept for future use (linking, monitoring, IPC). Currently unused
+    // since all communication goes through buses.
     actor_id sensor, estimator, altitude, waypoint, position, angle, attitude, motor;
 
     SPAWN_CRITICAL_ACTOR(sensor_actor,    "sensor",    sensor);
