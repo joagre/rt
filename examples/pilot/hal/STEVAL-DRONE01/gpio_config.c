@@ -1,6 +1,7 @@
 // GPIO configuration for STEVAL-DRONE01
 //
-// Configures all GPIO pins for peripherals.
+// Low-level GPIO helpers for motors, debug serial, LED, and button.
+// Note: Sensor GPIO is handled by ST BSP drivers (vendor/).
 
 #include "gpio_config.h"
 #include "system_config.h"
@@ -140,174 +141,6 @@ void gpio_toggle(char port, uint8_t pin) {
     *odr ^= (1U << pin);
 }
 
-// ----------------------------------------------------------------------------
-// SPI1 GPIO Configuration (LSM6DSL)
-// ----------------------------------------------------------------------------
-
-void gpio_init_spi1(void) {
-    // Enable GPIO clocks
-    system_enable_gpio(SPI1_SCK_PORT);
-    system_enable_gpio(LSM6DSL_CS_PORT);
-
-    // SPI1_SCK (PA5) - Alternate function, push-pull, high speed
-    gpio_set_mode(SPI1_SCK_PORT, SPI1_SCK_PIN, GPIO_MODE_AF);
-    gpio_set_otype(SPI1_SCK_PORT, SPI1_SCK_PIN, GPIO_OTYPE_PUSHPULL);
-    gpio_set_speed(SPI1_SCK_PORT, SPI1_SCK_PIN, GPIO_SPEED_VERYHIGH);
-    gpio_set_pupd(SPI1_SCK_PORT, SPI1_SCK_PIN, GPIO_PUPD_NONE);
-    gpio_set_af(SPI1_SCK_PORT, SPI1_SCK_PIN, SPI1_AF);
-
-    // SPI1_MISO (PA6) - Alternate function
-    gpio_set_mode(SPI1_MISO_PORT, SPI1_MISO_PIN, GPIO_MODE_AF);
-    gpio_set_speed(SPI1_MISO_PORT, SPI1_MISO_PIN, GPIO_SPEED_VERYHIGH);
-    gpio_set_pupd(SPI1_MISO_PORT, SPI1_MISO_PIN, GPIO_PUPD_NONE);
-    gpio_set_af(SPI1_MISO_PORT, SPI1_MISO_PIN, SPI1_AF);
-
-    // SPI1_MOSI (PA7) - Alternate function, push-pull
-    gpio_set_mode(SPI1_MOSI_PORT, SPI1_MOSI_PIN, GPIO_MODE_AF);
-    gpio_set_otype(SPI1_MOSI_PORT, SPI1_MOSI_PIN, GPIO_OTYPE_PUSHPULL);
-    gpio_set_speed(SPI1_MOSI_PORT, SPI1_MOSI_PIN, GPIO_SPEED_VERYHIGH);
-    gpio_set_pupd(SPI1_MOSI_PORT, SPI1_MOSI_PIN, GPIO_PUPD_NONE);
-    gpio_set_af(SPI1_MOSI_PORT, SPI1_MOSI_PIN, SPI1_AF);
-
-    // LSM6DSL_CS (PA4) - GPIO output, push-pull, high speed
-    // Start with CS high (deselected)
-    gpio_write(LSM6DSL_CS_PORT, LSM6DSL_CS_PIN, true);
-    gpio_set_mode(LSM6DSL_CS_PORT, LSM6DSL_CS_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_otype(LSM6DSL_CS_PORT, LSM6DSL_CS_PIN, GPIO_OTYPE_PUSHPULL);
-    gpio_set_speed(LSM6DSL_CS_PORT, LSM6DSL_CS_PIN, GPIO_SPEED_VERYHIGH);
-    gpio_set_pupd(LSM6DSL_CS_PORT, LSM6DSL_CS_PIN, GPIO_PUPD_NONE);
-}
-
-void gpio_lsm6dsl_cs_low(void) {
-    gpio_write(LSM6DSL_CS_PORT, LSM6DSL_CS_PIN, false);
-}
-
-void gpio_lsm6dsl_cs_high(void) {
-    gpio_write(LSM6DSL_CS_PORT, LSM6DSL_CS_PIN, true);
-}
-
-// ----------------------------------------------------------------------------
-// SPI2 GPIO Configuration (LIS2MDL, LPS22HD)
-// ----------------------------------------------------------------------------
-
-void gpio_init_spi2(void) {
-    // Enable GPIO clocks
-    system_enable_gpio(SPI2_SCK_PORT);
-
-    // SPI2_SCK (PB13) - Alternate function, push-pull, high speed
-    gpio_set_mode(SPI2_SCK_PORT, SPI2_SCK_PIN, GPIO_MODE_AF);
-    gpio_set_otype(SPI2_SCK_PORT, SPI2_SCK_PIN, GPIO_OTYPE_PUSHPULL);
-    gpio_set_speed(SPI2_SCK_PORT, SPI2_SCK_PIN, GPIO_SPEED_VERYHIGH);
-    gpio_set_pupd(SPI2_SCK_PORT, SPI2_SCK_PIN, GPIO_PUPD_NONE);
-    gpio_set_af(SPI2_SCK_PORT, SPI2_SCK_PIN, SPI2_AF);
-
-    // SPI2_MISO (PB14) - Alternate function
-    gpio_set_mode(SPI2_MISO_PORT, SPI2_MISO_PIN, GPIO_MODE_AF);
-    gpio_set_speed(SPI2_MISO_PORT, SPI2_MISO_PIN, GPIO_SPEED_VERYHIGH);
-    gpio_set_pupd(SPI2_MISO_PORT, SPI2_MISO_PIN, GPIO_PUPD_NONE);
-    gpio_set_af(SPI2_MISO_PORT, SPI2_MISO_PIN, SPI2_AF);
-
-    // SPI2_MOSI (PB15) - Alternate function, push-pull
-    gpio_set_mode(SPI2_MOSI_PORT, SPI2_MOSI_PIN, GPIO_MODE_AF);
-    gpio_set_otype(SPI2_MOSI_PORT, SPI2_MOSI_PIN, GPIO_OTYPE_PUSHPULL);
-    gpio_set_speed(SPI2_MOSI_PORT, SPI2_MOSI_PIN, GPIO_SPEED_VERYHIGH);
-    gpio_set_pupd(SPI2_MOSI_PORT, SPI2_MOSI_PIN, GPIO_PUPD_NONE);
-    gpio_set_af(SPI2_MOSI_PORT, SPI2_MOSI_PIN, SPI2_AF);
-
-    // LIS2MDL_CS (PB12) - GPIO output, push-pull, high speed
-    // Start with CS high (deselected)
-    gpio_write(LIS2MDL_CS_PORT, LIS2MDL_CS_PIN, true);
-    gpio_set_mode(LIS2MDL_CS_PORT, LIS2MDL_CS_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_otype(LIS2MDL_CS_PORT, LIS2MDL_CS_PIN, GPIO_OTYPE_PUSHPULL);
-    gpio_set_speed(LIS2MDL_CS_PORT, LIS2MDL_CS_PIN, GPIO_SPEED_VERYHIGH);
-    gpio_set_pupd(LIS2MDL_CS_PORT, LIS2MDL_CS_PIN, GPIO_PUPD_NONE);
-
-    // LPS22HD_CS (PB10) - GPIO output, push-pull, high speed
-    // Start with CS high (deselected)
-    gpio_write(LPS22HD_CS_PORT, LPS22HD_CS_PIN, true);
-    gpio_set_mode(LPS22HD_CS_PORT, LPS22HD_CS_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_otype(LPS22HD_CS_PORT, LPS22HD_CS_PIN, GPIO_OTYPE_PUSHPULL);
-    gpio_set_speed(LPS22HD_CS_PORT, LPS22HD_CS_PIN, GPIO_SPEED_VERYHIGH);
-    gpio_set_pupd(LPS22HD_CS_PORT, LPS22HD_CS_PIN, GPIO_PUPD_NONE);
-}
-
-void gpio_lis2mdl_cs_low(void) {
-    gpio_write(LIS2MDL_CS_PORT, LIS2MDL_CS_PIN, false);
-}
-
-void gpio_lis2mdl_cs_high(void) {
-    gpio_write(LIS2MDL_CS_PORT, LIS2MDL_CS_PIN, true);
-}
-
-void gpio_lps22hd_cs_low(void) {
-    gpio_write(LPS22HD_CS_PORT, LPS22HD_CS_PIN, false);
-}
-
-void gpio_lps22hd_cs_high(void) {
-    gpio_write(LPS22HD_CS_PORT, LPS22HD_CS_PIN, true);
-}
-
-// ----------------------------------------------------------------------------
-// I2C1 GPIO Configuration (not used, sensors on SPI2)
-// ----------------------------------------------------------------------------
-
-void gpio_init_i2c1(void) {
-    // Enable GPIO clock
-    system_enable_gpio(I2C1_SCL_PORT);
-
-    // I2C1_SCL (PB6) - Alternate function, open-drain, pull-up
-    gpio_set_mode(I2C1_SCL_PORT, I2C1_SCL_PIN, GPIO_MODE_AF);
-    gpio_set_otype(I2C1_SCL_PORT, I2C1_SCL_PIN, GPIO_OTYPE_OPENDRAIN);
-    gpio_set_speed(I2C1_SCL_PORT, I2C1_SCL_PIN, GPIO_SPEED_HIGH);
-    gpio_set_pupd(I2C1_SCL_PORT, I2C1_SCL_PIN, GPIO_PUPD_PULLUP);
-    gpio_set_af(I2C1_SCL_PORT, I2C1_SCL_PIN, I2C1_AF);
-
-    // I2C1_SDA (PB7) - Alternate function, open-drain, pull-up
-    gpio_set_mode(I2C1_SDA_PORT, I2C1_SDA_PIN, GPIO_MODE_AF);
-    gpio_set_otype(I2C1_SDA_PORT, I2C1_SDA_PIN, GPIO_OTYPE_OPENDRAIN);
-    gpio_set_speed(I2C1_SDA_PORT, I2C1_SDA_PIN, GPIO_SPEED_HIGH);
-    gpio_set_pupd(I2C1_SDA_PORT, I2C1_SDA_PIN, GPIO_PUPD_PULLUP);
-    gpio_set_af(I2C1_SDA_PORT, I2C1_SDA_PIN, I2C1_AF);
-}
-
-void gpio_i2c1_release_bus(void) {
-    // I2C bus recovery: Toggle SCL to release stuck SDA
-    // This handles the case where a slave holds SDA low due to incomplete transfer
-
-    // Configure SCL as GPIO output
-    gpio_set_mode(I2C1_SCL_PORT, I2C1_SCL_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_otype(I2C1_SCL_PORT, I2C1_SCL_PIN, GPIO_OTYPE_OPENDRAIN);
-
-    // Configure SDA as GPIO input to monitor
-    gpio_set_mode(I2C1_SDA_PORT, I2C1_SDA_PIN, GPIO_MODE_INPUT);
-    gpio_set_pupd(I2C1_SDA_PORT, I2C1_SDA_PIN, GPIO_PUPD_PULLUP);
-
-    // Toggle SCL up to 9 times until SDA goes high
-    for (int i = 0; i < 9; i++) {
-        gpio_write(I2C1_SCL_PORT, I2C1_SCL_PIN, false);
-        system_delay_us(5);
-        gpio_write(I2C1_SCL_PORT, I2C1_SCL_PIN, true);
-        system_delay_us(5);
-
-        // Check if SDA is released
-        if (gpio_read(I2C1_SDA_PORT, I2C1_SDA_PIN)) {
-            break;
-        }
-    }
-
-    // Generate STOP condition (SDA low->high while SCL high)
-    gpio_set_mode(I2C1_SDA_PORT, I2C1_SDA_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_otype(I2C1_SDA_PORT, I2C1_SDA_PIN, GPIO_OTYPE_OPENDRAIN);
-    gpio_write(I2C1_SDA_PORT, I2C1_SDA_PIN, false);
-    system_delay_us(5);
-    gpio_write(I2C1_SCL_PORT, I2C1_SCL_PIN, true);
-    system_delay_us(5);
-    gpio_write(I2C1_SDA_PORT, I2C1_SDA_PIN, true);
-    system_delay_us(5);
-
-    // Restore I2C alternate function mode
-    gpio_init_i2c1();
-}
 
 // ----------------------------------------------------------------------------
 // TIM4 GPIO Configuration (Motor PWM)
@@ -386,22 +219,6 @@ void gpio_init_usart1(void) {
     gpio_set_af(USART1_RX_PORT, USART1_RX_PIN, USART1_AF);
 }
 
-void gpio_init_usart2(void) {
-    // Enable GPIO clock
-    system_enable_gpio(USART2_TX_PORT);
-
-    // USART2_TX (PA2) - Alternate function, push-pull
-    gpio_set_mode(USART2_TX_PORT, USART2_TX_PIN, GPIO_MODE_AF);
-    gpio_set_otype(USART2_TX_PORT, USART2_TX_PIN, GPIO_OTYPE_PUSHPULL);
-    gpio_set_speed(USART2_TX_PORT, USART2_TX_PIN, GPIO_SPEED_HIGH);
-    gpio_set_pupd(USART2_TX_PORT, USART2_TX_PIN, GPIO_PUPD_NONE);
-    gpio_set_af(USART2_TX_PORT, USART2_TX_PIN, USART2_AF);
-
-    // USART2_RX (PA3) - Alternate function, pull-up
-    gpio_set_mode(USART2_RX_PORT, USART2_RX_PIN, GPIO_MODE_AF);
-    gpio_set_pupd(USART2_RX_PORT, USART2_RX_PIN, GPIO_PUPD_PULLUP);
-    gpio_set_af(USART2_RX_PORT, USART2_RX_PIN, USART2_AF);
-}
 
 // ----------------------------------------------------------------------------
 // LED GPIO Configuration
@@ -452,9 +269,8 @@ bool gpio_button_read(void) {
 // ----------------------------------------------------------------------------
 
 void gpio_init_all(void) {
-    gpio_init_spi1();       // IMU
-    gpio_init_i2c1();       // Magnetometer, barometer
-    gpio_init_tim4_pwm();   // Motors (channels 3,4 only due to I2C conflict)
+    // Note: Sensor GPIO (SPI2, chip selects) handled by ST BSP drivers
+    gpio_init_tim4_pwm();   // Motors
     gpio_init_usart1();     // Debug serial
     gpio_init_led();        // Status LED
     gpio_init_button();     // User button
