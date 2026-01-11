@@ -63,7 +63,8 @@ PILOT_SRCS = \
 	position_actor.c \
 	angle_actor.c \
 	attitude_actor.c \
-	motor_actor.c
+	motor_actor.c \
+	fusion/complementary_filter.c
 
 # Hive runtime (STM32 platform - no net, no file)
 HIVE_CORE_SRCS = \
@@ -171,7 +172,7 @@ DEPS = $(PILOT_OBJS:.o=.d) $(HIVE_OBJS:.o=.d)
 all: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin size
 
 # Create build directories
-$(BUILD_DIR)/pilot $(BUILD_DIR)/hive:
+$(BUILD_DIR)/pilot $(BUILD_DIR)/pilot/fusion $(BUILD_DIR)/hive:
 	mkdir -p $@
 
 # --- Hive library ---
@@ -194,7 +195,7 @@ $(HIVE_LIB): $(HIVE_OBJS) $(HIVE_ASM_OBJS)
 # --- Pilot application ---
 
 # Compile pilot sources
-$(BUILD_DIR)/pilot/%.o: %.c | $(BUILD_DIR)/pilot
+$(BUILD_DIR)/pilot/%.o: %.c | $(BUILD_DIR)/pilot $(BUILD_DIR)/pilot/fusion
 	@echo "CC (pilot) $<"
 	@$(CC) $(CFLAGS) $(PILOT_INCLUDES) -c $< -o $@
 

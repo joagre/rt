@@ -13,7 +13,6 @@
 #include "lis2mdl.h"
 #include "lps22hd.h"
 #include "motors.h"
-#include "attitude.h"
 
 #include <stdarg.h>
 #include <stdbool.h>
@@ -33,19 +32,11 @@ static bool s_initialized = false;
 static bool s_calibrated = false;
 static bool s_armed = false;
 
-// Gyro bias (rad/s)
+// Gyro bias (rad/s) - determined during calibration
 static float s_gyro_bias[3] = {0.0f, 0.0f, 0.0f};
 
-// Current sensor data
-static lsm6dsl_data_t s_accel;
-static lsm6dsl_data_t s_gyro;
-static lis2mdl_data_t s_mag;
-static float s_altitude;
-static float s_pressure;
-
-// Attitude estimate
-static attitude_t s_attitude;
-static attitude_rates_t s_rates;
+// Barometer reference pressure (hPa)
+static float s_ref_pressure = 0.0f;
 
 // ----------------------------------------------------------------------------
 // Platform Interface
@@ -79,11 +70,6 @@ int platform_init(void) {
     if (!motors_init(NULL)) {
         return -1;
     }
-
-    // Initialize attitude filter
-    attitude_config_t att_config = ATTITUDE_CONFIG_DEFAULT;
-    att_config.use_mag = true;
-    attitude_init(&att_config, NULL);
 
     s_initialized = true;
     s_calibrated = false;
@@ -125,43 +111,46 @@ int platform_calibrate(void) {
         system_delay_ms(20);
     }
 
-    float ref_pressure = pressure_sum / BARO_CALIBRATION_SAMPLES;
-    lps22hd_set_reference(ref_pressure);
-
-    // -------------------------------------------------------------------------
-    // Initialize attitude from accelerometer
-    // -------------------------------------------------------------------------
-    lsm6dsl_read_all(&accel, &gyro);
-    float accel_arr[3] = {accel.x, accel.y, accel.z};
-
-    attitude_t initial = {
-        .roll = attitude_accel_roll(accel_arr),
-        .pitch = attitude_accel_pitch(accel_arr),
-        .yaw = 0.0f
-    };
-    attitude_reset(&initial);
+    s_ref_pressure = pressure_sum / BARO_CALIBRATION_SAMPLES;
+    lps22hd_set_reference(s_ref_pressure);
 
     s_calibrated = true;
     return 0;
 }
 
-void platform_read_imu(imu_data_t *imu) {
-    // Get current attitude estimate
-    imu->roll = s_attitude.roll;
-    imu->pitch = s_attitude.pitch;
-    imu->yaw = s_attitude.yaw;
+void platform_read_sensors(sensor_data_t *sensors) {
+    // Read raw IMU data
+    lsm6dsl_data_t accel, gyro;
+    lsm6dsl_read_all(&accel, &gyro);
 
-    // Gyro rates (bias-corrected)
-    imu->gyro_x = s_rates.roll_rate;
-    imu->gyro_y = s_rates.pitch_rate;
-    imu->gyro_z = s_rates.yaw_rate;
+    // Accelerometer (m/s², body frame)
+    sensors->accel[0] = accel.x;
+    sensors->accel[1] = accel.y;
+    sensors->accel[2] = accel.z;
 
-    // Position - not available without external tracking
-    imu->x = 0.0f;
-    imu->y = 0.0f;
+    // Gyroscope (rad/s, body frame) - bias corrected
+    sensors->gyro[0] = gyro.x - s_gyro_bias[0];
+    sensors->gyro[1] = gyro.y - s_gyro_bias[1];
+    sensors->gyro[2] = gyro.z - s_gyro_bias[2];
 
-    // Altitude from barometer
-    imu->altitude = s_altitude;
+    // Magnetometer (read at every call, sensor rate handled internally)
+    lis2mdl_data_t mag;
+    lis2mdl_read(&mag);
+    sensors->mag[0] = mag.x;
+    sensors->mag[1] = mag.y;
+    sensors->mag[2] = mag.z;
+    sensors->mag_valid = true;
+
+    // Barometer
+    sensors->pressure_hpa = lps22hd_read_pressure();
+    sensors->baro_temp_c = lps22hd_read_temp();
+    sensors->baro_valid = true;
+
+    // No GPS on this platform
+    sensors->gps_x = 0.0f;
+    sensors->gps_y = 0.0f;
+    sensors->gps_z = 0.0f;
+    sensors->gps_valid = false;
 }
 
 void platform_write_motors(const motor_cmd_t *cmd) {
@@ -219,51 +208,6 @@ void platform_debug_printf(const char *fmt, ...) {
     // For now, just use the simple version
     usart1_printf("%s", fmt);  // Simplified - full implementation would need vprintf
     va_end(args);
-}
-
-void platform_update(void) {
-    // This should be called at 400Hz to update sensor fusion
-
-    // Read IMU
-    lsm6dsl_read_all(&s_accel, &s_gyro);
-
-    // Apply gyro bias correction
-    float gyro[3] = {
-        s_gyro.x - s_gyro_bias[0],
-        s_gyro.y - s_gyro_bias[1],
-        s_gyro.z - s_gyro_bias[2]
-    };
-
-    float accel[3] = {s_accel.x, s_accel.y, s_accel.z};
-
-    // Update attitude filter (dt = 2.5ms for 400Hz)
-    attitude_update(accel, gyro, 0.0025f);
-
-    // Get current attitude and rates
-    attitude_get(&s_attitude);
-    attitude_get_rates(&s_rates);
-
-    // Store corrected rates
-    s_rates.roll_rate = gyro[0];
-    s_rates.pitch_rate = gyro[1];
-    s_rates.yaw_rate = gyro[2];
-
-    // Read barometer at lower rate (handled by caller or counter)
-    static int baro_counter = 0;
-    if (++baro_counter >= 8) {  // 400/8 = 50Hz
-        baro_counter = 0;
-        s_pressure = lps22hd_read_pressure();
-        s_altitude = lps22hd_altitude(s_pressure);
-    }
-
-    // Read magnetometer at lower rate
-    static int mag_counter = 0;
-    if (++mag_counter >= 8) {  // 50Hz
-        mag_counter = 0;
-        lis2mdl_read(&s_mag);
-        float mag[3] = {s_mag.x, s_mag.y, s_mag.z};
-        attitude_update_mag(mag);
-    }
 }
 
 void platform_emergency_stop(void) {

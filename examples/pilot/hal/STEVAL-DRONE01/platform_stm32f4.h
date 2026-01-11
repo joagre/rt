@@ -20,12 +20,12 @@
 // Returns 0 on success, -1 on error.
 int platform_init(void);
 
-// Read IMU data from sensors.
-// Populates roll, pitch, yaw from attitude filter.
-// Populates gyro_x/y/z from LSM6DSL.
-// Populates altitude from LPS22HD barometer.
-// Note: x, y position not available without external tracking (set to 0).
-void platform_read_imu(imu_data_t *imu);
+// Read raw sensor data from sensors.
+// Populates accel/gyro from LSM6DSL (gyro is bias-corrected).
+// Populates mag from LIS2MDL.
+// Populates pressure from LPS22HD barometer.
+// Note: GPS not available on this platform.
+void platform_read_sensors(sensor_data_t *sensors);
 
 // Write motor commands to TIM4 PWM.
 // Values in cmd->motor[0..3] are normalized 0.0 to 1.0.
@@ -55,10 +55,6 @@ void platform_delay_us(uint32_t us);
 // Debug output (requires USART1 initialized).
 void platform_debug_init(void);
 void platform_debug_printf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
-
-// Update sensor fusion (call at 400Hz).
-// This must be called regularly to maintain attitude estimate.
-void platform_update(void);
 
 // Emergency stop - immediately stop all motors.
 void platform_emergency_stop(void);

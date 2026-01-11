@@ -3,8 +3,8 @@
 // Demonstrates waypoint navigation for a quadcopter using the hive actor
 // runtime. Eight actors work together in a pipeline:
 //
-//   sensor_actor    - Reads hardware sensors → IMU bus
-//   estimator_actor - Sensor fusion → state bus
+//   sensor_actor    - Reads raw sensors via HAL → sensor bus
+//   estimator_actor - Complementary filter fusion → state bus
 //   altitude_actor  - Altitude PID → thrust command
 //   waypoint_actor  - Waypoint manager → target bus
 //   position_actor  - Position PID → angle setpoints
@@ -14,12 +14,12 @@
 //
 // Data flows through buses:
 //
-//   Sensor → IMU Bus → Estimator → State Bus ─┬→ Altitude → Thrust Bus ──────────┐
-//                                             ├→ Position → Angle SP Bus → Angle │
-//                                             │                             ↓    │
-//                                             └→ Attitude ← Rate SP Bus ←───┘    │
-//                                                   ↓                             │
-//                                             Torque Bus → Motor ← Thrust Bus ←───┘
+//   Sensor → Sensor Bus → Estimator → State Bus ─┬→ Altitude → Thrust Bus ──────────┐
+//                                                ├→ Position → Angle SP Bus → Angle │
+//                                                │                             ↓    │
+//                                                └→ Attitude ← Rate SP Bus ←───┘    │
+//                                                      ↓                             │
+//                                                Torque Bus → Motor ← Thrust Bus ←───┘
 //
 // Hardware abstraction:
 //   All hardware access goes through the HAL (hal/hal.h).
@@ -62,7 +62,7 @@
 // BUSES
 // ============================================================================
 
-static bus_id s_imu_bus;
+static bus_id s_sensor_bus;
 static bus_id s_state_bus;
 static bus_id s_thrust_bus;
 static bus_id s_target_bus;
@@ -88,7 +88,7 @@ int main(void) {
     // Create buses (single entry = latest value only)
     hive_bus_config cfg = HIVE_BUS_CONFIG_DEFAULT;
     cfg.max_entries = 1;
-    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_imu_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_sensor_bus)));
     assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_state_bus)));
     assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_thrust_bus)));
     assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_target_bus)));
@@ -97,8 +97,8 @@ int main(void) {
     assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_torque_bus)));
 
     // Initialize actors with bus connections
-    sensor_actor_init(s_imu_bus);
-    estimator_actor_init(s_imu_bus, s_state_bus);
+    sensor_actor_init(s_sensor_bus);
+    estimator_actor_init(s_sensor_bus, s_state_bus);
     altitude_actor_init(s_state_bus, s_thrust_bus, s_target_bus);
     waypoint_actor_init(s_state_bus, s_target_bus);
     position_actor_init(s_state_bus, s_angle_setpoint_bus, s_target_bus);

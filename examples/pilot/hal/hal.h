@@ -48,10 +48,11 @@ void hal_disarm(void);
 // Sensor Interface
 // ----------------------------------------------------------------------------
 
-// Read IMU data from sensors.
-// Returns data in standard coordinate frame (see conventions above).
-// Handles any platform-specific sensor fusion or coordinate transforms.
-void hal_read_imu(imu_data_t *imu);
+// Read raw sensor data from hardware.
+// Returns raw accel, gyro, and optionally mag/baro/GPS.
+// Sensor fusion is done in the estimator actor using the portable
+// complementary filter (fusion/complementary_filter.c).
+void hal_read_sensors(sensor_data_t *sensors);
 
 // ----------------------------------------------------------------------------
 // Motor Interface
