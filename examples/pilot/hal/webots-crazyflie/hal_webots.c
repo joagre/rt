@@ -9,9 +9,57 @@
 #include <webots/gyro.h>
 #include <webots/inertial_unit.h>
 #include <webots/gps.h>
+#define _USE_MATH_DEFINES
 #include <math.h>
+#include <stdint.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 #define GRAVITY 9.81f
+
+// ----------------------------------------------------------------------------
+// Sensor Noise Simulation
+// ----------------------------------------------------------------------------
+// Realistic noise levels to test the complementary filter.
+// Set to 0.0f to disable noise for a specific sensor.
+
+// Noise levels - set to 0.0f to disable individual sensors
+#define ACCEL_NOISE_STDDEV  0.05f   // m/s² (~0.5% of gravity)
+#define GYRO_NOISE_STDDEV   0.002f  // rad/s (~0.1 deg/s)
+#define GYRO_BIAS_DRIFT     0.0f    // rad/s per step (0 = disabled)
+#define GPS_NOISE_STDDEV    0.0f    // meters (0 = keep disabled - causes instability)
+
+// Xorshift32 PRNG state (deterministic, fast)
+static uint32_t g_rng_state = 12345;
+
+// Accumulated gyro bias (simulates sensor drift)
+static float g_gyro_bias[3] = {0.0f, 0.0f, 0.0f};
+
+// Xorshift32 PRNG - fast, deterministic, good distribution
+static uint32_t xorshift32(void) {
+    uint32_t x = g_rng_state;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    g_rng_state = x;
+    return x;
+}
+
+// Uniform random float in [0, 1)
+static float randf_uniform(void) {
+    return (float)(xorshift32() & 0x7FFFFF) / (float)0x800000;
+}
+
+// Gaussian random using Box-Muller transform
+static float randf_gaussian(void) {
+    float u1 = randf_uniform();
+    float u2 = randf_uniform();
+    // Avoid log(0)
+    if (u1 < 1e-10f) u1 = 1e-10f;
+    return sqrtf(-2.0f * logf(u1)) * cosf(2.0f * (float)M_PI * u2);
+}
 
 // ----------------------------------------------------------------------------
 // Hardware handles
@@ -92,18 +140,31 @@ void hal_read_sensors(sensor_data_t *sensors) {
 
     // Synthesize accelerometer from gravity + known attitude
     // (Webots Crazyflie PROTO has no accelerometer device)
-    // This gives "perfect" accelerometer data that will pass through
-    // the complementary filter unchanged.
     float roll = (float)rpy[0];
     float pitch = (float)rpy[1];
     sensors->accel[0] = -GRAVITY * sinf(pitch);
     sensors->accel[1] = GRAVITY * sinf(roll) * cosf(pitch);
     sensors->accel[2] = GRAVITY * cosf(roll) * cosf(pitch);
 
+    // Add accelerometer noise
+    sensors->accel[0] += ACCEL_NOISE_STDDEV * randf_gaussian();
+    sensors->accel[1] += ACCEL_NOISE_STDDEV * randf_gaussian();
+    sensors->accel[2] += ACCEL_NOISE_STDDEV * randf_gaussian();
+
     // Gyroscope (body frame, rad/s)
     sensors->gyro[0] = (float)gyro[0];
     sensors->gyro[1] = (float)gyro[1];
     sensors->gyro[2] = (float)gyro[2];
+
+    // Add gyro noise and bias drift
+    // Bias drifts slowly over time (random walk)
+    g_gyro_bias[0] += GYRO_BIAS_DRIFT * randf_gaussian();
+    g_gyro_bias[1] += GYRO_BIAS_DRIFT * randf_gaussian();
+    g_gyro_bias[2] += GYRO_BIAS_DRIFT * randf_gaussian();
+
+    sensors->gyro[0] += GYRO_NOISE_STDDEV * randf_gaussian() + g_gyro_bias[0];
+    sensors->gyro[1] += GYRO_NOISE_STDDEV * randf_gaussian() + g_gyro_bias[1];
+    sensors->gyro[2] += GYRO_NOISE_STDDEV * randf_gaussian() + g_gyro_bias[2];
 
     // No magnetometer in Webots Crazyflie PROTO
     sensors->mag[0] = 0.0f;
@@ -116,10 +177,10 @@ void hal_read_sensors(sensor_data_t *sensors) {
     sensors->baro_temp_c = 0.0f;
     sensors->baro_valid = false;
 
-    // GPS (includes altitude)
-    sensors->gps_x = (float)gps[0];
-    sensors->gps_y = (float)gps[1];
-    sensors->gps_z = (float)gps[2];
+    // GPS with noise (includes altitude)
+    sensors->gps_x = (float)gps[0] + GPS_NOISE_STDDEV * randf_gaussian();
+    sensors->gps_y = (float)gps[1] + GPS_NOISE_STDDEV * randf_gaussian();
+    sensors->gps_z = (float)gps[2] + GPS_NOISE_STDDEV * randf_gaussian();
     sensors->gps_valid = true;
 }
 
