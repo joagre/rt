@@ -149,10 +149,10 @@ order to ensure each actor sees fresh data from upstream actors in the same step
 
 | Controller | Kp   | Ki   | Kd    | Purpose |
 |------------|------|------|-------|---------|
-| Altitude   | 0.3  | 0.05 | 0     | Hold 1.0m height (PI + velocity damping) |
-| Position   | 0.2  | -    | 0.1   | Hold XY position (PD, max tilt 0.35 rad) |
+| Altitude   | 0.3  | 0.05 | 0     | Track target altitude (PI + velocity damping) |
+| Position   | 0.2  | -    | 0.1   | Track target XY (PD, max tilt 0.35 rad) |
 | Angle      | 4.0  | 0    | 0     | Level attitude (roll/pitch) |
-| Yaw angle  | 4.0  | 0    | 0     | Heading hold (uses pid_update_angle for wrap-around) |
+| Yaw angle  | 4.0  | 0    | 0     | Track target heading (uses pid_update_angle for wrap-around) |
 | Roll rate  | 0.02 | 0    | 0.001 | Stabilize roll |
 | Pitch rate | 0.02 | 0    | 0.001 | Stabilize pitch |
 | Yaw rate   | 0.02 | 0    | 0.001 | Stabilize yaw |

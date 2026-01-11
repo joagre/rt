@@ -243,9 +243,9 @@ float pid_update(pid_state_t *pid, float setpoint, float measurement, float dt) 
 
 | Controller | Kp   | Ki   | Kd    | Output Max | Purpose |
 |------------|------|------|-------|------------|---------|
-| Altitude   | 0.3  | 0.05 | 0     | 0.15       | Hold 1.0m height (PI) |
-| Position   | 0.2  | -    | 0.1   | 0.35 rad   | Hold XY position (PD) |
-| Yaw angle  | 4.0  | 0    | 0     | 3.0 rad/s  | Hold heading (P) |
+| Altitude   | 0.3  | 0.05 | 0     | 0.15       | Track target altitude (PI) |
+| Position   | 0.2  | -    | 0.1   | 0.35 rad   | Track target XY (PD) |
+| Yaw angle  | 4.0  | 0    | 0     | 3.0 rad/s  | Track target heading (P) |
 | Roll angle | 4.0  | 0    | 0     | 3.0 rad/s  | Level attitude |
 | Pitch angle| 4.0  | 0    | 0     | 3.0 rad/s  | Level attitude |
 | Roll rate  | 0.02 | 0    | 0.001 | 0.1        | Stabilize roll |
