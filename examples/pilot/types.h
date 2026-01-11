@@ -5,6 +5,48 @@
 #ifndef PILOT_TYPES_H
 #define PILOT_TYPES_H
 
+#include <stdbool.h>
+
+// ----------------------------------------------------------------------------
+// Raw Sensor Data (from HAL to sensor actor)
+// ----------------------------------------------------------------------------
+
+// Raw sensor readings from HAL.
+// HAL populates this from hardware sensors (IMU, GPS, barometer).
+// Fusion is done in estimator_actor using the complementary filter.
+typedef struct sensor_data {
+    // Accelerometer (m/s², body frame)
+    float accel[3];         // [x, y, z]
+
+    // Gyroscope (rad/s, body frame)
+    float gyro[3];          // [x, y, z]
+
+    // Magnetometer (µT, body frame) - optional
+    float mag[3];           // [x, y, z]
+    bool mag_valid;         // false if not available
+
+    // Barometer - optional
+    float pressure_hpa;     // hectopascals
+    float baro_temp_c;      // temperature in Celsius
+    bool baro_valid;        // false if not available
+
+    // GPS - optional
+    float gps_x, gps_y, gps_z;  // meters, world frame
+    bool gps_valid;             // false if not available
+} sensor_data_t;
+
+#define SENSOR_DATA_ZERO { \
+    .accel = {0.0f, 0.0f, 0.0f}, \
+    .gyro = {0.0f, 0.0f, 0.0f}, \
+    .mag = {0.0f, 0.0f, 0.0f}, .mag_valid = false, \
+    .pressure_hpa = 0.0f, .baro_temp_c = 0.0f, .baro_valid = false, \
+    .gps_x = 0.0f, .gps_y = 0.0f, .gps_z = 0.0f, .gps_valid = false \
+}
+
+// ----------------------------------------------------------------------------
+// Legacy IMU Data (being phased out)
+// ----------------------------------------------------------------------------
+
 // Raw sensor data from IMU and GPS.
 // On real hardware, this would be populated from SPI/I2C sensor drivers.
 // For Webots, inertial_unit provides fused attitude (not truly raw).

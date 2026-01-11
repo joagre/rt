@@ -1,13 +1,11 @@
-// Estimator actor - Sensor fusion and state estimation
+// Estimator actor - Attitude estimation and state computation
 //
-// Subscribes to IMU bus (raw sensor data), applies sensor fusion,
-// publishes state estimates to state bus.
+// Subscribes to sensor bus, runs complementary filter for attitude,
+// computes velocities, publishes state estimate.
 //
-// For Webots: Mostly pass-through since inertial_unit provides clean attitude.
-//             Computes vertical velocity by differentiating GPS altitude.
-//
-// For real hardware: Would implement complementary filter or Kalman filter
-//                    to fuse accelerometer and gyroscope for attitude.
+// Uses portable complementary filter from fusion/complementary_filter.c
+// that fuses accelerometer and gyroscope for roll/pitch, and optionally
+// magnetometer for yaw.
 
 #ifndef ESTIMATOR_ACTOR_H
 #define ESTIMATOR_ACTOR_H
@@ -16,7 +14,7 @@
 
 // Initialize the estimator actor module with bus IDs.
 // Must be called before spawning the actor.
-void estimator_actor_init(bus_id imu_bus, bus_id state_bus);
+void estimator_actor_init(bus_id sensor_bus, bus_id state_bus);
 
 // Actor entry point - spawn this with hive_spawn()
 void estimator_actor(void *arg);

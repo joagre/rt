@@ -22,6 +22,7 @@ BUILD_DIR = build
 # ------------------------------------------------------------------------------
 
 # HAL driver sources (no main.c - pilot.c is the entry point)
+# Note: Sensor fusion (attitude estimation) moved to portable fusion/ library
 SRCS = \
 	syscalls.c \
 	system_config.c \
@@ -31,7 +32,6 @@ SRCS = \
 	tim4.c \
 	usart1.c \
 	platform_stm32f4.c \
-	attitude.c \
 	lsm6dsl.c \
 	lis2mdl.c \
 	lps22hd.c \

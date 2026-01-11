@@ -1,57 +1,92 @@
-// Estimator actor - Sensor fusion and state estimation
+// Estimator actor - Attitude estimation and state computation
 //
-// Subscribes to IMU bus, publishes fused state estimate.
-// Current implementation: pass-through with velocity differentiation.
-// Production: would add complementary filter or Kalman filter.
+// Subscribes to sensor bus, runs complementary filter for attitude,
+// computes velocities, publishes state estimate.
 
 #include "estimator_actor.h"
 #include "types.h"
 #include "config.h"
+#include "fusion/complementary_filter.h"
 #include "hive_runtime.h"
 #include "hive_bus.h"
 #include <assert.h>
 #include <stdbool.h>
+#include <math.h>
 
-static bus_id s_imu_bus;
+// Barometric altitude conversion (simplified, sea-level reference)
+// altitude = 44330 * (1 - (pressure/1013.25)^0.19029)
+static float pressure_to_altitude(float pressure_hpa, float ref_pressure) {
+    if (pressure_hpa <= 0.0f || ref_pressure <= 0.0f) {
+        return 0.0f;
+    }
+    // Use reference pressure for relative altitude
+    return 44330.0f * (1.0f - powf(pressure_hpa / ref_pressure, 0.19029f));
+}
+
+static bus_id s_sensor_bus;
 static bus_id s_state_bus;
 
-void estimator_actor_init(bus_id imu_bus, bus_id state_bus) {
-    s_imu_bus = imu_bus;
+void estimator_actor_init(bus_id sensor_bus, bus_id state_bus) {
+    s_sensor_bus = sensor_bus;
     s_state_bus = state_bus;
 }
 
 void estimator_actor(void *arg) {
     (void)arg;
 
-    BUS_SUBSCRIBE(s_imu_bus);
+    BUS_SUBSCRIBE(s_sensor_bus);
+
+    // Initialize complementary filter
+    cf_state_t filter;
+    cf_config_t config = CF_CONFIG_DEFAULT;
+    config.use_mag = true;  // Use magnetometer for yaw if available
+    cf_init(&filter, &config);
 
     // State for velocity estimation (differentiate GPS position)
     float prev_x = 0.0f, prev_y = 0.0f, prev_altitude = 0.0f;
     float x_velocity = 0.0f, y_velocity = 0.0f, vertical_velocity = 0.0f;
     bool first_sample = true;
 
-    while (1) {
-        imu_data_t imu;
+    // Barometer reference (set from first reading)
+    float baro_ref_pressure = 0.0f;
 
-        // Block until IMU data available
-        BUS_READ_WAIT(s_imu_bus, &imu);
+    while (1) {
+        sensor_data_t sensors;
+
+        // Block until sensor data available
+        BUS_READ_WAIT(s_sensor_bus, &sensors);
+
+        // Run complementary filter for attitude estimation
+        cf_update(&filter, &sensors, TIME_STEP_S);
 
         state_estimate_t state;
 
-        // Pass through attitude (assumes pre-fused IMU data)
-        state.roll = imu.roll;
-        state.pitch = imu.pitch;
-        state.yaw = imu.yaw;
+        // Get attitude from filter
+        cf_get_attitude(&filter, &state.roll, &state.pitch, &state.yaw);
 
-        // Map gyro axes to roll/pitch/yaw rates (body frame → semantic names)
-        state.roll_rate = imu.gyro_x;
-        state.pitch_rate = imu.gyro_y;
-        state.yaw_rate = imu.gyro_z;
+        // Angular rates directly from gyro
+        state.roll_rate = sensors.gyro[0];
+        state.pitch_rate = sensors.gyro[1];
+        state.yaw_rate = sensors.gyro[2];
 
-        // Pass through position
-        state.x = imu.x;
-        state.y = imu.y;
-        state.altitude = imu.altitude;
+        // Position from GPS (if available)
+        if (sensors.gps_valid) {
+            state.x = sensors.gps_x;
+            state.y = sensors.gps_y;
+            state.altitude = sensors.gps_z;
+        } else {
+            state.x = 0.0f;
+            state.y = 0.0f;
+            // Altitude from barometer
+            if (sensors.baro_valid) {
+                if (baro_ref_pressure == 0.0f) {
+                    baro_ref_pressure = sensors.pressure_hpa;
+                }
+                state.altitude = pressure_to_altitude(sensors.pressure_hpa, baro_ref_pressure);
+            } else {
+                state.altitude = 0.0f;
+            }
+        }
 
         // Compute velocities by differentiating position
         if (first_sample) {
@@ -60,16 +95,16 @@ void estimator_actor(void *arg) {
             vertical_velocity = 0.0f;
             first_sample = false;
         } else {
-            float raw_vx = (imu.x - prev_x) / TIME_STEP_S;
-            float raw_vy = (imu.y - prev_y) / TIME_STEP_S;
-            float raw_vvel = (imu.altitude - prev_altitude) / TIME_STEP_S;
+            float raw_vx = (state.x - prev_x) / TIME_STEP_S;
+            float raw_vy = (state.y - prev_y) / TIME_STEP_S;
+            float raw_vvel = (state.altitude - prev_altitude) / TIME_STEP_S;
             x_velocity = LPF(x_velocity, raw_vx, HVEL_FILTER_ALPHA);
             y_velocity = LPF(y_velocity, raw_vy, HVEL_FILTER_ALPHA);
             vertical_velocity = LPF(vertical_velocity, raw_vvel, VVEL_FILTER_ALPHA);
         }
-        prev_x = imu.x;
-        prev_y = imu.y;
-        prev_altitude = imu.altitude;
+        prev_x = state.x;
+        prev_y = state.y;
+        prev_altitude = state.altitude;
         state.x_velocity = x_velocity;
         state.y_velocity = y_velocity;
         state.vertical_velocity = vertical_velocity;

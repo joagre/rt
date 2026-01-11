@@ -1,6 +1,7 @@
 // Webots Crazyflie HAL Implementation
 //
 // Hardware abstraction for Webots simulation of Bitcraze Crazyflie.
+// Provides raw sensor data for the portable complementary filter.
 
 #include "../hal.h"
 #include <webots/robot.h>
@@ -8,6 +9,9 @@
 #include <webots/gyro.h>
 #include <webots/inertial_unit.h>
 #include <webots/gps.h>
+#include <math.h>
+
+#define GRAVITY 9.81f
 
 // ----------------------------------------------------------------------------
 // Hardware handles
@@ -81,25 +85,42 @@ void hal_disarm(void) {
 // Sensor Interface
 // ----------------------------------------------------------------------------
 
-void hal_read_imu(imu_data_t *imu) {
+void hal_read_sensors(sensor_data_t *sensors) {
     const double *gyro = wb_gyro_get_values(g_gyro);
     const double *rpy = wb_inertial_unit_get_roll_pitch_yaw(g_imu);
-    const double *pos = wb_gps_get_values(g_gps);
+    const double *gps = wb_gps_get_values(g_gps);
 
-    // Attitude (Webots inertial_unit provides fused Euler angles)
-    imu->roll = (float)rpy[0];
-    imu->pitch = (float)rpy[1];
-    imu->yaw = (float)rpy[2];
+    // Synthesize accelerometer from gravity + known attitude
+    // (Webots Crazyflie PROTO has no accelerometer device)
+    // This gives "perfect" accelerometer data that will pass through
+    // the complementary filter unchanged.
+    float roll = (float)rpy[0];
+    float pitch = (float)rpy[1];
+    sensors->accel[0] = -GRAVITY * sinf(pitch);
+    sensors->accel[1] = GRAVITY * sinf(roll) * cosf(pitch);
+    sensors->accel[2] = GRAVITY * cosf(roll) * cosf(pitch);
 
-    // Angular rates (body frame)
-    imu->gyro_x = (float)gyro[0];
-    imu->gyro_y = (float)gyro[1];
-    imu->gyro_z = (float)gyro[2];
+    // Gyroscope (body frame, rad/s)
+    sensors->gyro[0] = (float)gyro[0];
+    sensors->gyro[1] = (float)gyro[1];
+    sensors->gyro[2] = (float)gyro[2];
 
-    // Position (world frame)
-    imu->x = (float)pos[0];
-    imu->y = (float)pos[1];
-    imu->altitude = (float)pos[2];
+    // No magnetometer in Webots Crazyflie PROTO
+    sensors->mag[0] = 0.0f;
+    sensors->mag[1] = 0.0f;
+    sensors->mag[2] = 0.0f;
+    sensors->mag_valid = false;
+
+    // No barometer - use GPS altitude
+    sensors->pressure_hpa = 0.0f;
+    sensors->baro_temp_c = 0.0f;
+    sensors->baro_valid = false;
+
+    // GPS (includes altitude)
+    sensors->gps_x = (float)gps[0];
+    sensors->gps_y = (float)gps[1];
+    sensors->gps_z = (float)gps[2];
+    sensors->gps_valid = true;
 }
 
 // ----------------------------------------------------------------------------

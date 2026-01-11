@@ -34,12 +34,9 @@ void hal_disarm(void) {
 // Sensor Interface
 // ----------------------------------------------------------------------------
 
-void hal_read_imu(imu_data_t *imu) {
-    // Update sensor fusion before reading
-    platform_update();
-
-    // Read fused data
-    platform_read_imu(imu);
+void hal_read_sensors(sensor_data_t *sensors) {
+    // Read raw sensor data from platform
+    platform_read_sensors(sensors);
 }
 
 // ----------------------------------------------------------------------------
