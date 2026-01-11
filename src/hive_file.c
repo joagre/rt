@@ -31,7 +31,7 @@ void hive_file_cleanup(void) {
 
 hive_status hive_file_open(const char *path, int flags, int mode, int *fd_out) {
     if (!path || !fd_out) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL path or fd_out pointer");
     }
 
     HIVE_REQUIRE_INIT(g_file.initialized, "File I/O");
@@ -57,7 +57,7 @@ hive_status hive_file_close(int fd) {
 
 hive_status hive_file_read(int fd, void *buf, size_t len, size_t *actual) {
     if (!buf || !actual) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL buffer or actual pointer");
     }
 
     HIVE_REQUIRE_INIT(g_file.initialized, "File I/O");
@@ -73,7 +73,7 @@ hive_status hive_file_read(int fd, void *buf, size_t len, size_t *actual) {
 
 hive_status hive_file_pread(int fd, void *buf, size_t len, size_t offset, size_t *actual) {
     if (!buf || !actual) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL buffer or actual pointer");
     }
 
     HIVE_REQUIRE_INIT(g_file.initialized, "File I/O");
@@ -89,7 +89,7 @@ hive_status hive_file_pread(int fd, void *buf, size_t len, size_t offset, size_t
 
 hive_status hive_file_write(int fd, const void *buf, size_t len, size_t *actual) {
     if (!buf || !actual) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL buffer or actual pointer");
     }
 
     HIVE_REQUIRE_INIT(g_file.initialized, "File I/O");
@@ -105,7 +105,7 @@ hive_status hive_file_write(int fd, const void *buf, size_t len, size_t *actual)
 
 hive_status hive_file_pwrite(int fd, const void *buf, size_t len, size_t offset, size_t *actual) {
     if (!buf || !actual) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL buffer or actual pointer");
     }
 
     HIVE_REQUIRE_INIT(g_file.initialized, "File I/O");

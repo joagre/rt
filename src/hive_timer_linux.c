@@ -128,7 +128,7 @@ void hive_timer_cleanup(void) {
 // Create a timer (one-shot or periodic)
 static hive_status create_timer(uint32_t interval_us, bool periodic, timer_id *out) {
     if (!out) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL out pointer");
     }
 
     HIVE_REQUIRE_INIT(g_timer.initialized, "Timer");

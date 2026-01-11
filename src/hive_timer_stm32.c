@@ -145,7 +145,7 @@ void hive_timer_cleanup(void) {
 // Create a timer (one-shot or periodic)
 static hive_status create_timer(uint32_t interval_us, bool periodic, timer_id *out) {
     if (!out) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL out pointer");
     }
 
     HIVE_REQUIRE_INIT(g_timer.initialized, "Timer");
@@ -223,7 +223,7 @@ void hive_timer_advance_time(uint64_t delta_us) {
     }
 
     // Convert microseconds to ticks
-    uint32_t ticks = (uint32_t)((delta_us + HIVE_TIMER_TICK_US - 1) / HIVE_TIMER_TICK_US);
+    uint32_t ticks = us_to_ticks((uint32_t)delta_us);
 
     // Advance tick count
     g_timer.tick_count += ticks;

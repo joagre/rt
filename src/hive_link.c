@@ -124,39 +124,20 @@ hive_status hive_link_remove(actor_id target_id) {
     actor *current = hive_actor_current();
 
     // Remove from current actor's link list
-    link_entry **prev = &current->links;
-    link_entry *entry = current->links;
-    bool found_current = false;
-
-    while (entry) {
-        if (entry->target == target_id) {
-            *prev = entry->next;
-            hive_pool_free(&g_link_pool_mgr, entry);
-            found_current = true;
-            break;
-        }
-        prev = &entry->next;
-        entry = entry->next;
-    }
-
-    if (!found_current) {
+    link_entry *found = NULL;
+    SLIST_FIND_REMOVE(current->links, entry->target == target_id, found);
+    if (!found) {
         return HIVE_ERROR(HIVE_ERR_INVALID, "Not linked to target");
     }
+    hive_pool_free(&g_link_pool_mgr, found);
 
-    // Remove from target actor's link list
+    // Remove reciprocal link from target actor's list
     actor *target = hive_actor_get(target_id);
     if (target && target->state != ACTOR_STATE_DEAD) {
-        prev = &target->links;
-        entry = target->links;
-
-        while (entry) {
-            if (entry->target == current->id) {
-                *prev = entry->next;
-                hive_pool_free(&g_link_pool_mgr, entry);
-                break;
-            }
-            prev = &entry->next;
-            entry = entry->next;
+        link_entry *reciprocal = NULL;
+        SLIST_FIND_REMOVE(target->links, entry->target == current->id, reciprocal);
+        if (reciprocal) {
+            hive_pool_free(&g_link_pool_mgr, reciprocal);
         }
     }
 
@@ -209,18 +190,12 @@ hive_status hive_monitor_cancel(uint32_t monitor_id) {
     actor *current = hive_actor_current();
 
     // Find and remove monitor entry
-    monitor_entry **prev = &current->monitors;
-    monitor_entry *entry = current->monitors;
-
-    while (entry) {
-        if (entry->ref == monitor_id) {
-            *prev = entry->next;
-            HIVE_LOG_DEBUG("Actor %u cancelled monitor (id=%u)", current->id, monitor_id);
-            hive_pool_free(&g_monitor_pool_mgr, entry);
-            return HIVE_SUCCESS;
-        }
-        prev = &entry->next;
-        entry = entry->next;
+    monitor_entry *found = NULL;
+    SLIST_FIND_REMOVE(current->monitors, entry->ref == monitor_id, found);
+    if (found) {
+        HIVE_LOG_DEBUG("Actor %u cancelled monitor (id=%u)", current->id, monitor_id);
+        hive_pool_free(&g_monitor_pool_mgr, found);
+        return HIVE_SUCCESS;
     }
 
     return HIVE_ERROR(HIVE_ERR_INVALID, "Monitor reference not found");
@@ -238,7 +213,7 @@ bool hive_is_exit_msg(const hive_message *msg) {
 // Decode exit message
 hive_status hive_decode_exit(const hive_message *msg, hive_exit_msg *out) {
     if (!msg || !out) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL msg or out pointer");
     }
 
     if (!hive_is_exit_msg(msg)) {
@@ -328,16 +303,10 @@ void hive_link_cleanup_actor(actor_id dying_actor_id) {
             }
 
             // Remove reciprocal link from linked actor's list
-            link_entry **prev = &linked_actor->links;
-            link_entry *reciprocal = linked_actor->links;
-            while (reciprocal) {
-                if (reciprocal->target == dying_actor_id) {
-                    *prev = reciprocal->next;
-                    hive_pool_free(&g_link_pool_mgr, reciprocal);
-                    break;
-                }
-                prev = &reciprocal->next;
-                reciprocal = reciprocal->next;
+            link_entry *reciprocal = NULL;
+            SLIST_FIND_REMOVE(linked_actor->links, entry->target == dying_actor_id, reciprocal);
+            if (reciprocal) {
+                hive_pool_free(&g_link_pool_mgr, reciprocal);
             }
         }
 

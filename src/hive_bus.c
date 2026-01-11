@@ -206,7 +206,7 @@ void hive_bus_cleanup_actor(actor_id id) {
 // Create bus
 hive_status hive_bus_create(const hive_bus_config *cfg, bus_id *out) {
     if (!cfg || !out) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL config or out pointer");
     }
 
     if (!g_bus_table.initialized) {
@@ -420,7 +420,7 @@ hive_status hive_bus_unsubscribe(bus_id id) {
 // Read entry (non-blocking)
 hive_status hive_bus_read(bus_id id, void *buf, size_t max_len, size_t *actual_len) {
     if (!buf || !actual_len) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL buffer or actual_len pointer");
     }
 
     bus_t *bus = find_bus(id);
@@ -506,7 +506,7 @@ hive_status hive_bus_read(bus_id id, void *buf, size_t max_len, size_t *actual_l
 hive_status hive_bus_read_wait(bus_id id, void *buf, size_t max_len,
                            size_t *actual_len, int32_t timeout_ms) {
     if (!buf || !actual_len) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL buffer or actual_len pointer");
     }
 
     bus_t *bus = find_bus(id);
