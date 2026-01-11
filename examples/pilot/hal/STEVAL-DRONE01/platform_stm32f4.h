@@ -23,7 +23,7 @@ int platform_init(void);
 // Read raw sensor data from sensors.
 // Populates accel/gyro from LSM6DSL (gyro is bias-corrected).
 // Populates mag from LIS2MDL.
-// Populates pressure from LPS22HD barometer.
+// Populates pressure from LPS22HB barometer.
 // Note: GPS not available on this platform.
 void platform_read_sensors(sensor_data_t *sensors);
 

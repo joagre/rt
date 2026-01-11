@@ -1,7 +1,8 @@
 // System configuration for STM32F401 (STEVAL-DRONE01)
 //
-// Clock configuration for 84MHz operation.
-// Peripheral initialization stubs.
+// Peripheral clock enables and timing helpers.
+// Note: Clock initialization is handled by ST HAL in the main pilot build.
+//       This file provides system_enable_*() functions and timing if needed.
 
 #ifndef SYSTEM_CONFIG_H
 #define SYSTEM_CONFIG_H
@@ -12,35 +13,28 @@
 // ----------------------------------------------------------------------------
 // Clock Configuration
 // ----------------------------------------------------------------------------
+//
+// The STEVAL-FCU001V1 runs at 16MHz HSI by default.
+// ST HAL can configure PLL for 84MHz if needed.
+// These values are used for baud rate calculations and timing.
 
-// External crystal frequency (HSE)
-// STEVAL-DRONE01 uses 16MHz crystal
-#define HSE_VALUE           16000000U
-
-// Target system clock frequency
-// NOTE: Currently running on HSI (no PLL) at 16MHz for testing
-#define SYSCLK_FREQ         16000000U   // 16 MHz (HSI mode)
+// System clock frequency (HSI default, HAL may reconfigure)
+#define SYSCLK_FREQ         16000000U   // 16 MHz
 
 // AHB clock (HCLK) - feeds Cortex-M4 core, memory, DMA
-#define HCLK_FREQ           16000000U   // 16 MHz (HSI mode)
+#define HCLK_FREQ           16000000U   // 16 MHz
 
 // APB1 clock (PCLK1) - low-speed peripherals (I2C, UART2, TIM2-5)
-#define PCLK1_FREQ          16000000U   // 16 MHz (HSI mode)
+#define PCLK1_FREQ          16000000U   // 16 MHz
 
 // APB2 clock (PCLK2) - high-speed peripherals (SPI1, UART1, TIM1)
-#define PCLK2_FREQ          16000000U   // 16 MHz (HSI mode)
+#define PCLK2_FREQ          16000000U   // 16 MHz
 
-// PLL configuration for 84MHz from 16MHz HSE:
-//   SYSCLK = HSE * PLLN / PLLM / PLLP
-//   84MHz = 16MHz * 336 / 16 / 4 = 84MHz
-//
-//   USB requires 48MHz:
-//   USB_CLK = HSE * PLLN / PLLM / PLLQ
-//   48MHz = 16MHz * 336 / 16 / 7 = 48MHz
+// PLL configuration (for standalone use if not using ST HAL)
 #define PLL_M               16
 #define PLL_N               336
-#define PLL_P               4       // PLLP = 4 (register value = 1)
-#define PLL_Q               7       // For USB 48MHz
+#define PLL_P               4
+#define PLL_Q               7
 
 // ----------------------------------------------------------------------------
 // Timing

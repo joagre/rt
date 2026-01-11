@@ -2,6 +2,9 @@
 //
 // Simple polling-based UART for debug output.
 // TX: PA9, RX: PA10
+//
+// Note: Not included in main pilot build (libhal.a).
+// Add usart1.c to Makefile SRCS if debug output is needed.
 
 #ifndef USART1_H
 #define USART1_H
