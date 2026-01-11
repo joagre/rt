@@ -62,7 +62,7 @@ On both platforms, the actor runtime is **single-threaded** with an event loop a
 │              ┌──────────▼──────────┐                     │
 │              │     Scheduler       │                     │
 │              │  (event loop with   │                     │
-│              │   epoll/select)     │                     │
+│              │       epoll)        │                     │
 │              └──────────┬──────────┘                     │
 │                         │                                │
 │       ┌─────────────────┼─────────────────┐              │
@@ -327,7 +327,7 @@ The runtime uses **zero synchronization primitives** in the core event loop:
 
 - **No mutexes** - single thread, no contention
 - **No C11 atomics** - single writer/reader per data structure
-- **No condition variables** - event loop uses epoll/select for waiting
+- **No condition variables** - event loop uses epoll for waiting
 - **No locks** - mailboxes, actor state, bus state accessed only by scheduler thread
 
 **STM32 exception:** ISR-to-scheduler communication uses `volatile bool` flags with interrupt disable/enable for safe flag clearing. This is a synchronization protocol but not C11 atomics or lock-based synchronization.
@@ -749,7 +749,7 @@ typedef enum {
 ### Tag System
 
 ```c
-#define HIVE_TAG_NONE        0            // No tag (for simple ASYNC messages)
+#define HIVE_TAG_NONE        0            // No tag (for simple NOTIFY messages)
 #define HIVE_TAG_ANY         0x0FFFFFFF   // Wildcard for selective receive filtering
 
 // Note: HIVE_TAG_GEN_BIT and HIVE_TAG_VALUE_MASK are internal implementation
