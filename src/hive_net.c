@@ -235,7 +235,7 @@ static hive_status try_or_epoll(int fd, uint32_t epoll_events, int operation,
 
 hive_status hive_net_listen(uint16_t port, int *fd_out) {
     if (!fd_out) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL fd_out pointer");
     }
 
     HIVE_REQUIRE_INIT(g_net.initialized, "Network I/O");
@@ -272,7 +272,7 @@ hive_status hive_net_listen(uint16_t port, int *fd_out) {
 
 hive_status hive_net_accept(int listen_fd, int *conn_fd_out, int32_t timeout_ms) {
     if (!conn_fd_out) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL conn_fd_out pointer");
     }
 
     HIVE_REQUIRE_INIT(g_net.initialized, "Network I/O");
@@ -310,7 +310,7 @@ hive_status hive_net_accept(int listen_fd, int *conn_fd_out, int32_t timeout_ms)
 
 hive_status hive_net_connect(const char *ip, uint16_t port, int *fd_out, int32_t timeout_ms) {
     if (!ip || !fd_out) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL ip or fd_out pointer");
     }
 
     HIVE_REQUIRE_INIT(g_net.initialized, "Network I/O");
@@ -368,7 +368,7 @@ hive_status hive_net_close(int fd) {
 
 hive_status hive_net_recv(int fd, void *buf, size_t len, size_t *received, int32_t timeout_ms) {
     if (!buf || !received) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL buffer or received pointer");
     }
 
     HIVE_REQUIRE_INIT(g_net.initialized, "Network I/O");
@@ -402,7 +402,7 @@ hive_status hive_net_recv(int fd, void *buf, size_t len, size_t *received, int32
 
 hive_status hive_net_send(int fd, const void *buf, size_t len, size_t *sent, int32_t timeout_ms) {
     if (!buf || !sent) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Invalid arguments");
+        return HIVE_ERROR(HIVE_ERR_INVALID, "NULL buffer or sent pointer");
     }
 
     HIVE_REQUIRE_INIT(g_net.initialized, "Network I/O");
