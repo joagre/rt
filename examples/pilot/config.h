@@ -93,7 +93,7 @@
 // ----------------------------------------------------------------------------
 
 // Altitude control (target altitude comes from waypoint actor)
-#define BASE_THRUST      0.553f  // Hover thrust
+// HAL_BASE_THRUST is defined in platform-specific hal_config.h
 
 // Altitude PID gains (position error → thrust correction)
 #define ALT_PID_KP   0.3f

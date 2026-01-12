@@ -64,6 +64,16 @@ void hal_read_sensors(sensor_data_t *sensors);
 void hal_write_torque(const torque_cmd_t *cmd);
 
 // ----------------------------------------------------------------------------
+// Platform-Specific Constants
+// ----------------------------------------------------------------------------
+
+// HAL_BASE_THRUST is defined in each platform's hal_config.h:
+//   hal/STEVAL-DRONE01/hal_config.h
+//   hal/webots-crazyflie/hal_config.h
+// The appropriate file is included via the platform-specific Makefile.
+// This keeps platform constants in platform directories (no #ifdefs here).
+
+// ----------------------------------------------------------------------------
 // Simulated Time Interface (only for simulation platforms)
 // ----------------------------------------------------------------------------
 

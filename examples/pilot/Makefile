@@ -24,7 +24,7 @@ HIVE_LIB = $(HIVE_ROOT)/build
 # Compiler settings
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -O2 -g
-CFLAGS += -I$(WEBOTS_INCLUDE) -I$(HIVE_INCLUDE) -I.
+CFLAGS += -I$(WEBOTS_INCLUDE) -I$(HIVE_INCLUDE) -I. -Ihal/webots-crazyflie
 CFLAGS += -MMD -MP
 
 # Webots simulation uses simulated time

@@ -9,6 +9,7 @@
 #include "altitude_actor.h"
 #include "types.h"
 #include "config.h"
+#include "hal_config.h"
 #include "pid.h"
 #include "hive_runtime.h"
 #include "hive_bus.h"
@@ -56,7 +57,7 @@ void altitude_actor(void *arg) {
         // Velocity damping: reduce thrust when moving up, increase when moving down
         float vel_damping = -VVEL_DAMPING_GAIN * state.vertical_velocity;
 
-        float thrust = CLAMPF(BASE_THRUST + pos_correction + vel_damping, 0.0f, 1.0f);
+        float thrust = CLAMPF(HAL_BASE_THRUST + pos_correction + vel_damping, 0.0f, 1.0f);
 
         thrust_cmd_t cmd = {.thrust = thrust};
         hive_bus_publish(s_thrust_bus, &cmd, sizeof(cmd));
