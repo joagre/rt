@@ -7,6 +7,16 @@
 #define HAL_CONFIG_H
 
 // ----------------------------------------------------------------------------
+// First Flight Test Mode
+// ----------------------------------------------------------------------------
+// Enable for initial hardware testing. Waypoint actor will:
+//   1. Hover at 0.4m for 3 seconds
+//   2. Land (descend to 0m)
+//   3. Stay landed (no loop)
+// Comment out for normal waypoint navigation.
+#define HAL_FIRST_FLIGHT_TEST
+
+// ----------------------------------------------------------------------------
 // Thrust
 // ----------------------------------------------------------------------------
 

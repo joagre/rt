@@ -36,7 +36,7 @@ void altitude_actor(void *arg) {
     pid_init_full(&alt_pid, HAL_ALT_PID_KP, HAL_ALT_PID_KI, HAL_ALT_PID_KD, HAL_ALT_PID_IMAX, HAL_ALT_PID_OMAX);
 
     // Target altitude (updated from waypoint actor)
-    float target_altitude = 1.0f;  // Default to 1m
+    float target_altitude = 0.0f;  // Default to ground (safe)
     int count = 0;
 
     while (1) {

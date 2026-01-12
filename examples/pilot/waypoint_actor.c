@@ -9,6 +9,7 @@
 #include "hal_config.h"
 #include "hive_runtime.h"
 #include "hive_bus.h"
+#include "hive_timer.h"
 #include "hive_log.h"
 #include <assert.h>
 #include <stdbool.h>
@@ -20,7 +21,15 @@ typedef struct {
     float yaw;      // Heading (radians)
 } waypoint_t;
 
-#ifdef PLATFORM_STEVAL_DRONE01
+#ifdef HAL_FIRST_FLIGHT_TEST
+// First flight test: hover briefly at low altitude, then land
+// Safe profile for initial hardware validation
+static const waypoint_t waypoints[] = {
+    {0.0f, 0.0f, 0.4f, 0.0f},   // Hover at 0.4m
+    {0.0f, 0.0f, 0.0f, 0.0f},   // Land
+};
+#define FIRST_FLIGHT_HOVER_TICKS  750  // 3 seconds at 250Hz
+#elif defined(PLATFORM_STEVAL_DRONE01)
 // No GPS: altitude-only waypoints (x,y fixed at origin)
 // Position actor sees zero error, so drone hovers in place.
 // Conservative test profile: low altitudes, slow transitions
@@ -51,10 +60,22 @@ void waypoint_actor_init(bus_id state_bus, bus_id position_target_bus) {
     s_position_target_bus = position_target_bus;
 }
 
+// Startup delay in seconds
+#define STARTUP_DELAY_SEC  30
+
 void waypoint_actor(void *arg) {
     (void)arg;
 
     BUS_SUBSCRIBE(s_state_bus);
+
+    // Startup delay - wait before beginning flight
+    // Altitude controller defaults to 0m, so motors stay idle
+    HIVE_LOG_INFO("[WPT] Startup delay: %d seconds", STARTUP_DELAY_SEC);
+    for (int sec = STARTUP_DELAY_SEC; sec > 0; sec--) {
+        HIVE_LOG_INFO("[WPT] Starting in %d...", sec);
+        hive_sleep(1000000);  // 1 second in microseconds
+    }
+    HIVE_LOG_INFO("[WPT] Starting flight sequence");
 
     int waypoint_index = 0;
     int hover_ticks = 0;
@@ -103,15 +124,34 @@ void waypoint_actor(void *arg) {
 
             if (arrived) {
                 hover_ticks++;
-                // Advance after hovering at waypoint (loop back to start)
-                if (hover_ticks >= HAL_WAYPOINT_HOVER_TICKS) {
+#ifdef HAL_FIRST_FLIGHT_TEST
+                // First flight test: advance once, then stay landed
+                int hover_threshold = FIRST_FLIGHT_HOVER_TICKS;
+                bool at_final_waypoint = (waypoint_index == NUM_WAYPOINTS - 1);
+#else
+                // Normal operation: loop through waypoints
+                int hover_threshold = HAL_WAYPOINT_HOVER_TICKS;
+                bool at_final_waypoint = false;  // Always advance (will wrap)
+#endif
+                if (hover_ticks >= hover_threshold && !at_final_waypoint) {
                     waypoint_index = (waypoint_index + 1) % NUM_WAYPOINTS;
                     hover_ticks = 0;
+#ifdef HAL_FIRST_FLIGHT_TEST
+                    if (waypoint_index == NUM_WAYPOINTS - 1) {
+                        HIVE_LOG_INFO("[WPT] LANDED - test complete");
+                    } else {
+                        HIVE_LOG_INFO("[WPT] Advancing to waypoint %d: (%.1f, %.1f, %.1f)",
+                                      waypoint_index, waypoints[waypoint_index].x,
+                                      waypoints[waypoint_index].y,
+                                      waypoints[waypoint_index].z);
+                    }
+#else
                     HIVE_LOG_INFO("[WPT] Advancing to waypoint %d: (%.1f, %.1f, %.1f) yaw=%.0f deg",
                                   waypoint_index, waypoints[waypoint_index].x,
                                   waypoints[waypoint_index].y,
                                   waypoints[waypoint_index].z,
                                   waypoints[waypoint_index].yaw * RAD_TO_DEG);
+#endif
                 }
             } else {
                 hover_ticks = 0;  // Reset if we leave tolerance
