@@ -42,7 +42,7 @@ static const waypoint_t waypoints[] = {
 };
 #define WAYPOINT_HOVER_TIME_US  (5 * 1000000)  // 5 seconds
 #else
-// GPS available: full 3D waypoint navigation
+// Simulation: full 3D waypoint navigation demo
 static const waypoint_t waypoints[] = {
     {0.0f, 0.0f, 1.0f, 0.0f},              // Start: origin, 1.0m
     {1.0f, 0.0f, 1.2f, 0.0f},              // Waypoint 1: +X, rise to 1.2m
