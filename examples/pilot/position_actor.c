@@ -35,7 +35,7 @@ void position_actor(void *arg) {
     BUS_SUBSCRIBE(s_position_target_bus);
 
     // Current target (updated from waypoint actor)
-    position_target_t target = POSITION_TARGET_ZERO;
+    position_target_t target = POSITION_TARGET_DEFAULT;
     int count = 0;
 
     while (1) {

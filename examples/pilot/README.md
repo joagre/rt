@@ -4,7 +4,7 @@ Quadcopter waypoint navigation using hive actor runtime.
 
 Supports two platforms:
 - **Webots simulation** (default) - Crazyflie quadcopter in Webots simulator
-- **STM32 hardware** - STEVAL-DRONE01 mini drone kit (55 KB flash, 29 KB RAM)
+- **STM32 hardware** - STEVAL-DRONE01 mini drone kit (55 KB flash, 49 KB RAM)
 
 ## What it does
 
@@ -22,6 +22,8 @@ Demonstrates waypoint navigation with a quadcopter using 8 actors:
 **Webots:** Flies a square pattern with altitude changes at each waypoint (full 3D navigation with GPS).
 
 **STEVAL-DRONE01:** Hovers and changes altitude only (no GPS, so XY position fixed at origin).
+Safety features enabled: 60-second startup delay, 5-second flight window, emergency cutoff
+on excessive tilt (>45°), excessive altitude (>2m), or landing.
 
 ## Prerequisites
 
@@ -48,7 +50,7 @@ Then open `worlds/hover_test.wbt` in Webots and start the simulation.
 ### STM32 Hardware (STEVAL-DRONE01)
 
 ```bash
-make -f Makefile.STEVAL-DRONE01        # Build firmware (58 KB flash, 29 KB RAM)
+make -f Makefile.STEVAL-DRONE01        # Build firmware (55 KB flash, 49 KB RAM)
 make -f Makefile.STEVAL-DRONE01 flash  # Flash to device via ST-Link
 make -f Makefile.STEVAL-DRONE01 clean  # Clean build artifacts
 ```
@@ -149,7 +151,9 @@ order to ensure each actor sees fresh data from upstream actors in the same step
 
 ## Control System
 
-### PID Controllers (tuned in config.h)
+### PID Controllers (tuned in hal_config.h per platform)
+
+Webots gains shown below; STEVAL-DRONE01 uses higher altitude gains (Kp=0.5, Ki=0.1).
 
 | Controller | Kp   | Ki   | Kd    | Purpose |
 |------------|------|------|-------|---------|

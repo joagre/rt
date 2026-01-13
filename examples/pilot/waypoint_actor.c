@@ -64,8 +64,7 @@ void waypoint_actor(void *arg) {
 
     BUS_SUBSCRIBE(s_state_bus);
 
-    // TODO: Add startup delay once hive_sleep() is debugged
-    HIVE_LOG_INFO("[WPT] Starting flight sequence (no delay)");
+    HIVE_LOG_INFO("[WPT] Starting flight sequence");
 
     int waypoint_index = 0;
     int hover_ticks = 0;

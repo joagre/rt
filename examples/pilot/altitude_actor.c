@@ -53,10 +53,11 @@ void altitude_actor(void *arg) {
         }
 
         // Emergency cutoff conditions
-        bool attitude_emergency = (fabsf(state.roll) > 0.78f) ||   // >45 degrees
-                                  (fabsf(state.pitch) > 0.78f);    // >45 degrees
-        bool altitude_emergency = (state.altitude > 2.0f);          // too high
-        bool landed = (target_altitude < 0.05f) && (state.altitude < 0.15f);
+        bool attitude_emergency = (fabsf(state.roll) > EMERGENCY_TILT_LIMIT) ||
+                                  (fabsf(state.pitch) > EMERGENCY_TILT_LIMIT);
+        bool altitude_emergency = (state.altitude > EMERGENCY_ALTITUDE_MAX);
+        bool landed = (target_altitude < LANDED_TARGET_THRESHOLD) &&
+                      (state.altitude < LANDED_ACTUAL_THRESHOLD);
 
         bool cutoff = attitude_emergency || altitude_emergency || landed;
 

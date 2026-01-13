@@ -25,7 +25,7 @@ void sensor_actor(void *arg) {
 
     timer_id timer;
     hive_status status = hive_timer_every(SENSOR_INTERVAL_US, &timer);
-    (void)status;
+    assert(HIVE_SUCCEEDED(status));
 
     while (1) {
         hive_message msg;

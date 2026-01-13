@@ -90,6 +90,15 @@
 #define HVEL_FILTER_ALPHA  0.8f
 
 // ----------------------------------------------------------------------------
+// Safety thresholds (altitude_actor emergency detection)
+// ----------------------------------------------------------------------------
+
+#define EMERGENCY_TILT_LIMIT     0.78f   // ~45 degrees in radians
+#define EMERGENCY_ALTITUDE_MAX   2.0f    // meters - cut motors if exceeded
+#define LANDED_TARGET_THRESHOLD  0.05f   // meters - target altitude indicating land command
+#define LANDED_ACTUAL_THRESHOLD  0.15f   // meters - actual altitude confirming landed
+
+// ----------------------------------------------------------------------------
 // Waypoint navigation (mission parameters)
 // ----------------------------------------------------------------------------
 

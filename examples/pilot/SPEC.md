@@ -40,11 +40,20 @@ The pilot serves dual purposes: a real-world stress test that exposes runtime we
 
 ### Why max_entries=1?
 
-All buses use `max_entries=1` (single entry, latest value only):
+All buses use `max_entries=1` (single entry, latest value only). Bus configuration
+is platform-specific, defined as `HAL_BUS_CONFIG` in each platform's `hal_config.h`:
 
 ```c
-hive_bus_config cfg = HIVE_BUS_CONFIG_DEFAULT;
-cfg.max_entries = 1;  // Latest value only - correct for real-time control
+// In hal_config.h (platform-specific)
+#define HAL_BUS_CONFIG { \
+    .max_subscribers = 6, \
+    .max_entries = 1, \      // Latest value only
+    .max_entry_size = 128 \
+}
+
+// In pilot.c
+#define PILOT_BUS_CONFIG HAL_BUS_CONFIG
+hive_bus_config cfg = PILOT_BUS_CONFIG;
 ```
 
 - Control loops need current state, not history
@@ -75,9 +84,20 @@ A production flight controller would need error handling and failsafes that this
 | GPS signal lost | Position control uses stale data | Hold last position, descend slowly, or return-to-home |
 | IMU data invalid | Garbage in, garbage out | Sanity checks, sensor voting, reject outliers |
 
-### Missing Safety Features
+### Implemented Safety Features (STM32 only)
 
-- **Motor watchdog**: motor_actor has a watchdog but only cuts thrust - no graceful landing
+The following safety features are enabled for real hardware (not in Webots simulation):
+
+| Feature | Location | Behavior |
+|---------|----------|----------|
+| Attitude cutoff | altitude_actor.c | Motors off if roll or pitch >45° |
+| Altitude cutoff | altitude_actor.c | Motors off if altitude >2m |
+| Landed detection | altitude_actor.c | Motors off when target <5cm and altitude <15cm |
+| Startup delay | motor_actor.c | Motors stay off for 60 seconds after boot |
+| Hard cutoff | motor_actor.c | Motors forced off 5 seconds after flight window |
+
+### Missing Safety Features (Production Requirements)
+
 - **Geofence**: No boundary limits - drone can fly away indefinitely
 - **Battery monitoring**: No low-voltage warning or auto-land
 - **Arming/disarming**: No safety switch to prevent accidental motor start
@@ -240,6 +260,8 @@ float pid_update(pid_state_t *pid, float setpoint, float measurement, float dt) 
 
 ### Tuned PID Gains
 
+PID gains are platform-specific (defined in `hal_config.h`). Values below are for Webots:
+
 | Controller | Kp   | Ki   | Kd    | Output Max | Purpose |
 |------------|------|------|-------|------------|---------|
 | Altitude   | 0.3  | 0.05 | 0     | 0.15       | Track target altitude (PI) |
@@ -249,6 +271,8 @@ float pid_update(pid_state_t *pid, float setpoint, float measurement, float dt) 
 | Roll rate  | 0.02 | 0    | 0.001 | 0.1        | Stabilize roll |
 | Pitch rate | 0.02 | 0    | 0.001 | 0.1        | Stabilize pitch |
 | Yaw rate   | 0.02 | 0    | 0.001 | 0.15       | Stabilize yaw |
+
+STEVAL-DRONE01 uses higher altitude gains (Kp=0.5, Ki=0.1) for faster response.
 
 **Altitude velocity damping:** Kv = 0.15
 **Position control:** PD controller with velocity damping, max tilt 0.35 rad (~20°)
@@ -260,7 +284,7 @@ differentiating position error. This provides smoother response with less noise:
 thrust = BASE_THRUST + PI_correction - Kv * vertical_velocity
 ```
 
-Base thrust: 0.553 (approximate hover thrust for Webots Crazyflie model)
+Base thrust: 0.553 (Webots) / 0.29 (STEVAL-DRONE01)
 
 ### Mixer (Platform-Specific, X Configuration)
 
@@ -499,7 +523,7 @@ examples/pilot/
 ### Console Output
 
 ```
-8 actors spawned, waypoint navigation active
+8 actors spawned
 [ALT] tgt=1.00 alt=0.01 vvel=0.00 thrust=0.750
 [ALT] tgt=1.00 alt=0.05 vvel=0.12 thrust=0.720
 ...
@@ -721,16 +745,16 @@ Actual memory usage from `make -f Makefile.STEVAL-DRONE01`:
 
 | Section | Size | Description |
 |---------|------|-------------|
-| Flash | 58 KB | Code + constants (11% of 512 KB) |
-| RAM | 29 KB | Static data (30% of 96 KB) |
+| Flash | 55 KB | Code + constants (11% of 512 KB) |
+| RAM | 49 KB | Static data (51% of 96 KB) |
 
 **RAM breakdown:**
 
 | Component | Size | Notes |
 |-----------|------|-------|
-| Stack arena | 20 KB | 8 actors × 2 KB + headroom |
+| Stack arena | 36 KB | 8 actors × 4 KB + headroom |
 | Actor table | 1.2 KB | 10 slots |
-| Message pool | 1 KB | 16 entries × 64 bytes |
+| Message pool | 4 KB | 32 entries × 128 bytes |
 | Bus structures | 2 KB | 8 buses + subscribers + entries |
 | Other pools | 1 KB | Mailbox, timers, links, monitors |
 | Main stack | 3 KB | Heap + stack for main() |
@@ -741,16 +765,16 @@ Actual memory usage from `make -f Makefile.STEVAL-DRONE01`:
 |----------|------|------------|---------|
 | Actors | 8 | 10 | 64 |
 | Buses | 7 | 8 | 32 |
-| Stack per actor | 2 KB | 2 KB | 64 KB |
-| Stack arena | 16 KB | 20 KB | 1 MB |
+| Stack per actor | 4 KB | 4 KB | 64 KB |
+| Stack arena | 32 KB | 36 KB | 1 MB |
 | Mailbox entries | 1 | 16 | 256 |
-| Message data | 7 | 16 | 256 |
+| Message data | 7 | 32 | 256 |
 | Timer entries | 1 | 4 | 64 |
 | Link entries | 0 | 8 | 128 |
 | Monitor entries | 0 | 8 | 128 |
-| Max message size | 48 | 64 | 256 |
+| Max message size | 68 | 128 | 256 |
 
-**Stack safety margin:** 4x (worst-case ~500 bytes per actor, 2048 available)
+**Stack safety margin:** 2x (worst-case ~1.5 KB per actor with FPU, 4096 available)
 
 Fits comfortably on STM32F401 (512 KB flash, 96 KB RAM) with room to spare.
 

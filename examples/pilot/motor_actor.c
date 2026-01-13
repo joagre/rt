@@ -4,6 +4,7 @@
 // The HAL handles mixing (converting torque to individual motor commands).
 
 #include "motor_actor.h"
+#include "types.h"
 #include "config.h"
 #include "hal/hal.h"
 #include "hive_runtime.h"
@@ -42,17 +43,11 @@ void motor_actor(void *arg) {
 
         // Startup delay: keep motors off for 60 seconds
         if (tick_count <= MOTOR_STARTUP_DELAY_TICKS) {
-            torque.thrust = 0.0f;
-            torque.roll = 0.0f;
-            torque.pitch = 0.0f;
-            torque.yaw = 0.0f;
+            torque = (torque_cmd_t)TORQUE_CMD_ZERO;
         }
         // Hard cutoff 5 seconds after startup delay
         else if (tick_count > MOTOR_STARTUP_DELAY_TICKS + MOTOR_CUTOFF_TICKS) {
-            torque.thrust = 0.0f;
-            torque.roll = 0.0f;
-            torque.pitch = 0.0f;
-            torque.yaw = 0.0f;
+            torque = (torque_cmd_t)TORQUE_CMD_ZERO;
         }
 #endif
 

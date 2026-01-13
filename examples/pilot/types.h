@@ -108,7 +108,8 @@ typedef struct {
     float yaw;    // Target heading (radians)
 } position_target_t;
 
-#define POSITION_TARGET_ZERO {.x = 0.0f, .y = 0.0f, .z = 1.0f, .yaw = 0.0f}
+#define POSITION_TARGET_ZERO    {.x = 0.0f, .y = 0.0f, .z = 0.0f, .yaw = 0.0f}
+#define POSITION_TARGET_DEFAULT {.x = 0.0f, .y = 0.0f, .z = 1.0f, .yaw = 0.0f}
 
 // Torque command from rate actor to motor actor.
 // HAL applies mixer to convert to motor commands.
