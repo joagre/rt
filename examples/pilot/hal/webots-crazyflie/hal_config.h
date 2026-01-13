@@ -62,12 +62,13 @@
 // ----------------------------------------------------------------------------
 // Bus Configuration
 // ----------------------------------------------------------------------------
+// Same limits as STM32 to ensure simulation matches production constraints
 #define HAL_BUS_CONFIG { \
-    .max_subscribers = 32, \
+    .max_subscribers = 6, \
     .consume_after_reads = 0, \
     .max_age_ms = 0, \
     .max_entries = 1, \
-    .max_entry_size = 256 \
+    .max_entry_size = 128 \
 }
 
 #endif // HAL_CONFIG_H

@@ -1,6 +1,7 @@
 # Makefile for pilot example (Webots controller)
 #
 # This builds a Webots controller that uses the hive actor runtime.
+# Builds its own libhive.a with tight memory limits matching STM32 production.
 #
 # Usage:
 #   make              - Build the controller
@@ -9,7 +10,6 @@
 #
 # Requirements:
 #   - WEBOTS_HOME environment variable set
-#   - hive runtime library built (../../build/libhive.a)
 
 # Webots paths
 WEBOTS_HOME ?= /usr/local/webots
@@ -19,11 +19,15 @@ WEBOTS_LIB = $(WEBOTS_HOME)/lib/controller
 # Hive runtime paths (relative to this directory)
 HIVE_ROOT = ../..
 HIVE_INCLUDE = $(HIVE_ROOT)/include
-HIVE_LIB = $(HIVE_ROOT)/build
+HIVE_SRC_DIR = $(HIVE_ROOT)/src
+
+# Build directory
+BUILD_DIR = build
 
 # Compiler settings
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -O2 -g
+CFLAGS += -D_POSIX_C_SOURCE=200809L
 CFLAGS += -I$(WEBOTS_INCLUDE) -I$(HIVE_INCLUDE) -I. -Ihal/webots-crazyflie
 CFLAGS += -MMD -MP
 
@@ -34,36 +38,101 @@ CFLAGS += -DSIMULATED_TIME
 # Use HIVE_LOG_LEVEL_INFO to hide telemetry, HIVE_LOG_LEVEL_NONE to disable all
 CFLAGS += -DHIVE_LOG_LEVEL=HIVE_LOG_LEVEL_DEBUG
 
-LDFLAGS = -L$(WEBOTS_LIB) -L$(HIVE_LIB)
-LDLIBS = -lController -lhive -lm
+# Hive memory configuration (match STM32 limits for realistic simulation)
+CFLAGS += -DHIVE_MAX_ACTORS=10
+CFLAGS += -DHIVE_MAX_BUSES=8
+CFLAGS += -DHIVE_MAILBOX_ENTRY_POOL_SIZE=16
+CFLAGS += -DHIVE_MESSAGE_DATA_POOL_SIZE=32
+CFLAGS += -DHIVE_LINK_ENTRY_POOL_SIZE=8
+CFLAGS += -DHIVE_MONITOR_ENTRY_POOL_SIZE=8
+CFLAGS += -DHIVE_TIMER_ENTRY_POOL_SIZE=4
+CFLAGS += -DHIVE_MAX_BUS_SUBSCRIBERS=6
+CFLAGS += -DHIVE_MAX_BUS_ENTRIES=4
+CFLAGS += -DHIVE_MAX_MESSAGE_SIZE=128
+CFLAGS += -DHIVE_DEFAULT_STACK_SIZE=4096
+CFLAGS += '-DHIVE_STACK_ARENA_SIZE=(36*1024)'
+
+LDFLAGS = -L$(WEBOTS_LIB) -L$(BUILD_DIR)
+LDLIBS = -lController -lm
 
 # Target
 TARGET = pilot
 
-# Source files: actors + main + HAL + fusion
+# ------------------------------------------------------------------------------
+# Source Files
+# ------------------------------------------------------------------------------
+
+# Pilot application code
 ACTOR_SRCS = sensor_actor.c estimator_actor.c altitude_actor.c waypoint_actor.c \
              position_actor.c attitude_actor.c rate_actor.c motor_actor.c
 HAL_SRCS = hal/webots-crazyflie/hal_webots.c
 FUSION_SRCS = fusion/complementary_filter.c
-SRCS = pilot.c pid.c $(ACTOR_SRCS) $(HAL_SRCS) $(FUSION_SRCS)
-OBJS = $(SRCS:.c=.o)
-DEPS = $(SRCS:.c=.d)
+PILOT_SRCS = pilot.c pid.c $(ACTOR_SRCS) $(HAL_SRCS) $(FUSION_SRCS)
+
+# Hive runtime (Linux x86-64 platform)
+HIVE_CORE_SRCS = hive_actor.c hive_bus.c hive_context.c hive_ipc.c \
+                 hive_link.c hive_log.c hive_pool.c hive_runtime.c \
+                 hive_scheduler_linux.c hive_timer_linux.c hive_net.c hive_file.c
+HIVE_ASM = hive_context_x86_64.S
+
+# ------------------------------------------------------------------------------
+# Object Files
+# ------------------------------------------------------------------------------
+
+PILOT_OBJS = $(PILOT_SRCS:.c=.o)
+PILOT_DEPS = $(PILOT_SRCS:.c=.d)
+
+HIVE_OBJS = $(HIVE_CORE_SRCS:%.c=$(BUILD_DIR)/hive/%.o)
+HIVE_ASM_OBJS = $(HIVE_ASM:%.S=$(BUILD_DIR)/hive/%.o)
+HIVE_DEPS = $(HIVE_OBJS:.o=.d)
+
+LOCAL_HIVE_LIB = $(BUILD_DIR)/libhive.a
 
 # Webots controller directory (for install)
 CONTROLLER_DIR = controllers/pilot
 
-.PHONY: all clean install check-webots check-hive
+# ------------------------------------------------------------------------------
+# Build Rules
+# ------------------------------------------------------------------------------
 
-all: check-webots check-hive $(TARGET)
+.PHONY: all clean install check-webots clean-emacs
 
-$(TARGET): $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+all: check-webots $(TARGET)
+
+# --- Hive library ---
+
+$(BUILD_DIR)/hive:
+	mkdir -p $@
+
+$(BUILD_DIR)/hive/%.o: $(HIVE_SRC_DIR)/%.c | $(BUILD_DIR)/hive
+	@echo "CC (hive) $<"
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/hive/%.o: $(HIVE_SRC_DIR)/%.S | $(BUILD_DIR)/hive
+	@echo "AS (hive) $<"
+	@$(CC) -g -c $< -o $@
+
+$(LOCAL_HIVE_LIB): $(HIVE_OBJS) $(HIVE_ASM_OBJS)
+	@echo "AR $@"
+	@ar rcs $@ $^
+
+# --- Pilot application ---
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+$(TARGET): $(PILOT_OBJS) $(LOCAL_HIVE_LIB)
+	$(CC) $(LDFLAGS) -o $@ $(PILOT_OBJS) $(LOCAL_HIVE_LIB) $(LDLIBS)
+
+# ------------------------------------------------------------------------------
+# Utility Targets
+# ------------------------------------------------------------------------------
+
 clean:
-	rm -f $(TARGET) $(OBJS) $(DEPS)
+	rm -rf $(BUILD_DIR) $(TARGET) $(PILOT_OBJS) $(PILOT_DEPS)
+
+clean-emacs:
+	find . -name '*~' -delete
 
 install: $(TARGET)
 	@mkdir -p $(CONTROLLER_DIR)
@@ -76,12 +145,6 @@ check-webots:
 		exit 1; \
 	fi
 
-check-hive:
-	@if [ ! -f "$(HIVE_LIB)/libhive.a" ]; then \
-		echo "Error: hive library not found at $(HIVE_LIB)/libhive.a"; \
-		echo "Run 'make' in $(HIVE_ROOT) first"; \
-		exit 1; \
-	fi
-
 # Auto-generated dependencies
--include $(DEPS)
+-include $(PILOT_DEPS)
+-include $(HIVE_DEPS)
