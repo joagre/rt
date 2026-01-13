@@ -28,9 +28,11 @@
 //     - hal/STEVAL-DRONE01/   - STM32 real hardware
 
 #include "hal/hal.h"
+#include "hal_config.h"
 #include "hive_runtime.h"
 #include "hive_bus.h"
 #include "hive_log.h"
+#include "hive_actor.h"  // For actor state debug
 
 #include "types.h"
 #include "config.h"
@@ -57,6 +59,9 @@
     hive_status _status = hive_spawn_ex(func, NULL, &_cfg, &id); \
     assert(HIVE_SUCCEEDED(_status)); \
 } while (0)
+
+// Bus configuration from HAL (platform-specific)
+#define PILOT_BUS_CONFIG HAL_BUS_CONFIG
 
 // ============================================================================
 // BUSES
@@ -86,8 +91,7 @@ int main(void) {
     hive_init();
 
     // Create buses (single entry = latest value only)
-    hive_bus_config cfg = HIVE_BUS_CONFIG_DEFAULT;
-    cfg.max_entries = 1;
+    hive_bus_config cfg = PILOT_BUS_CONFIG;
     assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_sensor_bus)));
     assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_state_bus)));
     assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_thrust_bus)));
@@ -106,13 +110,8 @@ int main(void) {
     rate_actor_init(s_state_bus, s_thrust_bus, s_rate_setpoint_bus, s_torque_bus);
     motor_actor_init(s_torque_bus);
 
-    // Spawn actors in data-flow order to minimize latency.
-    // All CRITICAL priority, round-robin within priority follows spawn order.
-    //
-    // Actor IDs are kept for future use (linking, monitoring, IPC). Currently
-    // unused since all communication goes through buses.
+    // Spawn all actors
     actor_id sensor, estimator, altitude, waypoint, position, attitude, rate, motor;
-
     SPAWN_CRITICAL_ACTOR(sensor_actor,    "sensor",    sensor);
     SPAWN_CRITICAL_ACTOR(estimator_actor, "estimator", estimator);
     SPAWN_CRITICAL_ACTOR(altitude_actor,  "altitude",  altitude);
@@ -121,8 +120,10 @@ int main(void) {
     SPAWN_CRITICAL_ACTOR(attitude_actor,  "attitude",  attitude);
     SPAWN_CRITICAL_ACTOR(rate_actor,      "rate",      rate);
     SPAWN_CRITICAL_ACTOR(motor_actor,     "motor",     motor);
+    (void)sensor; (void)estimator; (void)altitude; (void)waypoint;
+    (void)position; (void)attitude; (void)rate; (void)motor;
 
-    HIVE_LOG_INFO("8 actors spawned, waypoint navigation active");
+    HIVE_LOG_INFO("8 actors spawned");
 
     // Main loop - time control differs between real-time and simulation
 #ifdef SIMULATED_TIME

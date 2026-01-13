@@ -4,6 +4,12 @@
 
 #include "system_config.h"
 
+// HAL tick increment (defined in stm32f4xx_hal.c)
+extern void HAL_IncTick(void);
+
+// Hive runtime timer tick (defined in hive_timer_stm32.c)
+extern void hive_timer_tick_isr(void);
+
 // ----------------------------------------------------------------------------
 // STM32F4 Register Definitions
 // ----------------------------------------------------------------------------
@@ -245,6 +251,8 @@ void system_delay_ms(uint32_t ms) {
 // SysTick interrupt handler (called every 1ms)
 void SysTick_Handler(void) {
     s_tick_count++;
+    HAL_IncTick();           // Required for HAL_Delay() to work
+    hive_timer_tick_isr();   // Required for hive_sleep() to work
 }
 
 // ----------------------------------------------------------------------------

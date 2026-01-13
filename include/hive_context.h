@@ -18,8 +18,9 @@ typedef struct {
 } hive_context;
 
 #elif defined(HIVE_PLATFORM_STM32)
-// Context for ARM Cortex-M
+// Context for ARM Cortex-M4F (with FPU)
 // Stores callee-saved registers: r4-r11 and sp (r13)
+// Also stores FPU callee-saved registers: s16-s31
 // Note: lr (r14) is saved on stack by context switch
 typedef struct {
     void *sp;   // Stack pointer (r13)
@@ -31,6 +32,11 @@ typedef struct {
     void *r9;
     void *r10;
     void *r11;
+    // FPU callee-saved registers (Cortex-M4F)
+    float s16, s17, s18, s19;
+    float s20, s21, s22, s23;
+    float s24, s25, s26, s27;
+    float s28, s29, s30, s31;
 } hive_context;
 
 #endif

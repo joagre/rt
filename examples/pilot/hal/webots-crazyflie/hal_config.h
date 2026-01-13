@@ -59,4 +59,15 @@
 // 50 = 200ms - fast for simulation testing
 #define HAL_WAYPOINT_HOVER_TICKS  50
 
+// ----------------------------------------------------------------------------
+// Bus Configuration
+// ----------------------------------------------------------------------------
+#define HAL_BUS_CONFIG { \
+    .max_subscribers = 32, \
+    .consume_after_reads = 0, \
+    .max_age_ms = 0, \
+    .max_entries = 1, \
+    .max_entry_size = 256 \
+}
+
 #endif // HAL_CONFIG_H

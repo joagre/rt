@@ -9,7 +9,6 @@
 #include "hal_config.h"
 #include "hive_runtime.h"
 #include "hive_bus.h"
-#include "hive_timer.h"
 #include "hive_log.h"
 #include <assert.h>
 #include <stdbool.h>
@@ -60,22 +59,13 @@ void waypoint_actor_init(bus_id state_bus, bus_id position_target_bus) {
     s_position_target_bus = position_target_bus;
 }
 
-// Startup delay in seconds
-#define STARTUP_DELAY_SEC  30
-
 void waypoint_actor(void *arg) {
     (void)arg;
 
     BUS_SUBSCRIBE(s_state_bus);
 
-    // Startup delay - wait before beginning flight
-    // Altitude controller defaults to 0m, so motors stay idle
-    HIVE_LOG_INFO("[WPT] Startup delay: %d seconds", STARTUP_DELAY_SEC);
-    for (int sec = STARTUP_DELAY_SEC; sec > 0; sec--) {
-        HIVE_LOG_INFO("[WPT] Starting in %d...", sec);
-        hive_sleep(1000000);  // 1 second in microseconds
-    }
-    HIVE_LOG_INFO("[WPT] Starting flight sequence");
+    // TODO: Add startup delay once hive_sleep() is debugged
+    HIVE_LOG_INFO("[WPT] Starting flight sequence (no delay)");
 
     int waypoint_index = 0;
     int hover_ticks = 0;

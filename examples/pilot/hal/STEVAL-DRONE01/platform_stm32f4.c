@@ -69,6 +69,25 @@ void HAL_MspInit(void) {
 // Platform Interface
 // ----------------------------------------------------------------------------
 
+// Blink LED n times (for init feedback)
+static void init_blink(int n, int on_ms, int off_ms) {
+    for (int i = 0; i < n; i++) {
+        BSP_LED_On(LED1);
+        HAL_Delay(on_ms);
+        BSP_LED_Off(LED1);
+        HAL_Delay(off_ms);
+    }
+    HAL_Delay(300);
+}
+
+// Slow blink forever (error indicator)
+static void error_blink_forever(void) {
+    while (1) {
+        BSP_LED_Toggle(LED1);
+        HAL_Delay(500);
+    }
+}
+
 int platform_init(void) {
     // Set system clock before HAL_Init
     SystemCoreClock = 16000000;  // 16 MHz HSI
@@ -78,65 +97,74 @@ int platform_init(void) {
         return -1;
     }
 
-    // Initialize debug serial early (before sensors)
-    platform_debug_init();
-
-    // Initialize LED for status indication
+    // Initialize LED FIRST for status indication
     BSP_LED_Init(LED1);
     BSP_LED_Off(LED1);
 
+    // 1 blink = starting
+    init_blink(1, 200, 200);
+
+    // Initialize debug serial early (before sensors)
+    platform_debug_init();
+
     // Initialize sensor SPI bus
     if (Sensor_IO_SPI_Init() != COMPONENT_OK) {
-        return -1;
+        init_blink(2, 100, 100);  // 2 fast blinks = SPI failed
+        error_blink_forever();
     }
     Sensor_IO_SPI_CS_Init_All();
 
     // Initialize accelerometer (LSM6DSL)
     if (BSP_ACCELERO_Init(LSM6DSL_X_0, &s_accel_handle) != COMPONENT_OK) {
-        return -1;
+        init_blink(3, 100, 100);  // 3 fast blinks = accel failed
+        error_blink_forever();
     }
     BSP_ACCELERO_Sensor_Enable(s_accel_handle);
 
     // Initialize gyroscope (LSM6DSL - same chip as accelerometer)
     if (BSP_GYRO_Init(LSM6DSL_G_0, &s_gyro_handle) != COMPONENT_OK) {
-        return -1;
+        init_blink(4, 100, 100);  // 4 fast blinks = gyro failed
+        error_blink_forever();
     }
     BSP_GYRO_Sensor_Enable(s_gyro_handle);
 
     // Initialize magnetometer (LIS2MDL)
     if (BSP_MAGNETO_Init(LIS2MDL_M_0, &s_mag_handle) != COMPONENT_OK) {
-        return -1;
+        init_blink(5, 100, 100);  // 5 fast blinks = mag failed
+        error_blink_forever();
     }
     BSP_MAGNETO_Sensor_Enable(s_mag_handle);
 
     // Initialize pressure sensor (LPS22HB)
     if (BSP_PRESSURE_Init(LPS22HB_P_0, &s_press_handle) != COMPONENT_OK) {
-        return -1;
+        init_blink(6, 100, 100);  // 6 fast blinks = pressure failed
+        error_blink_forever();
     }
     BSP_PRESSURE_Sensor_Enable(s_press_handle);
 
     // Initialize temperature sensor (LPS22HB - same chip as pressure)
     if (BSP_TEMPERATURE_Init(LPS22HB_T_0, &s_temp_handle) != COMPONENT_OK) {
-        return -1;
+        init_blink(7, 100, 100);  // 7 fast blinks = temp failed
+        error_blink_forever();
     }
     BSP_TEMPERATURE_Sensor_Enable(s_temp_handle);
 
-    // Initialize motors (TIM4 PWM)
-    if (!motors_init(NULL)) {
-        return -1;
+    // 2 blinks = sensors OK
+    init_blink(2, 200, 200);
+
+    // Initialize motors (TIM4 PWM on PB6-PB9)
+    // Note: Sensors use SPI, so PB6/PB7 are free for TIM4 CH1/CH2
+    if (!motors_init_full(NULL, false)) {  // false = use PB6-PB9, not PD12-PD15
+        init_blink(8, 100, 100);  // 8 fast blinks = motors failed
+        error_blink_forever();
     }
 
     s_initialized = true;
     s_calibrated = false;
     s_armed = false;
 
-    // Blink LED to indicate successful init
-    for (int i = 0; i < 3; i++) {
-        BSP_LED_On(LED1);
-        HAL_Delay(100);
-        BSP_LED_Off(LED1);
-        HAL_Delay(100);
-    }
+    // 3 blinks = all init complete
+    init_blink(3, 200, 200);
 
     return 0;
 }

@@ -115,7 +115,7 @@ void hive_mailbox_add_entry(actor *recipient, mailbox_entry *entry) {
                     matches = false;
                 }
             } else {
-                matches = false;  // Invalid message
+                matches = false;
             }
         }
 
@@ -129,7 +129,7 @@ void hive_mailbox_add_entry(actor *recipient, mailbox_entry *entry) {
                     matches = false;
                 }
             } else {
-                matches = false;  // Invalid message
+                matches = false;
             }
         }
 

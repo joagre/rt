@@ -86,21 +86,21 @@ void hive_context_init(hive_context *ctx, void *stack, size_t stack_size,
 // ARM Cortex-M Implementation
 // =============================================================================
 
-// Wrapper function that calls the actor function and handles return
-static void context_entry(void) {
-    // When we first enter, r4 and r5 contain our function and argument
-    // We need to extract them via inline assembly
-    void (*fn)(void *);
-    void *arg;
+// Forward declaration of the actual actor runner (not static - needed for asm branch)
+void hive_context_entry_run(void (*fn)(void *), void *arg);
 
+// Naked wrapper - no prologue/epilogue, so r4/r5 are preserved from context switch
+__attribute__((naked)) static void context_entry(void) {
+    // r4 = fn, r5 = arg (set by hive_context_init, preserved by context switch)
     __asm__ volatile (
-        "mov %0, r4\n"
-        "mov %1, r5\n"
-        : "=r"(fn), "=r"(arg)
-        :
-        : "r4", "r5"
+        "mov r0, r4\n"          // r0 = fn
+        "mov r1, r5\n"          // r1 = arg
+        "b hive_context_entry_run\n"  // tail call (no return)
     );
+}
 
+// Actual actor runner - called with fn and arg as parameters
+void hive_context_entry_run(void (*fn)(void *), void *arg) {
     fn(arg);
 
     // Actor returned without calling hive_exit() - this is a crash
@@ -119,13 +119,17 @@ void hive_context_init(hive_context *ctx, void *stack, size_t stack_size,
 
     // Store function and argument in callee-saved registers
     // These will be preserved across the context switch
-    ctx->r4 = (void *)fn;
+    // Use memcpy to avoid function pointer to void* conversion warning
+    memcpy(&ctx->r4, &fn, sizeof(fn));
     ctx->r5 = arg;
 
     // Push return address (context_entry) onto stack
-    // The context switch will pop this into PC via ldmia
+    // The context switch will pop this into PC via pop {pc}
+    // IMPORTANT: On Cortex-M, addresses loaded into PC must have LSB=1 for Thumb mode
     stack_top -= sizeof(void *);
-    *(void **)stack_top = (void *)context_entry;
+    uintptr_t entry_addr = (uintptr_t)context_entry;
+    entry_addr |= 1;  // Ensure Thumb bit is set
+    *(uintptr_t *)stack_top = entry_addr;
 
     ctx->sp = (void *)stack_top;
 }

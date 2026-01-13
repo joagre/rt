@@ -29,11 +29,11 @@
 // ----------------------------------------------------------------------------
 
 // Altitude PID gains (position error -> thrust correction)
-#define HAL_ALT_PID_KP    0.3f
-#define HAL_ALT_PID_KI    0.05f
+#define HAL_ALT_PID_KP    0.5f     // Increased for faster response
+#define HAL_ALT_PID_KI    0.1f     // Increased for steady-state error
 #define HAL_ALT_PID_KD    0.0f     // Using velocity feedback instead
-#define HAL_ALT_PID_IMAX  0.2f     // Integral limit
-#define HAL_ALT_PID_OMAX  0.08f    // Conservative for slow, controlled climbs
+#define HAL_ALT_PID_IMAX  0.3f     // Integral limit
+#define HAL_ALT_PID_OMAX  0.4f     // Allow significant climb authority
 
 // Vertical velocity damping (measured velocity -> thrust correction)
 #define HAL_VVEL_DAMPING_GAIN  0.15f
@@ -69,5 +69,17 @@
 // Time to hover at each waypoint before advancing (ticks at 250Hz)
 // 1250 = 5 seconds - conservative for hardware testing
 #define HAL_WAYPOINT_HOVER_TICKS  1250
+
+// ----------------------------------------------------------------------------
+// Bus Configuration
+// ----------------------------------------------------------------------------
+// STM32 has smaller memory limits than simulation
+#define HAL_BUS_CONFIG { \
+    .max_subscribers = 6, \
+    .consume_after_reads = 0, \
+    .max_age_ms = 0, \
+    .max_entries = 1, \
+    .max_entry_size = 128 \
+}
 
 #endif // HAL_CONFIG_H

@@ -117,23 +117,18 @@ void hive_scheduler_run(void) {
         return;
     }
 
-    HIVE_LOG_INFO("Scheduler started");
+    HIVE_LOG_INFO("Scheduler started (num_actors=%zu)", table->num_actors);
 
     while (!g_scheduler.shutdown_requested && table->num_actors > 0) {
-        // Process any pending events (timers)
         dispatch_events();
-
         actor *next = find_next_runnable();
 
         if (next) {
             run_single_actor(next);
         } else {
-            // No runnable actors - wait for interrupt (timer tick)
             wait_for_events();
         }
     }
-
-    HIVE_LOG_INFO("Scheduler stopped");
 }
 
 hive_status hive_scheduler_run_until_blocked(void) {

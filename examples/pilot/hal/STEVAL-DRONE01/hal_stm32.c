@@ -5,6 +5,7 @@
 
 #include "../hal.h"
 #include "platform_stm32f4.h"
+#include "steval_fcu001_v1.h"  // For BSP_LED_Toggle
 
 // ----------------------------------------------------------------------------
 // Platform Lifecycle
@@ -72,4 +73,12 @@ void hal_write_torque(const torque_cmd_t *cmd) {
 
     // Output to hardware
     platform_write_motors(&motors);
+}
+
+// ----------------------------------------------------------------------------
+// Debug
+// ----------------------------------------------------------------------------
+
+void hal_debug_toggle_led(void) {
+    BSP_LED_Toggle(LED1);
 }

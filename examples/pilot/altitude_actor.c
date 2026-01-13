@@ -15,6 +15,7 @@
 #include "hive_bus.h"
 #include "hive_log.h"
 #include <assert.h>
+#include <math.h>
 
 static bus_id s_state_bus;
 static bus_id s_thrust_bus;
@@ -51,13 +52,28 @@ void altitude_actor(void *arg) {
             target_altitude = target.z;
         }
 
-        // Position control (PI)
-        float pos_correction = pid_update(&alt_pid, target_altitude, state.altitude, TIME_STEP_S);
+        // Emergency cutoff conditions
+        bool attitude_emergency = (fabsf(state.roll) > 0.78f) ||   // >45 degrees
+                                  (fabsf(state.pitch) > 0.78f);    // >45 degrees
+        bool altitude_emergency = (state.altitude > 2.0f);          // too high
+        bool landed = (target_altitude < 0.05f) && (state.altitude < 0.15f);
 
-        // Velocity damping: reduce thrust when moving up, increase when moving down
-        float vel_damping = -HAL_VVEL_DAMPING_GAIN * state.vertical_velocity;
+        bool cutoff = attitude_emergency || altitude_emergency || landed;
 
-        float thrust = CLAMPF(HAL_BASE_THRUST + pos_correction + vel_damping, 0.0f, 1.0f);
+        float thrust;
+        if (cutoff) {
+            // Cut motors: emergency or landed
+            thrust = 0.0f;
+            pid_reset(&alt_pid);  // Reset integrator for next takeoff
+        } else {
+            // Position control (PI)
+            float pos_correction = pid_update(&alt_pid, target_altitude, state.altitude, TIME_STEP_S);
+
+            // Velocity damping: reduce thrust when moving up, increase when moving down
+            float vel_damping = -HAL_VVEL_DAMPING_GAIN * state.vertical_velocity;
+
+            thrust = CLAMPF(HAL_BASE_THRUST + pos_correction + vel_damping, 0.0f, 1.0f);
+        }
 
         thrust_cmd_t cmd = {.thrust = thrust};
         hive_bus_publish(s_thrust_bus, &cmd, sizeof(cmd));

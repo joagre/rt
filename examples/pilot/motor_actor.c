@@ -16,16 +16,45 @@ void motor_actor_init(bus_id torque_bus) {
     s_torque_bus = torque_bus;
 }
 
+// Real hardware only: startup delay and hard cutoff for first flight testing
+#ifndef SIMULATED_TIME
+#define MOTOR_STARTUP_DELAY_TICKS  15000  // 60 seconds at 250Hz
+#define MOTOR_CUTOFF_TICKS         1250   // 5 seconds at 250Hz
+#endif
+
 void motor_actor(void *arg) {
     (void)arg;
 
     BUS_SUBSCRIBE(s_torque_bus);
+
+#ifndef SIMULATED_TIME
+    int tick_count = 0;
+#endif
 
     while (1) {
         torque_cmd_t torque;
 
         // Block until torque command available
         BUS_READ_WAIT(s_torque_bus, &torque);
+
+#ifndef SIMULATED_TIME
+        tick_count++;
+
+        // Startup delay: keep motors off for 60 seconds
+        if (tick_count <= MOTOR_STARTUP_DELAY_TICKS) {
+            torque.thrust = 0.0f;
+            torque.roll = 0.0f;
+            torque.pitch = 0.0f;
+            torque.yaw = 0.0f;
+        }
+        // Hard cutoff 5 seconds after startup delay
+        else if (tick_count > MOTOR_STARTUP_DELAY_TICKS + MOTOR_CUTOFF_TICKS) {
+            torque.thrust = 0.0f;
+            torque.roll = 0.0f;
+            torque.pitch = 0.0f;
+            torque.yaw = 0.0f;
+        }
+#endif
 
         // HAL handles mixing and hardware output
         hal_write_torque(&torque);
