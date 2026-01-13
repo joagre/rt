@@ -1,5 +1,8 @@
 @ ARM Cortex-M context switch assembly
 @ Thumb-2 instruction set
+@
+@ Supports both Cortex-M3 (no FPU) and Cortex-M4F (with FPU).
+@ FPU register save/restore is conditional on __ARM_FP being defined.
 
     .syntax unified
     .thumb
@@ -13,7 +16,7 @@
 @ r0 = from context pointer
 @ r1 = to context pointer
 @
-@ hive_context layout (25 words = 100 bytes):
+@ hive_context layout:
 @   offset 0:  sp  (stack pointer)
 @   offset 4:  r4
 @   offset 8:  r5
@@ -23,7 +26,7 @@
 @   offset 24: r9
 @   offset 28: r10
 @   offset 32: r11
-@   offset 36: s16-s31 (FPU callee-saved, 16 x 4 bytes = 64 bytes)
+@   offset 36: s16-s31 (FPU callee-saved, 16 x 4 bytes = 64 bytes) - only if FPU present
 @
 @ The return address is stored on the stack (pushed by init or previous switch).
 @ We use 'pop {pc}' to return, which loads the address from stack into PC.
@@ -44,9 +47,12 @@ hive_context_switch_asm:
     str r10, [r0, #28]
     str r11, [r0, #32]
 
+#ifdef __ARM_FP
     @ Save FPU callee-saved registers s16-s31 to context (offset 36)
+    @ Only on Cortex-M4F and similar with hardware FPU
     add r2, r0, #36
     vstm r2, {s16-s31}
+#endif
 
     @ Restore new context from 'to' (r1)
     ldr sp,  [r1, #0]
@@ -59,9 +65,12 @@ hive_context_switch_asm:
     ldr r10, [r1, #28]
     ldr r11, [r1, #32]
 
+#ifdef __ARM_FP
     @ Restore FPU callee-saved registers s16-s31 from context (offset 36)
+    @ Only on Cortex-M4F and similar with hardware FPU
     add r2, r1, #36
     vldm r2, {s16-s31}
+#endif
 
     @ Return to entry point (for new context) or saved return address
     @ Use explicit load and bx instead of pop {pc} for clearer Thumb handling

@@ -417,9 +417,70 @@ static void run_timer_tests(void *arg) {
     }
 
     // ========================================================================
-    // Test 14: hive_sleep preserves messages (selective receive)
+    // Test 14: hive_get_time returns monotonically increasing values
     // ========================================================================
-    printf("\nTest 14: hive_sleep preserves messages\n");
+    printf("\nTest 14: hive_get_time monotonicity\n");
+    {
+        uint64_t t1 = hive_get_time();
+        // Small busy loop to let some time pass
+        for (volatile int i = 0; i < 10000; i++) { }
+        uint64_t t2 = hive_get_time();
+        // Another small delay
+        for (volatile int i = 0; i < 10000; i++) { }
+        uint64_t t3 = hive_get_time();
+
+        if (t2 >= t1 && t3 >= t2) {
+            printf("    t1=%lu, t2=%lu, t3=%lu (monotonic)\n",
+                   (unsigned long)t1, (unsigned long)t2, (unsigned long)t3);
+            TEST_PASS("hive_get_time is monotonically increasing");
+        } else {
+            printf("    t1=%lu, t2=%lu, t3=%lu (NOT monotonic!)\n",
+                   (unsigned long)t1, (unsigned long)t2, (unsigned long)t3);
+            TEST_FAIL("hive_get_time is not monotonic");
+        }
+    }
+
+    // ========================================================================
+    // Test 15: hive_get_time measures elapsed time correctly
+    // ========================================================================
+    printf("\nTest 15: hive_get_time measures elapsed time\n");
+    {
+        uint64_t start = hive_get_time();
+        hive_sleep(100000);  // Sleep 100ms
+        uint64_t end = hive_get_time();
+        uint64_t elapsed_us = end - start;
+
+        // Should be approximately 100ms (100000us), allow 80-200ms range
+        if (elapsed_us >= 80000 && elapsed_us <= 200000) {
+            printf("    Elapsed: %lu us (expected ~100000us)\n", (unsigned long)elapsed_us);
+            TEST_PASS("hive_get_time measures elapsed time correctly");
+        } else {
+            printf("    Elapsed: %lu us (expected ~100000us)\n", (unsigned long)elapsed_us);
+            TEST_FAIL("hive_get_time elapsed time incorrect");
+        }
+    }
+
+    // ========================================================================
+    // Test 16: hive_get_time returns microseconds (sanity check)
+    // ========================================================================
+    printf("\nTest 16: hive_get_time returns reasonable values\n");
+    {
+        uint64_t t = hive_get_time();
+        // Should be non-zero and less than ~100 years in microseconds
+        // 100 years ~ 3.15e15 microseconds
+        if (t > 0 && t < 3150000000000000ULL) {
+            printf("    Current time: %lu us\n", (unsigned long)t);
+            TEST_PASS("hive_get_time returns reasonable microsecond value");
+        } else {
+            printf("    Current time: %lu us (suspicious)\n", (unsigned long)t);
+            TEST_FAIL("hive_get_time returned suspicious value");
+        }
+    }
+
+    // ========================================================================
+    // Test 17: hive_sleep preserves messages (selective receive)
+    // ========================================================================
+    printf("\nTest 17: hive_sleep preserves messages\n");
     {
         // Send a message to self before sleeping
         actor_id self = hive_self();

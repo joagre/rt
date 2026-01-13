@@ -19,6 +19,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+/* Internal STM32 functions used for testing */
+extern uint32_t hive_timer_get_ticks(void);
+extern void hive_timer_process_pending(void);
+
 /* SysTick registers (ARM Cortex-M) */
 #define SYST_CSR    (*(volatile uint32_t *)0xE000E010)  /* Control and Status */
 #define SYST_RVR    (*(volatile uint32_t *)0xE000E014)  /* Reload Value */
@@ -189,13 +193,8 @@ int main(void) {
     s = hive_spawn(yield_actor, (void *)2, &yield2);
     TEST_ASSERT(!HIVE_FAILED(s), "Spawn yield actor 2");
 
-    /* Run scheduler steps until actors complete */
-    for (int i = 0; i < 20; i++) {
-        hive_status step_s = hive_scheduler_step();
-        if (HIVE_FAILED(step_s)) {
-            break;  /* No more ready actors */
-        }
-    }
+    /* Run scheduler until actors complete */
+    hive_scheduler_run_until_blocked();
 
     TEST_ASSERT(g_context_switches >= 6, "Context switches occurred");
     semihosting_printf("Context switches: %d\n", g_context_switches);
@@ -215,13 +214,8 @@ int main(void) {
 
     semihosting_printf("Spawned: pong=%u, ping=%u\n", (unsigned)pong_id, (unsigned)ping_id);
 
-    /* Run scheduler */
-    for (int i = 0; i < 50; i++) {
-        hive_status step_s = hive_scheduler_step();
-        if (HIVE_FAILED(step_s)) {
-            break;
-        }
-    }
+    /* Run scheduler until actors complete */
+    hive_scheduler_run_until_blocked();
 
     TEST_ASSERT(g_pong_count >= 1, "IPC messages exchanged");
     semihosting_printf("Pong replies: %d\n", g_pong_count);
@@ -238,6 +232,27 @@ int main(void) {
                       (unsigned)tick1, (unsigned)tick2, (unsigned)(tick2 - tick1));
     TEST_ASSERT(tick2 > tick1, "SysTick is running");
 
+    /* Test 5: hive_get_time() monotonicity */
+    semihosting_printf("\n--- Test: hive_get_time() ---\n");
+    uint64_t time1 = hive_get_time();
+    for (volatile int i = 0; i < 100000; i++) { }
+    uint64_t time2 = hive_get_time();
+    semihosting_printf("hive_get_time: %u -> %u us\n",
+                      (unsigned)time1, (unsigned)time2);
+    TEST_ASSERT(time2 >= time1, "hive_get_time is monotonic");
+
+    /* Test 6: hive_get_time() returns microseconds (matches tick * 1000) */
+    uint32_t tick_now = hive_timer_get_ticks();
+    uint64_t time_now = hive_get_time();
+    /* With 1ms ticks and HIVE_TIMER_TICK_US=1000, time_us should be tick * 1000 */
+    uint64_t expected_us = (uint64_t)tick_now * 1000;
+    int64_t diff = (int64_t)time_now - (int64_t)expected_us;
+    semihosting_printf("Tick=%u, time=%u us, expected=%u us, diff=%d\n",
+                      (unsigned)tick_now, (unsigned)time_now,
+                      (unsigned)expected_us, (int)diff);
+    /* Allow some tolerance for timing between the two calls */
+    TEST_ASSERT(diff >= -2000 && diff <= 2000, "hive_get_time matches tick*1000");
+
     if (tick2 > tick1) {
         /* Ticks working, test sleep */
         actor_id sleep_id;
@@ -247,7 +262,8 @@ int main(void) {
         /* Run scheduler - need to process timer events */
         semihosting_printf("Running scheduler for sleep test...\n");
         for (int i = 0; i < 1000 && !g_sleep_done; i++) {
-            hive_scheduler_step();
+            hive_timer_process_pending();
+            hive_scheduler_run_until_blocked();
             /* Small delay to let time pass */
             for (volatile int j = 0; j < 10000; j++) { }
         }
