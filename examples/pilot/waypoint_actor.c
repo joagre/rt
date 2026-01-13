@@ -24,7 +24,7 @@ typedef struct {
 // First flight test: hover briefly at low altitude, then land
 // Safe profile for initial hardware validation
 static const waypoint_t waypoints[] = {
-    {0.0f, 0.0f, 0.4f, 0.0f},   // Hover at 0.4m
+    {0.0f, 0.0f, 0.25f, 0.0f},  // Hover at 0.25m (tethered test)
     {0.0f, 0.0f, 0.0f, 0.0f},   // Land
 };
 #define FIRST_FLIGHT_HOVER_TICKS  750  // 3 seconds at 250Hz
