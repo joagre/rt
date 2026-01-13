@@ -55,6 +55,14 @@ make -f Makefile.STEVAL-DRONE01 flash  # Flash to device via ST-Link
 make -f Makefile.STEVAL-DRONE01 clean  # Clean build artifacts
 ```
 
+**First flight test mode:** By default, `HAL_FIRST_FLIGHT_TEST` is enabled in
+`hal/STEVAL-DRONE01/hal_config.h`. This limits the flight to:
+1. 60-second startup delay (motors off)
+2. Hover at 0.4m for 3 seconds
+3. Land and stay landed
+
+Comment out `#define HAL_FIRST_FLIGHT_TEST` for normal waypoint navigation.
+
 Memory fits STM32F401 (512 KB flash, 96 KB RAM) with room to spare.
 
 Debug output via USART1 (115200 baud) on the P7 header. See
