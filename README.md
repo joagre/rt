@@ -331,6 +331,7 @@ if (hive_is_exit_msg(&msg)) {
 - `hive_timer_every(interval_us, out)` - Create periodic timer
 - `hive_timer_cancel(id)` - Cancel a timer
 - `hive_sleep(delay_us)` - Sleep without losing messages (uses selective receive)
+- `hive_get_time()` - Get current monotonic time in microseconds
 - `hive_msg_is_timer(msg)` - Check if message is a timer tick (also in IPC)
 
 ### File I/O

@@ -261,7 +261,7 @@ The scheduler always picks the highest-priority runnable actor. Within the same 
 Context switching is implemented via manual assembly for performance:
 
 - **x86-64 (Linux):** Save/restore callee-saved registers (rbx, rbp, r12-r15) and stack pointer
-- **ARM Cortex-M (STM32):** Save/restore callee-saved registers (r4-r11) and stack pointer
+- **ARM Cortex-M (STM32):** Save/restore callee-saved registers (r4-r11) and stack pointer. On Cortex-M4F and similar with hardware FPU, also saves/restores FPU registers (s16-s31) when `__ARM_FP` is defined.
 
 No use of setjmp/longjmp or ucontext for performance reasons.
 
@@ -1545,6 +1545,11 @@ hive_status hive_timer_cancel(timer_id id);
 // Uses selective receive - other messages remain in mailbox
 hive_status hive_sleep(uint32_t delay_us);
 
+// Get current time in microseconds (monotonic)
+// Returns monotonic time suitable for measuring elapsed durations.
+// In simulation mode, returns simulated time.
+uint64_t hive_get_time(void);
+
 // Check if message is a timer tick (convenience wrapper for hive_msg_decode)
 bool hive_msg_is_timer(const hive_message *msg);
 ```
@@ -1563,7 +1568,7 @@ Timer wake-ups are delivered as messages with `class == HIVE_MSG_TIMER`. The tag
 **Implications:**
 - If scheduler is delayed (file I/O stall, long actor computation), periodic timer ticks are **coalesced**
 - Actor cannot determine how many intervals actually elapsed
-- For precise tick counting, use external time measurement (`clock_gettime()`)
+- For precise tick counting, use `hive_get_time()` to measure elapsed time
 
 **Example:**
 ```c
@@ -1583,7 +1588,7 @@ while (1) {
 **Alternative not implemented:** Enqueuing N tick messages for N expirations was rejected because:
 - Risk of mailbox overflow for fast timers
 - Most embedded use cases don't need tick counting
-- Actors needing precise counts can use `clock_gettime()` directly
+- Actors needing precise counts can use `hive_get_time()` to measure elapsed time
 
 ### Timer Precision and Monotonicity
 
@@ -1613,6 +1618,20 @@ Platform | Clock Source | API Precision | Actual Precision | Notes
   - Never go backwards
   - Count elapsed time accurately (subject to clock drift, typically <100 ppm)
 - **Use case**: Timers measure **elapsed time**, not wall-clock time
+
+**hive_get_time() precision:**
+
+`hive_get_time()` returns the current monotonic time in microseconds:
+
+Platform | Implementation | Resolution | Notes
+---------|----------------|------------|------
+**Linux** | `clock_gettime(CLOCK_MONOTONIC)` | Nanosecond | vDSO, minimal overhead
+**STM32** | `tick_count * HIVE_TIMER_TICK_US` | 1 ms default | Limited by tick rate
+
+- Linux: Uses vDSO for low-overhead system call (no kernel trap in most cases)
+- STM32: Resolution limited by `HIVE_TIMER_TICK_US` (default 1000μs = 1ms)
+- For sub-millisecond precision on STM32, reduce `HIVE_TIMER_TICK_US` or use DWT cycle counter
+- In simulation mode, returns simulated time (advanced by `hive_timer_advance_time()`)
 
 **Delivery guarantee:**
 - Timer callbacks are delivered **at or after** the requested time; early delivery never occurs

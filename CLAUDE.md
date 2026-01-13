@@ -80,7 +80,7 @@ The runtime consists of:
 
 ### Context Switching
 - **x86-64**: Save/restore rbx, rbp, r12-r15, and stack pointer
-- **ARM Cortex-M**: Save/restore r4-r11 and stack pointer
+- **ARM Cortex-M**: Save/restore r4-r11 and stack pointer; on Cortex-M4F with FPU, also saves s16-s31 (conditional on `__ARM_FP`)
 - Implemented in manual assembly for performance
 
 ### Memory Management

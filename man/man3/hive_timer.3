@@ -1,7 +1,7 @@
 .\" Man page for timer functions
 .TH HIVE_TIMER 3 "January 2025" "Hive 1.0" "Actor Runtime Manual"
 .SH NAME
-hive_timer_after, hive_timer_every, hive_timer_cancel, hive_sleep \- actor timers
+hive_timer_after, hive_timer_every, hive_timer_cancel, hive_sleep, hive_get_time \- actor timers
 .SH SYNOPSIS
 .nf
 .B #include <hive_timer.h>
@@ -10,6 +10,7 @@ hive_timer_after, hive_timer_every, hive_timer_cancel, hive_sleep \- actor timer
 .BI "hive_status hive_timer_every(uint32_t " interval_us ", timer_id *" out ");"
 .BI "hive_status hive_timer_cancel(timer_id " id ");"
 .BI "hive_status hive_sleep(uint32_t " delay_us ");"
+.BI "uint64_t hive_get_time(void);"
 .fi
 .SH DESCRIPTION
 These functions provide one-shot and periodic timers for actors. Timer
@@ -44,6 +45,21 @@ microseconds. Unlike a naive implementation using
 with a timeout, this function uses selective receive to wait only for the
 internal timer message. Other messages arriving during the sleep remain in the
 mailbox and are not lost.
+.SS Getting Current Time
+.BR hive_get_time ()
+returns the current monotonic time in microseconds. This is useful for
+measuring elapsed time between operations, such as computing dt for control
+loops. The returned value is monotonic (never goes backwards) and is not
+affected by system time changes.
+.PP
+On Linux, this uses
+.BR clock_gettime (2)
+with CLOCK_MONOTONIC (via vDSO for minimal overhead).
+On STM32, this returns tick_count multiplied by HIVE_TIMER_TICK_US
+(default 1ms resolution).
+.PP
+In simulation mode (when using hive_timer_advance_time()), this returns
+the simulated time.
 .SS Timer Messages
 Timer messages have:
 .IP \(bu 2
