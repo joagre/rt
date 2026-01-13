@@ -58,7 +58,7 @@ make -f Makefile.STEVAL-DRONE01 clean  # Clean build artifacts
 **First flight test mode:** By default, `HAL_FIRST_FLIGHT_TEST` is enabled in
 `hal/STEVAL-DRONE01/hal_config.h`. This limits the flight to:
 1. 60-second startup delay (motors off)
-2. Hover at 0.4m for 3 seconds
+2. Hover at 0.25m for 3 seconds
 3. Land and stay landed
 
 Comment out `#define HAL_FIRST_FLIGHT_TEST` for normal waypoint navigation.

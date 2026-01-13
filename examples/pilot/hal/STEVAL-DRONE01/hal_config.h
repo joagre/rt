@@ -10,7 +10,7 @@
 // First Flight Test Mode
 // ----------------------------------------------------------------------------
 // Enable for initial hardware testing. Waypoint actor will:
-//   1. Hover at 0.4m for 3 seconds
+//   1. Hover at 0.25m for 3 seconds
 //   2. Land (descend to 0m)
 //   3. Stay landed (no loop)
 // Comment out for normal waypoint navigation.
