@@ -10,6 +10,7 @@
 #include "pid.h"
 #include "hive_runtime.h"
 #include "hive_bus.h"
+#include "hive_timer.h"
 #include "hive_log.h"
 #include <assert.h>
 
@@ -38,6 +39,9 @@ void attitude_actor(void *arg) {
     attitude_setpoint_t attitude_sp = ATTITUDE_SETPOINT_ZERO;
     int count = 0;
 
+    // For measuring dt
+    uint64_t prev_time = hive_get_time();
+
     while (1) {
         state_estimate_t state;
         attitude_setpoint_t new_attitude_sp;
@@ -45,15 +49,20 @@ void attitude_actor(void *arg) {
         // Block until state available
         BUS_READ_WAIT(s_state_bus, &state);
 
+        // Measure actual dt
+        uint64_t now = hive_get_time();
+        float dt = (now - prev_time) / 1000000.0f;
+        prev_time = now;
+
         // Read attitude setpoints from position controller (non-blocking, use last known)
         if (BUS_READ(s_attitude_setpoint_bus, &new_attitude_sp)) {
             attitude_sp = new_attitude_sp;
         }
 
         rate_setpoint_t setpoint;
-        setpoint.roll  = pid_update(&roll_pid,  attitude_sp.roll,  state.roll,  TIME_STEP_S);
-        setpoint.pitch = pid_update(&pitch_pid, attitude_sp.pitch, state.pitch, TIME_STEP_S);
-        setpoint.yaw   = pid_update_angle(&yaw_pid, attitude_sp.yaw, state.yaw, TIME_STEP_S);
+        setpoint.roll  = pid_update(&roll_pid,  attitude_sp.roll,  state.roll,  dt);
+        setpoint.pitch = pid_update(&pitch_pid, attitude_sp.pitch, state.pitch, dt);
+        setpoint.yaw   = pid_update_angle(&yaw_pid, attitude_sp.yaw, state.yaw, dt);
 
         hive_bus_publish(s_rate_setpoint_bus, &setpoint, sizeof(setpoint));
 

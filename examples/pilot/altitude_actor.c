@@ -45,12 +45,20 @@ void altitude_actor(void *arg) {
     uint64_t ramp_start_time = 0;  // For thrust ramp
     int count = 0;
 
+    // For measuring dt
+    uint64_t prev_time = hive_get_time();
+
     while (1) {
         state_estimate_t state;
         position_target_t target;
 
         // Block until state available
         BUS_READ_WAIT(s_state_bus, &state);
+
+        // Measure actual dt
+        uint64_t now = hive_get_time();
+        float dt = (now - prev_time) / 1000000.0f;
+        prev_time = now;
 
         // Read target altitude (non-blocking, use last known if not available)
         if (BUS_READ(s_position_target_bus, &target)) {
@@ -79,7 +87,7 @@ void altitude_actor(void *arg) {
             }
 
             // Position control (PI)
-            float pos_correction = pid_update(&alt_pid, target_altitude, state.altitude, TIME_STEP_S);
+            float pos_correction = pid_update(&alt_pid, target_altitude, state.altitude, dt);
 
             // Velocity damping: reduce thrust when moving up, increase when moving down
             float vel_damping = -HAL_VVEL_DAMPING_GAIN * state.vertical_velocity;

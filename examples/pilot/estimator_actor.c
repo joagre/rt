@@ -9,6 +9,7 @@
 #include "fusion/complementary_filter.h"
 #include "hive_runtime.h"
 #include "hive_bus.h"
+#include "hive_timer.h"
 #include <assert.h>
 #include <stdbool.h>
 #include <math.h>
@@ -50,14 +51,22 @@ void estimator_actor(void *arg) {
     // Barometer reference (set from first reading)
     float baro_ref_pressure = 0.0f;
 
+    // For measuring dt
+    uint64_t prev_time = hive_get_time();
+
     while (1) {
         sensor_data_t sensors;
 
         // Block until sensor data available
         BUS_READ_WAIT(s_sensor_bus, &sensors);
 
+        // Measure actual dt
+        uint64_t now = hive_get_time();
+        float dt = (now - prev_time) / 1000000.0f;
+        prev_time = now;
+
         // Run complementary filter for attitude estimation
-        cf_update(&filter, &sensors, TIME_STEP_S);
+        cf_update(&filter, &sensors, dt);
 
         state_estimate_t state;
 
@@ -94,10 +103,10 @@ void estimator_actor(void *arg) {
             y_velocity = 0.0f;
             vertical_velocity = 0.0f;
             first_sample = false;
-        } else {
-            float raw_vx = (state.x - prev_x) / TIME_STEP_S;
-            float raw_vy = (state.y - prev_y) / TIME_STEP_S;
-            float raw_vvel = (state.altitude - prev_altitude) / TIME_STEP_S;
+        } else if (dt > 0.0f) {
+            float raw_vx = (state.x - prev_x) / dt;
+            float raw_vy = (state.y - prev_y) / dt;
+            float raw_vvel = (state.altitude - prev_altitude) / dt;
             x_velocity = LPF(x_velocity, raw_vx, HVEL_FILTER_ALPHA);
             y_velocity = LPF(y_velocity, raw_vy, HVEL_FILTER_ALPHA);
             vertical_velocity = LPF(vertical_velocity, raw_vvel, VVEL_FILTER_ALPHA);
