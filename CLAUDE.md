@@ -273,13 +273,13 @@ Different implementations for Linux (dev) vs STM32 bare metal (prod):
 - Event notification: epoll vs WFI + interrupt flags
 - Timer: timerfd + epoll vs software timer wheel (SysTick/TIM)
 - Network: Non-blocking BSD sockets + epoll vs lwIP NO_SYS mode
-- File: Synchronous POSIX (`hive_file.c`) vs flash-backed ring buffer (`hive_file_stm32.c`)
+- File: Synchronous POSIX (`hive_file_linux.c`) vs flash-backed ring buffer (`hive_file_stm32.c`)
 
 Platform-specific source files:
 - Scheduler: `hive_scheduler_linux.c` / `hive_scheduler_stm32.c`
 - Timer: `hive_timer_linux.c` / `hive_timer_stm32.c`
 - Context: `hive_context_x86_64.S` / `hive_context_arm_cm.S`
-- File: `hive_file.c` (Linux) / `hive_file_stm32.c` (STM32)
+- File: `hive_file_linux.c` / `hive_file_stm32.c`
 
 Build commands:
 - `make` or `make PLATFORM=linux` - Build for x86-64 Linux

@@ -67,7 +67,7 @@ ifeq ($(ENABLE_FILE),1)
   ifeq ($(PLATFORM),stm32)
     FEATURE_SRCS += hive_file_stm32.c
   else
-    FEATURE_SRCS += hive_file.c
+    FEATURE_SRCS += hive_file_linux.c
   endif
 endif
 

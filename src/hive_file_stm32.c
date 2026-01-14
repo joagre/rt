@@ -1,6 +1,6 @@
 // STM32 Flash File I/O Implementation
 //
-// Provides the same API as hive_file.c (Linux) but for STM32 flash storage.
+// Provides the same API as hive_file_linux.c but for STM32 flash storage.
 // All STM32-specific optimizations are hidden inside this implementation:
 // - Virtual file paths mapped to flash sectors (/log, /config)
 // - Ring buffer for O(1) writes from flight-critical actors
