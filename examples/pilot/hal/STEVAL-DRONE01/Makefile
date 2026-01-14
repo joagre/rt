@@ -141,6 +141,16 @@ CFLAGS += -DARM_MATH_CM4
 # Log level: INFO for debugging (change to NONE for production)
 CFLAGS += -DHIVE_LOG_LEVEL=HIVE_LOG_LEVEL_INFO
 
+# STM32 Flash File I/O Configuration
+# Virtual file: /log (flight data, erased each flight) - Sector 5 (128KB)
+CFLAGS += -DHIVE_VFILE_LOG_BASE=0x08020000
+CFLAGS += -DHIVE_VFILE_LOG_SIZE=131072
+CFLAGS += -DHIVE_VFILE_LOG_SECTOR=5
+# Virtual file: /config (calibration data, preserved) - Sector 3 (16KB)
+CFLAGS += -DHIVE_VFILE_CONFIG_BASE=0x0800C000
+CFLAGS += -DHIVE_VFILE_CONFIG_SIZE=16384
+CFLAGS += -DHIVE_VFILE_CONFIG_SECTOR=3
+
 # Include paths
 CFLAGS += $(INCLUDES)
 

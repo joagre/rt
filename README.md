@@ -348,6 +348,10 @@ if (hive_is_exit_msg(&msg)) {
 - `hive_file_pwrite(fd, buf, len, offset, bytes_written)` - Write to file at offset
 - `hive_file_sync(fd)` - Sync file to disk
 
+**Use `HIVE_O_*` flags** for cross-platform compatibility:
+- `HIVE_O_RDONLY`, `HIVE_O_WRONLY`, `HIVE_O_RDWR`
+- `HIVE_O_CREAT`, `HIVE_O_TRUNC`, `HIVE_O_APPEND`
+
 **Note:** File operations block until complete. No timeout parameter.
 
 ### Network I/O
@@ -385,7 +389,11 @@ The runtime is **completely single-threaded** with an event loop architecture. A
 **STM32 (bare metal)**:
 - Timers: Hardware timers (SysTick or TIM peripherals)
 - Network: lwIP in NO_SYS mode (polling or interrupt-driven)
-- File: Direct synchronous I/O (FATFS/littlefs are fast, <1ms typically)
+- File: Flash-backed virtual files (`/log`, `/config`) with ring buffer
+  - Board config via -D flags: `HIVE_VFILE_LOG_BASE`, `HIVE_VFILE_LOG_SIZE`, `HIVE_VFILE_LOG_SECTOR`
+  - `write()` pushes to ring buffer (O(1), never blocks)
+  - `sync()` drains ring buffer to flash (blocking)
+  - `HIVE_O_TRUNC` erases flash sector (blocks 1-4 seconds)
 - Event loop: WFI (Wait For Interrupt) when no actors runnable
 
 This single-threaded model provides:
@@ -462,5 +470,4 @@ Compatible examples exclude `echo` and `fileio` (same reason).
 ## Future Work
 
 - STM32: Network I/O (lwIP integration)
-- STM32: File I/O (FATFS/littlefs integration)
 - MPU-based stack guard pages for hardware-guaranteed overflow detection

@@ -2,13 +2,25 @@
 #define HIVE_FILE_H
 
 #include "hive_types.h"
-#include <fcntl.h>
+
+// Platform-independent file flags
+// Use these instead of POSIX O_* flags for cross-platform compatibility
+#define HIVE_O_RDONLY   0x0001
+#define HIVE_O_WRONLY   0x0002
+#define HIVE_O_RDWR     0x0003
+#define HIVE_O_CREAT    0x0100
+#define HIVE_O_TRUNC    0x0200
+#define HIVE_O_APPEND   0x0400
 
 // File operations
 // All operations block the calling actor and yield to scheduler
+//
+// Linux: Standard filesystem paths
+// STM32: Virtual paths mapped to flash sectors (e.g., "/log", "/config")
+//        Configured via board -D flags (HIVE_VFILE_LOG_BASE, etc.)
 
 // Open file
-// flags: O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_TRUNC, etc.
+// flags: HIVE_O_RDONLY, HIVE_O_WRONLY, HIVE_O_RDWR, HIVE_O_CREAT, HIVE_O_TRUNC, etc.
 hive_status hive_file_open(const char *path, int flags, int mode, int *fd_out);
 
 // Close file

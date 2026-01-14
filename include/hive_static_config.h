@@ -149,4 +149,23 @@
 #define HIVE_NET_LISTEN_BACKLOG 5
 #endif
 
+// -----------------------------------------------------------------------------
+// STM32 Flash File I/O Configuration
+// -----------------------------------------------------------------------------
+// These are defaults that can be overridden by board-specific -D flags.
+// Flash sector addresses/sizes MUST be defined per-board (no defaults here).
+
+// Ring buffer size for deferred writes (bytes)
+// Larger buffer = more tolerance for flash write delays
+#ifndef HIVE_FILE_RING_SIZE
+#define HIVE_FILE_RING_SIZE (8 * 1024)  // 8 KB default
+#endif
+
+// Flash write block size (bytes)
+// Smaller = lower latency, larger = more efficient
+// Must be word-aligned (multiple of 4)
+#ifndef HIVE_FILE_BLOCK_SIZE
+#define HIVE_FILE_BLOCK_SIZE 256
+#endif
+
 #endif // HIVE_STATIC_CONFIG_H

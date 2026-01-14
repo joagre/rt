@@ -1784,9 +1784,61 @@ hive_status hive_file_pwrite(int fd, const void *buf, size_t len, size_t offset,
 hive_status hive_file_sync(int fd);
 ```
 
-The `mode` parameter in `hive_file_open()` specifies file permissions (e.g., 0644) when creating files with `O_CREAT` flag, following POSIX conventions.
+### Platform-Independent Flags
 
-**File operations block the calling actor until I/O completes.** On embedded systems with local filesystems (FATFS, littlefs), file operations complete quickly (microseconds to milliseconds) and are bounded by hardware characteristics. Timeouts are not provided as hardware failures (dead SD card, flash corruption) cannot be recovered via timeout and require physical intervention.
+Use `HIVE_O_*` flags instead of POSIX `O_*` flags for cross-platform compatibility:
+
+```c
+#define HIVE_O_RDONLY   0x0001
+#define HIVE_O_WRONLY   0x0002
+#define HIVE_O_RDWR     0x0003
+#define HIVE_O_CREAT    0x0100
+#define HIVE_O_TRUNC    0x0200
+#define HIVE_O_APPEND   0x0400
+```
+
+On Linux, these map directly to POSIX equivalents. On STM32, they're interpreted by the flash file implementation.
+
+### Platform Differences
+
+**Linux:**
+- Standard filesystem paths (e.g., `/tmp/log.bin`)
+- Uses POSIX `open()`, `read()`, `write()`, `fsync()`
+- Synchronous blocking I/O
+
+**STM32:**
+- Virtual file paths mapped to flash sectors (e.g., `/log`, `/config`)
+- Board configuration via -D flags:
+  ```makefile
+  CFLAGS += -DHIVE_VFILE_LOG_BASE=0x08020000
+  CFLAGS += -DHIVE_VFILE_LOG_SIZE=131072
+  CFLAGS += -DHIVE_VFILE_LOG_SECTOR=5
+  ```
+- Buffered writes via ring buffer (O(1) `write()` calls)
+- `HIVE_O_TRUNC` triggers flash sector erase (blocks 1-4 seconds)
+- `hive_file_sync()` drains ring buffer to flash (blocking)
+- Partial writes: if ring buffer is full, `bytes_written < len`
+
+**STM32 Ring Buffer Defaults** (`hive_static_config.h`):
+```c
+#define HIVE_FILE_RING_SIZE     (8 * 1024)  // 8 KB
+#define HIVE_FILE_BLOCK_SIZE    256         // Flash write block size
+```
+
+**STM32 Usage Example:**
+```c
+int log_fd;
+// Erase flash sector and open for writing
+hive_file_open("/log", HIVE_O_WRONLY | HIVE_O_TRUNC, 0, &log_fd);
+
+// Fast writes go to ring buffer (O(1), never blocks)
+hive_file_write(log_fd, &sensor_data, sizeof(sensor_data), &written);
+
+// Periodically flush to flash (call from low-priority logger actor)
+hive_file_sync(log_fd);
+
+hive_file_close(log_fd);
+```
 
 ## Memory Allocation Architecture
 

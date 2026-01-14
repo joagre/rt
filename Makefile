@@ -63,7 +63,12 @@ ifeq ($(ENABLE_NET),1)
   FEATURE_SRCS += hive_net.c
 endif
 ifeq ($(ENABLE_FILE),1)
-  FEATURE_SRCS += hive_file.c
+  # Platform-specific file I/O implementation
+  ifeq ($(PLATFORM),stm32)
+    FEATURE_SRCS += hive_file_stm32.c
+  else
+    FEATURE_SRCS += hive_file.c
+  endif
 endif
 
 # Combine all source files

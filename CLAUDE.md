@@ -63,7 +63,11 @@ The runtime consists of:
 4. **Bus**: Publish-subscribe system with configurable retention policies (consume_after_reads, max_age_ms)
 5. **Timers**: timerfd registered in epoll (Linux), hardware timers on STM32 (SysTick/TIM)
 6. **Network**: Non-blocking sockets registered in epoll (Linux), lwIP NO_SYS mode on STM32
-7. **File**: Synchronous I/O (stalls scheduler; regular files don't work with epoll; embedded filesystems are fast). **Safety-critical caveat:** Restrict file I/O to initialization, shutdown, or non–time-critical phases
+7. **File**: Platform-specific implementation
+   - Linux: Synchronous POSIX I/O (stalls scheduler briefly)
+   - STM32: Flash-backed virtual files (`/log`, `/config`) with ring buffer for O(1) writes and deferred flash commits via `sync()`
+   - Use `HIVE_O_*` flags for cross-platform compatibility
+   - **Safety-critical caveat:** Restrict file I/O to initialization, shutdown, or non–time-critical phases
 
 ## Key Concepts
 
@@ -269,12 +273,13 @@ Different implementations for Linux (dev) vs STM32 bare metal (prod):
 - Event notification: epoll vs WFI + interrupt flags
 - Timer: timerfd + epoll vs software timer wheel (SysTick/TIM)
 - Network: Non-blocking BSD sockets + epoll vs lwIP NO_SYS mode
-- File: Synchronous POSIX vs synchronous FATFS/littlefs
+- File: Synchronous POSIX (`hive_file.c`) vs flash-backed ring buffer (`hive_file_stm32.c`)
 
 Platform-specific source files:
 - Scheduler: `hive_scheduler_linux.c` / `hive_scheduler_stm32.c`
 - Timer: `hive_timer_linux.c` / `hive_timer_stm32.c`
 - Context: `hive_context_x86_64.S` / `hive_context_arm_cm.S`
+- File: `hive_file.c` (Linux) / `hive_file_stm32.c` (STM32)
 
 Build commands:
 - `make` or `make PLATFORM=linux` - Build for x86-64 Linux

@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <fcntl.h>
 
 // Test results
 static int tests_passed = 0;
@@ -26,7 +25,7 @@ static void run_file_tests(void *arg) {
     printf("\nTest 1: Open file for writing (create)\n");
     int fd = -1;
     {
-        hive_status status = hive_file_open(TEST_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644, &fd);
+        hive_status status = hive_file_open(TEST_FILE, HIVE_O_WRONLY | HIVE_O_CREAT | HIVE_O_TRUNC, 0644, &fd);
         if (HIVE_FAILED(status)) {
             printf("    Error: %s\n", status.msg ? status.msg : "unknown");
             TEST_FAIL("hive_file_open for write");
@@ -91,7 +90,7 @@ static void run_file_tests(void *arg) {
     // ========================================================================
     printf("\nTest 5: Open file for reading\n");
     {
-        hive_status status = hive_file_open(TEST_FILE, O_RDONLY, 0, &fd);
+        hive_status status = hive_file_open(TEST_FILE, HIVE_O_RDONLY, 0, &fd);
         if (HIVE_FAILED(status)) {
             printf("    Error: %s\n", status.msg ? status.msg : "unknown");
             TEST_FAIL("hive_file_open for read");
@@ -149,7 +148,7 @@ static void run_file_tests(void *arg) {
     // ========================================================================
     printf("\nTest 8: pwrite (write at offset)\n");
     {
-        hive_status status = hive_file_open(TEST_FILE, O_RDWR, 0, &fd);
+        hive_status status = hive_file_open(TEST_FILE, HIVE_O_RDWR, 0, &fd);
         if (HIVE_FAILED(status)) {
             TEST_FAIL("open for pwrite");
         } else {
@@ -175,11 +174,11 @@ static void run_file_tests(void *arg) {
     }
 
     // ========================================================================
-    // Test 9: Open non-existent file without O_CREAT fails
+    // Test 9: Open non-existent file without HIVE_O_CREAT fails
     // ========================================================================
     printf("\nTest 9: Open non-existent file fails\n");
     {
-        hive_status status = hive_file_open("/tmp/nonexistent_rt_test_file_xyz.tmp", O_RDONLY, 0, &fd);
+        hive_status status = hive_file_open("/tmp/nonexistent_rt_test_file_xyz.tmp", HIVE_O_RDONLY, 0, &fd);
         if (HIVE_FAILED(status)) {
             TEST_PASS("open non-existent file fails");
         } else {
@@ -237,7 +236,7 @@ static void run_file_tests(void *arg) {
     printf("\nTest 13: pread beyond EOF\n");
     {
         // Create a small test file
-        hive_status status = hive_file_open(TEST_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644, &fd);
+        hive_status status = hive_file_open(TEST_FILE, HIVE_O_WRONLY | HIVE_O_CREAT | HIVE_O_TRUNC, 0644, &fd);
         if (HIVE_SUCCEEDED(status)) {
             const char *data = "short";
             size_t written = 0;
@@ -245,7 +244,7 @@ static void run_file_tests(void *arg) {
             hive_file_close(fd);
 
             // Open for reading
-            status = hive_file_open(TEST_FILE, O_RDONLY, 0, &fd);
+            status = hive_file_open(TEST_FILE, HIVE_O_RDONLY, 0, &fd);
             if (HIVE_SUCCEEDED(status)) {
                 char buf[64] = {0};
                 size_t actual = 0;
@@ -269,7 +268,7 @@ static void run_file_tests(void *arg) {
     // ========================================================================
     printf("\nTest 14: Double close\n");
     {
-        hive_status status = hive_file_open(TEST_FILE, O_RDONLY, 0, &fd);
+        hive_status status = hive_file_open(TEST_FILE, HIVE_O_RDONLY, 0, &fd);
         if (HIVE_SUCCEEDED(status)) {
             int saved_fd = fd;
 
@@ -294,7 +293,7 @@ static void run_file_tests(void *arg) {
     // ========================================================================
     printf("\nTest 15: Zero-length read/write\n");
     {
-        hive_status status = hive_file_open(TEST_FILE, O_RDWR, 0, &fd);
+        hive_status status = hive_file_open(TEST_FILE, HIVE_O_RDWR, 0, &fd);
         if (HIVE_SUCCEEDED(status)) {
             size_t actual = 0;
 

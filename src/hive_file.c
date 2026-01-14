@@ -8,6 +8,24 @@
 #include <errno.h>
 #include <fcntl.h>
 
+// Map HIVE_O_* flags to POSIX O_* flags
+static int hive_flags_to_posix(int hive_flags) {
+    int posix_flags = 0;
+
+    // Access mode (mutually exclusive)
+    int access = hive_flags & 0x0003;
+    if (access == HIVE_O_RDONLY) posix_flags |= O_RDONLY;
+    else if (access == HIVE_O_WRONLY) posix_flags |= O_WRONLY;
+    else if (access == HIVE_O_RDWR) posix_flags |= O_RDWR;
+
+    // Additional flags
+    if (hive_flags & HIVE_O_CREAT)  posix_flags |= O_CREAT;
+    if (hive_flags & HIVE_O_TRUNC)  posix_flags |= O_TRUNC;
+    if (hive_flags & HIVE_O_APPEND) posix_flags |= O_APPEND;
+
+    return posix_flags;
+}
+
 // File I/O subsystem state
 static struct {
     bool initialized;
@@ -36,7 +54,10 @@ hive_status hive_file_open(const char *path, int flags, int mode, int *fd_out) {
 
     HIVE_REQUIRE_INIT(g_file.initialized, "File I/O");
 
-    int fd = open(path, flags, mode);
+    // Convert HIVE_O_* flags to POSIX O_* flags
+    int posix_flags = hive_flags_to_posix(flags);
+
+    int fd = open(path, posix_flags, mode);
     if (fd < 0) {
         return HIVE_ERROR(HIVE_ERR_IO, "open failed");
     }

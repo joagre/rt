@@ -14,7 +14,7 @@ static void writer_actor(void *arg) {
 
     // Open file for writing
     int fd;
-    hive_status status = hive_file_open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644, &fd);
+    hive_status status = hive_file_open(filename, HIVE_O_WRONLY | HIVE_O_CREAT | HIVE_O_TRUNC, 0644, &fd);
     if (HIVE_FAILED(status)) {
         printf("Writer: Failed to open file: %s\n", HIVE_ERR_STR(status));
         hive_exit();
@@ -64,7 +64,7 @@ static void reader_actor(void *arg) {
 
     // Open file for reading
     int fd;
-    hive_status status = hive_file_open(filename, O_RDONLY, 0, &fd);
+    hive_status status = hive_file_open(filename, HIVE_O_RDONLY, 0, &fd);
     if (HIVE_FAILED(status)) {
         printf("Reader: Failed to open file: %s\n", HIVE_ERR_STR(status));
         hive_exit();
