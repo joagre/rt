@@ -142,15 +142,12 @@ CFLAGS += -DARM_MATH_CM4
 CFLAGS += -DHIVE_LOG_LEVEL=HIVE_LOG_LEVEL_INFO
 
 # STM32 Flash File I/O Configuration
-# Flash layout: Sectors 0-5 (256KB) = firmware, Sectors 6-7 = data
-# Virtual file: /log (flight data, erased each flight) - Sector 6 (128KB)
-CFLAGS += -DHIVE_VFILE_LOG_BASE=0x08040000
+# STM32F401CCU6: 256KB flash (sectors 0-5), 64KB RAM
+# Flash layout: Sectors 0-4 (128KB) = firmware, Sector 5 (128KB) = data
+# Virtual file: /log (flight data, erased each flight) - Sector 5 (128KB)
+CFLAGS += -DHIVE_VFILE_LOG_BASE=0x08020000
 CFLAGS += -DHIVE_VFILE_LOG_SIZE=131072
-CFLAGS += -DHIVE_VFILE_LOG_SECTOR=6
-# Virtual file: /config (calibration data, preserved across updates) - Sector 7 (128KB)
-CFLAGS += -DHIVE_VFILE_CONFIG_BASE=0x08060000
-CFLAGS += -DHIVE_VFILE_CONFIG_SIZE=131072
-CFLAGS += -DHIVE_VFILE_CONFIG_SECTOR=7
+CFLAGS += -DHIVE_VFILE_LOG_SECTOR=5
 
 # Include paths
 CFLAGS += $(INCLUDES)
