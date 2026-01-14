@@ -104,27 +104,37 @@ int main(void) {
     // Initialize actors with bus connections
     sensor_actor_init(s_sensor_bus);
     estimator_actor_init(s_sensor_bus, s_state_bus);
-    altitude_actor_init(s_state_bus, s_thrust_bus, s_position_target_bus);
-    waypoint_actor_init(s_state_bus, s_position_target_bus);
     position_actor_init(s_state_bus, s_attitude_setpoint_bus, s_position_target_bus);
     attitude_actor_init(s_state_bus, s_attitude_setpoint_bus, s_rate_setpoint_bus);
     rate_actor_init(s_state_bus, s_thrust_bus, s_rate_setpoint_bus, s_torque_bus);
     motor_actor_init(s_torque_bus);
 
-    // Spawn all actors
+    // Spawn order matters for IPC dependencies:
+    // - Supervisor needs waypoint, altitude, and motor IDs (for START, LANDING, STOP)
+    // - Altitude needs supervisor ID (for landing complete notification)
     actor_id sensor, estimator, altitude, waypoint, position, attitude, rate, motor, supervisor;
     SPAWN_CRITICAL_ACTOR(sensor_actor,    "sensor",    sensor);
     SPAWN_CRITICAL_ACTOR(estimator_actor, "estimator", estimator);
+    SPAWN_CRITICAL_ACTOR(motor_actor,     "motor",     motor);
+
+    // Spawn supervisor first (waypoint and altitude IDs filled in after)
+    supervisor_actor_init(0, 0, motor);
+    SPAWN_CRITICAL_ACTOR(supervisor_actor, "supervisor", supervisor);
+
+    // Spawn altitude with supervisor ID
+    altitude_actor_init(s_state_bus, s_thrust_bus, s_position_target_bus, supervisor);
     SPAWN_CRITICAL_ACTOR(altitude_actor,  "altitude",  altitude);
+
+    // Spawn waypoint (no IPC dependencies, just bus connections)
+    waypoint_actor_init(s_state_bus, s_position_target_bus);
     SPAWN_CRITICAL_ACTOR(waypoint_actor,  "waypoint",  waypoint);
+
+    // Update supervisor with waypoint and altitude IDs
+    supervisor_actor_init(waypoint, altitude, motor);
+
     SPAWN_CRITICAL_ACTOR(position_actor,  "position",  position);
     SPAWN_CRITICAL_ACTOR(attitude_actor,  "attitude",  attitude);
     SPAWN_CRITICAL_ACTOR(rate_actor,      "rate",      rate);
-    SPAWN_CRITICAL_ACTOR(motor_actor,     "motor",     motor);
-
-    // Supervisor coordinates startup and safety cutoff
-    supervisor_actor_init(waypoint, motor);
-    SPAWN_CRITICAL_ACTOR(supervisor_actor, "supervisor", supervisor);
 
     (void)sensor; (void)estimator; (void)altitude; (void)waypoint;
     (void)position; (void)attitude; (void)rate; (void)motor; (void)supervisor;

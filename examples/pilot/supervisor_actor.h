@@ -9,7 +9,7 @@
 #include "hive_actor.h"
 
 // Initialize supervisor with actor IDs to coordinate
-void supervisor_actor_init(actor_id waypoint_actor, actor_id motor_actor);
+void supervisor_actor_init(actor_id waypoint_actor, actor_id altitude_actor, actor_id motor_actor);
 
 // Supervisor actor entry point
 void supervisor_actor(void *arg);

@@ -7,6 +7,7 @@
 #define WAYPOINT_ACTOR_H
 
 #include "hive_bus.h"
+#include "hive_runtime.h"
 
 // Initialize the waypoint actor module with bus IDs.
 // Must be called before spawning the actor.

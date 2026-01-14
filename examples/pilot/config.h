@@ -114,16 +114,16 @@
 #define EMERGENCY_TILT_LIMIT     0.78f   // ~45 degrees in radians
 #define EMERGENCY_ALTITUDE_MAX   2.0f    // meters - cut motors if exceeded
 #define LANDED_TARGET_THRESHOLD  0.05f   // meters - target altitude indicating land command
-#define LANDED_ACTUAL_THRESHOLD  0.15f   // meters - actual altitude confirming landed
+#define LANDED_ACTUAL_THRESHOLD  0.08f   // meters - actual altitude confirming landed (tight!)
 
 // ----------------------------------------------------------------------------
 // Waypoint navigation (mission parameters)
 // ----------------------------------------------------------------------------
 
 #define WAYPOINT_TOLERANCE_XY   0.15f  // meters - horizontal arrival radius
-#define WAYPOINT_TOLERANCE_Z    0.15f  // meters - altitude tolerance
+#define WAYPOINT_TOLERANCE_Z    0.08f  // meters - altitude tolerance (tight for landing)
 #define WAYPOINT_TOLERANCE_YAW  0.1f   // radians (~6 degrees)
-#define WAYPOINT_TOLERANCE_VEL  0.1f   // m/s - must be nearly stopped
+#define WAYPOINT_TOLERANCE_VEL  0.05f  // m/s - must be nearly stopped
 
 // ----------------------------------------------------------------------------
 // Position control (mission parameters - no GPS on STEVAL anyway)

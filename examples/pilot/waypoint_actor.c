@@ -25,11 +25,10 @@ typedef struct {
 // Flight profile waypoints (FLIGHT_PROFILE defined in config.h)
 
 #if FLIGHT_PROFILE == FLIGHT_PROFILE_FIRST_TEST
-// First flight test: hover briefly at low altitude, then land
+// First flight test: hover at low altitude until supervisor initiates landing
 // Safe profile for initial hardware validation (tethered recommended)
 static const waypoint_t waypoints[] = {
     {0.0f, 0.0f, 0.5f, 0.0f},   // Hover at 0.5m
-    {0.0f, 0.0f, 0.0f, 0.0f},   // Land
 };
 #define WAYPOINT_HOVER_TIME_US  (6 * 1000000)  // 6 seconds hover
 #define FLIGHT_PROFILE_NAME "FIRST_TEST"
@@ -127,29 +126,15 @@ void waypoint_actor(void *arg) {
             hive_message timer_msg;
             if (HIVE_SUCCEEDED(hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER,
                                                     hover_timer, &timer_msg, 0))) {
-                // Timer fired - advance to next waypoint
+                // Timer fired - advance to next waypoint (loops back to 0)
                 hovering = false;
                 hover_timer = TIMER_ID_INVALID;
-
-#if FLIGHT_PROFILE == FLIGHT_PROFILE_FIRST_TEST
-                // First flight test: advance once, then stay landed
-                if (waypoint_index < (int)NUM_WAYPOINTS - 1) {
-                    waypoint_index++;
-                    if (waypoint_index == (int)NUM_WAYPOINTS - 1) {
-                        HIVE_LOG_INFO("[WPT] LANDED - test complete");
-                    } else {
-                        HIVE_LOG_INFO("[WPT] Advancing to waypoint %d", waypoint_index);
-                    }
-                }
-#else
-                // Normal operation: loop through waypoints
                 waypoint_index = (waypoint_index + 1) % (int)NUM_WAYPOINTS;
                 HIVE_LOG_INFO("[WPT] Advancing to waypoint %d: (%.1f, %.1f, %.1f) yaw=%.0f deg",
                               waypoint_index, waypoints[waypoint_index].x,
                               waypoints[waypoint_index].y,
                               waypoints[waypoint_index].z,
                               waypoints[waypoint_index].yaw * RAD_TO_DEG);
-#endif
             }
         }
 
