@@ -21,7 +21,7 @@
 #elif FLIGHT_PROFILE == FLIGHT_PROFILE_ALTITUDE
 #define FLIGHT_DURATION_US  (40 * 1000000)  // 40 seconds
 #elif FLIGHT_PROFILE == FLIGHT_PROFILE_FULL_3D
-#define FLIGHT_DURATION_US  (30 * 1000000)  // 30 seconds
+#define FLIGHT_DURATION_US  (60 * 1000000)  // 60 seconds
 #else
 #define FLIGHT_DURATION_US  (20 * 1000000)  // Default: 20 seconds
 #endif
