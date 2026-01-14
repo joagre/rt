@@ -29,7 +29,7 @@ void altitude_actor_init(bus_id state_bus, bus_id thrust_bus, bus_id position_ta
 }
 
 // Thrust ramp duration for gentle takeoff (microseconds)
-#define THRUST_RAMP_DURATION_US  (2 * 1000000)  // 2 seconds
+#define THRUST_RAMP_DURATION_US  (500000)  // 0.5 seconds
 
 void altitude_actor(void *arg) {
     (void)arg;

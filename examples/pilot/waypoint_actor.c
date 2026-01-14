@@ -50,7 +50,7 @@ static const waypoint_t waypoints[] = {
     {0.0f, 1.0f, 1.2f, M_PI_F},            // Waypoint 3: -X, drop to 1.2m, face south
     {0.0f, 0.0f, 1.0f, 0.0f},              // Return: origin, 1.0m, face north
 };
-#define WAYPOINT_HOVER_TIME_US  (10 * 1000000)  // 10 seconds
+#define WAYPOINT_HOVER_TIME_US  (2 * 1000000)  // 2 seconds
 #endif
 
 #define NUM_WAYPOINTS (sizeof(waypoints) / sizeof(waypoints[0]))
