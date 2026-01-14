@@ -62,25 +62,7 @@ void supervisor_actor(void *arg) {
     hive_ipc_notify(s_waypoint_actor, NOTIFY_FLIGHT_START, NULL, 0);
     HIVE_LOG_INFO("[SUP] Flight authorized");
 
-#ifndef SIMULATED_TIME
-    // Real hardware: flight window with hard cutoff
-    // Wait for either LANDED notification or timeout (whichever comes first)
-    HIVE_LOG_INFO("[SUP] Flight window: 12 seconds");
-
-    timer_id timeout_timer;
-    hive_timer_after(12 * 1000000, &timeout_timer);  // 12 seconds
-
-    hive_message msg;
-    hive_ipc_recv(&msg, -1);  // Wait for any message
-
-    if (hive_msg_is_timer(&msg)) {
-        HIVE_LOG_INFO("[SUP] Flight window expired - stopping motors");
-    } else if (msg.tag == NOTIFY_FLIGHT_LANDED) {
-        HIVE_LOG_INFO("[SUP] Landing confirmed - stopping motors");
-        hive_timer_cancel(timeout_timer);
-    }
-#else
-    // Simulation: flight duration timer, then initiate landing
+    // Flight duration timer, then initiate controlled landing
     HIVE_LOG_INFO("[SUP] Flight duration: %.0f seconds", FLIGHT_DURATION_US / 1000000.0f);
 
     timer_id flight_timer;
@@ -94,7 +76,6 @@ void supervisor_actor(void *arg) {
     // Wait for LANDED notification
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, NOTIFY_FLIGHT_LANDED, &msg, -1);
     HIVE_LOG_INFO("[SUP] Landing confirmed - stopping motors");
-#endif
 
     // Send STOP to motor actor
     hive_ipc_notify(s_motor_actor, NOTIFY_FLIGHT_STOP, NULL, 0);
