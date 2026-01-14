@@ -154,6 +154,36 @@ Partial writes: if ring buffer is full,
 .I bytes_written
 < requested length
 .PP
+.B STM32 Flag Restrictions:
+.IP \(bu 2
+.B HIVE_O_RDWR
+is rejected \- use
+.B HIVE_O_RDONLY
+or
+.B HIVE_O_WRONLY
+.IP \(bu 2
+.B HIVE_O_WRONLY
+requires
+.B HIVE_O_TRUNC
+(flash must be erased before writing)
+.IP \(bu 2
+.B HIVE_O_CREAT
+and
+.B HIVE_O_APPEND
+are silently ignored
+.PP
+.B STM32 API Restrictions:
+.IP \(bu 2
+.BR hive_file_read ()
+returns error \- use
+.BR hive_file_pread ()
+for direct flash reads
+.IP \(bu 2
+.BR hive_file_pwrite ()
+returns error (ring buffer doesn't support random writes)
+.IP \(bu 2
+Only one file can be opened for writing at a time
+.PP
 Board configuration via -D flags in Makefile:
 .PP
 .nf

@@ -281,6 +281,18 @@ Platform-specific source files:
 - Context: `hive_context_x86_64.S` / `hive_context_arm_cm.S`
 - File: `hive_file_linux.c` / `hive_file_stm32.c`
 
+**STM32 File I/O Differences:**
+The STM32 implementation has different semantics than Linux:
+- Only virtual paths work (`/log`, `/config`) - arbitrary paths rejected
+- `HIVE_O_RDWR` rejected - use `HIVE_O_RDONLY` or `HIVE_O_WRONLY`
+- `HIVE_O_WRONLY` requires `HIVE_O_TRUNC` (flash must be erased first)
+- `hive_file_read()` returns error - use `hive_file_pread()` instead
+- `hive_file_pwrite()` returns error (ring buffer doesn't support random writes)
+- Writes go to ring buffer; partial writes if buffer full (`bytes_written < len`)
+- Single writer at a time
+
+See SPEC.md "File I/O" section for full platform differences table.
+
 Build commands:
 - `make` or `make PLATFORM=linux` - Build for x86-64 Linux
 - `make PLATFORM=stm32 CC=arm-none-eabi-gcc` - Build for STM32

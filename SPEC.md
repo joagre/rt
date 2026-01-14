@@ -1805,6 +1805,7 @@ On Linux, these map directly to POSIX equivalents. On STM32, they're interpreted
 - Standard filesystem paths (e.g., `/tmp/log.bin`)
 - Uses POSIX `open()`, `read()`, `write()`, `fsync()`
 - Synchronous blocking I/O
+- All flags and functions fully supported
 
 **STM32:**
 - Virtual file paths mapped to flash sectors (e.g., `/log`, `/config`)
@@ -1818,6 +1819,29 @@ On Linux, these map directly to POSIX equivalents. On STM32, they're interpreted
 - `HIVE_O_TRUNC` triggers flash sector erase (blocks 1-4 seconds)
 - `hive_file_sync()` drains ring buffer to flash (blocking)
 - Partial writes: if ring buffer is full, `bytes_written < len`
+- Optimized for flight data logging, not general-purpose file I/O
+
+**STM32 API Restrictions:**
+
+| Feature | Linux | STM32 |
+|---------|-------|-------|
+| Arbitrary paths | Yes | No - only virtual paths (`/log`, `/config`) |
+| `hive_file_read()` | Works | **Returns error** - use `pread()` |
+| `hive_file_pread()` | Works | Works (direct flash read) |
+| `hive_file_write()` | Blocking | Ring buffer (O(1), partial writes if full) |
+| `hive_file_pwrite()` | Works | **Returns error** |
+| Multiple writers | Yes | No - single writer at a time |
+
+**STM32 Flag Restrictions:**
+
+| Flag | Linux | STM32 |
+|------|-------|-------|
+| `HIVE_O_RDONLY` | Supported | Supported |
+| `HIVE_O_WRONLY` | Supported | **Requires `HIVE_O_TRUNC`** |
+| `HIVE_O_RDWR` | Supported | **Rejected** (read() doesn't work) |
+| `HIVE_O_CREAT` | Creates file | Ignored (virtual files always exist) |
+| `HIVE_O_TRUNC` | Truncates file | **Required for writes** (erases flash sector) |
+| `HIVE_O_APPEND` | Appends | Ignored (always appends via ring buffer) |
 
 **STM32 Ring Buffer Defaults** (`hive_static_config.h`):
 ```c

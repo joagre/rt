@@ -384,7 +384,22 @@ hive_status hive_file_open(const char *path, int flags, int mode, int *fd_out) {
 
     // Determine access mode
     int access = flags & 0x0003;
-    bool write_mode = (access == HIVE_O_WRONLY || access == HIVE_O_RDWR);
+
+    // STM32 flag restrictions:
+    // - HIVE_O_RDWR not supported (read() doesn't work, only pread())
+    // - HIVE_O_WRONLY requires HIVE_O_TRUNC (flash must be erased first)
+    // - HIVE_O_CREAT and HIVE_O_APPEND are silently ignored
+    if (access == HIVE_O_RDWR) {
+        return HIVE_ERROR(HIVE_ERR_INVALID,
+            "HIVE_O_RDWR not supported on STM32; use HIVE_O_RDONLY or HIVE_O_WRONLY");
+    }
+
+    bool write_mode = (access == HIVE_O_WRONLY);
+
+    if (write_mode && !(flags & HIVE_O_TRUNC)) {
+        return HIVE_ERROR(HIVE_ERR_INVALID,
+            "HIVE_O_TRUNC required for flash writes (must erase sector first)");
+    }
 
     // Handle TRUNC flag - erase the sector
     if ((flags & HIVE_O_TRUNC) && write_mode) {
