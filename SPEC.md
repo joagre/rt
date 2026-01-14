@@ -1815,11 +1815,27 @@ On Linux, these map directly to POSIX equivalents. On STM32, they're interpreted
   CFLAGS += -DHIVE_VFILE_LOG_SIZE=131072
   CFLAGS += -DHIVE_VFILE_LOG_SECTOR=5
   ```
-- Buffered writes via ring buffer (O(1) `write()` calls)
+- **LOSSY ring buffer** for O(1) `write()` calls
 - `HIVE_O_TRUNC` triggers flash sector erase (blocks 1-4 seconds)
 - `hive_file_sync()` drains ring buffer to flash (blocking)
-- Partial writes: if ring buffer is full, `bytes_written < len`
-- Optimized for flight data logging, not general-purpose file I/O
+
+> **⚠️ WARNING: LOSSY WRITES ON STM32**
+>
+> The STM32 implementation uses a fixed-size ring buffer. If the buffer fills up,
+> **data is silently dropped**. This is fundamentally different from Linux:
+>
+> | Platform | Behavior | Data Loss |
+> |----------|----------|-----------|
+> | Linux | Blocking, waits for completion | Never (or error) |
+> | STM32 | Non-blocking, returns immediately | Possible if buffer full |
+>
+> **Design rationale:** This is intentional for flight data logging where:
+> - Dropping some log entries is acceptable
+> - Blocking flight-critical actors (control loop, sensor fusion) is NOT acceptable
+>
+> **Caller responsibility:** Always check `bytes_written < len` and handle accordingly.
+> This implementation is suited for **log files** where some data loss is tolerable,
+> NOT for critical data that must never be lost.
 
 **STM32 API Restrictions:**
 

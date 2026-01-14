@@ -1,9 +1,21 @@
 // STM32 Flash File I/O Implementation
 //
-// Provides the same API as hive_file_linux.c but for STM32 flash storage.
+// WARNING: LOSSY WRITES - This implementation uses a fixed-size ring buffer.
+// If the buffer fills up, data is SILENTLY DROPPED. Always check bytes_written
+// return value. This is by design for flight data logging where:
+// - Dropping log data is acceptable
+// - Blocking flight-critical actors is NOT acceptable
+//
+// This implementation is suited for LOG FILES where some data loss is tolerable,
+// NOT for critical data that must never be lost.
+//
+// Key differences from Linux (hive_file_linux.c):
+// - Linux: write() blocks until complete, guarantees delivery (or error)
+// - STM32: write() returns immediately, best-effort, may drop data
+//
 // All STM32-specific optimizations are hidden inside this implementation:
 // - Virtual file paths mapped to flash sectors (/log, /config)
-// - Ring buffer for O(1) writes from flight-critical actors
+// - Lossy ring buffer for O(1) writes from flight-critical actors
 // - Staged writes with flash programming from RAM
 // - Erase on TRUNC flag
 //

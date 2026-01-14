@@ -352,7 +352,12 @@ if (hive_is_exit_msg(&msg)) {
 - `HIVE_O_RDONLY`, `HIVE_O_WRONLY`, `HIVE_O_RDWR`
 - `HIVE_O_CREAT`, `HIVE_O_TRUNC`, `HIVE_O_APPEND`
 
-**Note:** File operations block until complete. No timeout parameter.
+**Linux:** File operations block until complete. No timeout parameter.
+
+**⚠️ STM32 WARNING: LOSSY WRITES** - On STM32, `hive_file_write()` uses a lossy ring buffer.
+Data is **silently dropped** if the buffer fills up. This is by design for flight data logging
+where dropping log entries is acceptable but blocking flight-critical actors is not.
+Always check `bytes_written < len`. See SPEC.md for full platform differences.
 
 ### Network I/O
 

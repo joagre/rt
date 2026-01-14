@@ -334,6 +334,33 @@ hive_status read_record(int fd, size_t index, record_t *rec) {
     return HIVE_SUCCESS;
 }
 .fi
+.SH WARNINGS
+.SS STM32: Lossy Writes
+On STM32, the file I/O implementation uses a
+.B lossy ring buffer.
+If the ring buffer fills up,
+.B data is silently dropped.
+This is fundamentally different from Linux where
+.BR write ()
+blocks until all data is written.
+.PP
+.B Design rationale:
+This behavior is intentional for flight data logging where:
+.IP \(bu 2
+Dropping some log entries is acceptable
+.IP \(bu 2
+Blocking flight-critical actors (control loop, sensor fusion) is NOT acceptable
+.PP
+.B Caller responsibility:
+Always check
+.I bytes_written
+< requested length and handle accordingly.
+.PP
+.B Suitable for:
+Log files where some data loss is tolerable.
+.br
+.B NOT suitable for:
+Critical data that must never be lost.
 .SH SEE ALSO
 .BR hive_net (3),
 .BR hive_spawn (3),

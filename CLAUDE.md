@@ -282,13 +282,19 @@ Platform-specific source files:
 - File: `hive_file_linux.c` / `hive_file_stm32.c`
 
 **STM32 File I/O Differences:**
-The STM32 implementation has different semantics than Linux:
+
+**⚠️ CRITICAL: LOSSY WRITES** - The STM32 implementation uses a lossy ring buffer.
+If the buffer fills up, **data is silently dropped**. This is fundamentally different
+from Linux where `write()` blocks until complete. Design rationale: for flight data
+logging, dropping log entries is acceptable but blocking flight-critical actors is not.
+Always check `bytes_written < len`. Suited for **log files only**, not critical data.
+
+Additional STM32 restrictions:
 - Only virtual paths work (`/log`, `/config`) - arbitrary paths rejected
 - `HIVE_O_RDWR` rejected - use `HIVE_O_RDONLY` or `HIVE_O_WRONLY`
 - `HIVE_O_WRONLY` requires `HIVE_O_TRUNC` (flash must be erased first)
 - `hive_file_read()` returns error - use `hive_file_pread()` instead
 - `hive_file_pwrite()` returns error (ring buffer doesn't support random writes)
-- Writes go to ring buffer; partial writes if buffer full (`bytes_written < len`)
 - Single writer at a time
 
 See SPEC.md "File I/O" section for full platform differences table.
