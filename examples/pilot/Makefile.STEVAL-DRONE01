@@ -104,6 +104,14 @@ CFLAGS += -DPLATFORM_STEVAL_DRONE01
 CFLAGS += -DARM_MATH_CM4
 CFLAGS += -DHIVE_PLATFORM_STM32
 
+# Flight profile selection (see waypoint_actor.c for details)
+#   FLIGHT_PROFILE_FIRST_TEST (1) - First flight test: hover at 0.5m, land
+#   FLIGHT_PROFILE_ALTITUDE   (2) - Altitude-only waypoints
+#   FLIGHT_PROFILE_FULL_3D    (3) - Full 3D waypoint navigation
+# Default to FIRST_TEST for safety on real hardware
+FLIGHT_PROFILE ?= FLIGHT_PROFILE_FIRST_TEST
+CFLAGS += -DFLIGHT_PROFILE=$(FLIGHT_PROFILE)
+
 # Hive feature flags (disable net/file for STM32)
 CFLAGS += -DHIVE_ENABLE_NET=0
 CFLAGS += -DHIVE_ENABLE_FILE=0
