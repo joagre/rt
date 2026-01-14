@@ -14,7 +14,6 @@
 #include "config.h"
 #include "hive_runtime.h"
 #include "hive_bus.h"
-#include "hive_log.h"
 #include <assert.h>
 #include <math.h>
 
@@ -36,7 +35,6 @@ void position_actor(void *arg) {
 
     // Current target (updated from waypoint actor)
     position_target_t target = POSITION_TARGET_DEFAULT;
-    int count = 0;
 
     while (1) {
         state_estimate_t state;
@@ -51,6 +49,8 @@ void position_actor(void *arg) {
         }
 
         // Simple PD controller in world frame
+        // Note: When GPS unavailable, state.x/y = 0 and waypoints at origin
+        // result in zero error, naturally outputting roll=0, pitch=0
         float x_error = target.x - state.x;
         float y_error = target.y - state.y;
 
@@ -78,12 +78,7 @@ void position_actor(void *arg) {
             .pitch = pitch_cmd,
             .yaw = target.yaw
         };
-        hive_bus_publish(s_attitude_setpoint_bus, &setpoint, sizeof(setpoint));
 
-        if (DEBUG_THROTTLE(count, DEBUG_PRINT_INTERVAL)) {
-            HIVE_LOG_DEBUG("[POS] tgt=(%.1f,%.1f) x=%.2f y=%.2f pitch=%.1f roll=%.1f",
-                           target.x, target.y, state.x, state.y,
-                           pitch_cmd * RAD_TO_DEG, roll_cmd * RAD_TO_DEG);
-        }
+        hive_bus_publish(s_attitude_setpoint_bus, &setpoint, sizeof(setpoint));
     }
 }

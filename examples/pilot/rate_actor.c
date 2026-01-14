@@ -11,7 +11,6 @@
 #include "hive_runtime.h"
 #include "hive_bus.h"
 #include "hive_timer.h"
-#include "hive_log.h"
 #include <assert.h>
 
 static bus_id s_state_bus;
@@ -42,7 +41,6 @@ void rate_actor(void *arg) {
 
     float thrust = 0.0f;
     rate_setpoint_t rate_sp = RATE_SETPOINT_ZERO;
-    int count = 0;
 
     // For measuring dt
     uint64_t prev_time = hive_get_time();
@@ -77,10 +75,5 @@ void rate_actor(void *arg) {
         cmd.yaw    = pid_update(&yaw_pid,   rate_sp.yaw,   state.yaw_rate,   dt);
 
         hive_bus_publish(s_torque_bus, &cmd, sizeof(cmd));
-
-        if (DEBUG_THROTTLE(count, DEBUG_PRINT_INTERVAL)) {
-            HIVE_LOG_DEBUG("[RATE] roll=%.1f pitch=%.1f yaw=%.1f",
-                           state.roll * RAD_TO_DEG, state.pitch * RAD_TO_DEG, state.yaw * RAD_TO_DEG);
-        }
     }
 }

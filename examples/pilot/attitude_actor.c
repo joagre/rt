@@ -11,7 +11,6 @@
 #include "hive_runtime.h"
 #include "hive_bus.h"
 #include "hive_timer.h"
-#include "hive_log.h"
 #include <assert.h>
 
 static bus_id s_state_bus;
@@ -37,7 +36,6 @@ void attitude_actor(void *arg) {
 
     // Target attitudes (updated from attitude_setpoint_bus)
     attitude_setpoint_t attitude_sp = ATTITUDE_SETPOINT_ZERO;
-    int count = 0;
 
     // For measuring dt
     uint64_t prev_time = hive_get_time();
@@ -65,11 +63,5 @@ void attitude_actor(void *arg) {
         setpoint.yaw   = pid_update_angle(&yaw_pid, attitude_sp.yaw, state.yaw, dt);
 
         hive_bus_publish(s_rate_setpoint_bus, &setpoint, sizeof(setpoint));
-
-        if (DEBUG_THROTTLE(count, DEBUG_PRINT_INTERVAL)) {
-            HIVE_LOG_DEBUG("[ATT] sp_r=%.2f st_r=%.2f rate_r=%.2f | sp_p=%.2f st_p=%.2f rate_p=%.2f",
-                           attitude_sp.roll * RAD_TO_DEG, state.roll * RAD_TO_DEG, setpoint.roll * RAD_TO_DEG,
-                           attitude_sp.pitch * RAD_TO_DEG, state.pitch * RAD_TO_DEG, setpoint.pitch * RAD_TO_DEG);
-        }
     }
 }

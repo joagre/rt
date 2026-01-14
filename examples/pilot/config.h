@@ -7,6 +7,24 @@
 #define PILOT_CONFIG_H
 
 // ----------------------------------------------------------------------------
+// Flight Profiles
+// ----------------------------------------------------------------------------
+// Select profile with -DFLIGHT_PROFILE=X (see Makefile)
+
+#define FLIGHT_PROFILE_FIRST_TEST  1  // First flight test (hover, land)
+#define FLIGHT_PROFILE_ALTITUDE    2  // Altitude-only waypoints
+#define FLIGHT_PROFILE_FULL_3D     3  // Full 3D waypoint navigation
+
+// Auto-select default profile based on platform if not specified
+#ifndef FLIGHT_PROFILE
+  #ifdef PLATFORM_STEVAL_DRONE01
+    #define FLIGHT_PROFILE FLIGHT_PROFILE_FIRST_TEST
+  #else
+    #define FLIGHT_PROFILE FLIGHT_PROFILE_FULL_3D
+  #endif
+#endif
+
+// ----------------------------------------------------------------------------
 // Math utilities
 // ----------------------------------------------------------------------------
 

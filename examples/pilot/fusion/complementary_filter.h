@@ -31,10 +31,10 @@ typedef struct {
 } cf_config_t;
 
 // Default configuration
-// alpha = 0.98: Good balance of responsiveness and drift correction
+// alpha = 0.995: High gyro trust, slow accel correction (reduces noise sensitivity)
 // Accel thresholds: Only trust accelerometer near 1g (not during maneuvers)
 #define CF_CONFIG_DEFAULT { \
-    .alpha = 0.98f, \
+    .alpha = 0.995f, \
     .mag_alpha = 0.95f, \
     .use_mag = false, \
     .accel_threshold_lo = 0.8f, \

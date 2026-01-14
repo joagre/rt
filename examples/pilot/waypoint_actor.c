@@ -22,27 +22,32 @@ typedef struct {
     float yaw;      // Heading (radians)
 } waypoint_t;
 
-#ifdef HAL_FIRST_FLIGHT_TEST
+// Flight profile waypoints (FLIGHT_PROFILE defined in config.h)
+
+#if FLIGHT_PROFILE == FLIGHT_PROFILE_FIRST_TEST
 // First flight test: hover briefly at low altitude, then land
-// Safe profile for initial hardware validation
+// Safe profile for initial hardware validation (tethered recommended)
 static const waypoint_t waypoints[] = {
-    {0.0f, 0.0f, 0.25f, 0.0f},  // Hover at 0.25m (tethered test)
+    {0.0f, 0.0f, 0.5f, 0.0f},   // Hover at 0.5m
     {0.0f, 0.0f, 0.0f, 0.0f},   // Land
 };
-#define WAYPOINT_HOVER_TIME_US  (6 * 1000000)  // 6 seconds
-#elif defined(PLATFORM_STEVAL_DRONE01)
-// No GPS: altitude-only waypoints (x,y fixed at origin)
-// Position actor sees zero error, so drone hovers in place.
-// Conservative test profile: low altitudes, slow transitions
+#define WAYPOINT_HOVER_TIME_US  (6 * 1000000)  // 6 seconds hover
+#define FLIGHT_PROFILE_NAME "FIRST_TEST"
+
+#elif FLIGHT_PROFILE == FLIGHT_PROFILE_ALTITUDE
+// Altitude-only waypoints (no GPS, x/y fixed at origin)
+// Position actor sees zero error, drone hovers in place
 static const waypoint_t waypoints[] = {
     {0.0f, 0.0f, 0.5f, 0.0f},   // 0.5m - start low
     {0.0f, 0.0f, 1.0f, 0.0f},   // 1.0m
     {0.0f, 0.0f, 1.5f, 0.0f},   // 1.5m - max height
     {0.0f, 0.0f, 1.0f, 0.0f},   // 1.0m - descend
 };
-#define WAYPOINT_HOVER_TIME_US  (5 * 1000000)  // 5 seconds
-#else
-// Simulation: full 3D waypoint navigation demo
+#define WAYPOINT_HOVER_TIME_US  (5 * 1000000)  // 5 seconds hover
+#define FLIGHT_PROFILE_NAME "ALTITUDE"
+
+#elif FLIGHT_PROFILE == FLIGHT_PROFILE_FULL_3D
+// Full 3D waypoint navigation demo
 static const waypoint_t waypoints[] = {
     {0.0f, 0.0f, 1.0f, 0.0f},              // Start: origin, 1.0m
     {1.0f, 0.0f, 1.2f, 0.0f},              // Waypoint 1: +X, rise to 1.2m
@@ -50,7 +55,11 @@ static const waypoint_t waypoints[] = {
     {0.0f, 1.0f, 1.2f, M_PI_F},            // Waypoint 3: -X, drop to 1.2m, face south
     {0.0f, 0.0f, 1.0f, 0.0f},              // Return: origin, 1.0m, face north
 };
-#define WAYPOINT_HOVER_TIME_US  (2 * 1000000)  // 2 seconds
+#define WAYPOINT_HOVER_TIME_US  (2 * 1000000)  // 2 seconds hover
+#define FLIGHT_PROFILE_NAME "FULL_3D"
+
+#else
+#error "Unknown FLIGHT_PROFILE"
 #endif
 
 #define NUM_WAYPOINTS (sizeof(waypoints) / sizeof(waypoints[0]))
@@ -85,6 +94,9 @@ void waypoint_actor(void *arg) {
     BUS_SUBSCRIBE(s_state_bus);
 
     // Wait for START signal from supervisor before beginning flight
+    HIVE_LOG_INFO("[WPT] Flight profile: %s (%d waypoints, %.0fs hover)",
+                  FLIGHT_PROFILE_NAME, (int)NUM_WAYPOINTS,
+                  WAYPOINT_HOVER_TIME_US / 1000000.0f);
     HIVE_LOG_INFO("[WPT] Waiting for supervisor START signal");
     hive_message msg;
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, NOTIFY_FLIGHT_START, &msg, -1);
@@ -119,11 +131,11 @@ void waypoint_actor(void *arg) {
                 hovering = false;
                 hover_timer = TIMER_ID_INVALID;
 
-#ifdef HAL_FIRST_FLIGHT_TEST
+#if FLIGHT_PROFILE == FLIGHT_PROFILE_FIRST_TEST
                 // First flight test: advance once, then stay landed
-                if (waypoint_index < NUM_WAYPOINTS - 1) {
+                if (waypoint_index < (int)NUM_WAYPOINTS - 1) {
                     waypoint_index++;
-                    if (waypoint_index == NUM_WAYPOINTS - 1) {
+                    if (waypoint_index == (int)NUM_WAYPOINTS - 1) {
                         HIVE_LOG_INFO("[WPT] LANDED - test complete");
                     } else {
                         HIVE_LOG_INFO("[WPT] Advancing to waypoint %d", waypoint_index);
@@ -131,7 +143,7 @@ void waypoint_actor(void *arg) {
                 }
 #else
                 // Normal operation: loop through waypoints
-                waypoint_index = (waypoint_index + 1) % NUM_WAYPOINTS;
+                waypoint_index = (waypoint_index + 1) % (int)NUM_WAYPOINTS;
                 HIVE_LOG_INFO("[WPT] Advancing to waypoint %d: (%.1f, %.1f, %.1f) yaw=%.0f deg",
                               waypoint_index, waypoints[waypoint_index].x,
                               waypoints[waypoint_index].y,

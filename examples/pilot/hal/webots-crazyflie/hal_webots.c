@@ -12,6 +12,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <stdint.h>
+#include <time.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -23,16 +24,36 @@
 // Sensor Noise Simulation
 // ----------------------------------------------------------------------------
 // Realistic noise levels to test the complementary filter.
-// Set to 0.0f to disable noise for a specific sensor.
+// Automatically disabled for FIRST_TEST profile (clean, predictable behavior).
+// Override with -DSENSOR_NOISE=0 or -DSENSOR_NOISE=1 if needed.
 
-// Noise levels - set to 0.0f to disable individual sensors
-#define ACCEL_NOISE_STDDEV  0.05f   // m/s² (~0.5% of gravity)
-#define GYRO_NOISE_STDDEV   0.002f  // rad/s (~0.1 deg/s)
+#include "config.h"  // For FLIGHT_PROFILE
+
+// Noise level: 0=off, 1=low (10%), 2=full (100%)
+// Default: full noise for all profiles (realistic simulation)
+// Override with -DSENSOR_NOISE=0 or -DSENSOR_NOISE=1 if needed
+#ifndef SENSOR_NOISE
+  #define SENSOR_NOISE 2  // Full noise - realistic simulation
+#endif
+
+#if SENSOR_NOISE == 0
+#define ACCEL_NOISE_STDDEV  0.0f
+#define GYRO_NOISE_STDDEV   0.0f
+#elif SENSOR_NOISE == 1
+#define ACCEL_NOISE_STDDEV  0.01f   // Low - m/s² (~0.1% of gravity)
+#define GYRO_NOISE_STDDEV   0.0005f // Low - rad/s (~0.03 deg/s)
+#else
+// Realistic MEMS IMU noise (MPU6050/BMI088 class)
+// Accel: ~150 µg/√Hz at 125Hz BW → 0.016 m/s²
+// Gyro:  ~0.007 °/s/√Hz at 125Hz BW → 0.0014 rad/s
+#define ACCEL_NOISE_STDDEV  0.02f   // Realistic - m/s² (~0.2% of gravity)
+#define GYRO_NOISE_STDDEV   0.001f  // Realistic - rad/s (~0.06 deg/s)
+#endif
 #define GYRO_BIAS_DRIFT     0.0f    // rad/s per step (0 = disabled)
 #define GPS_NOISE_STDDEV    0.0f    // meters (disabled - causes velocity noise issues)
 
-// Xorshift32 PRNG state (deterministic, fast)
-static uint32_t g_rng_state = 12345;
+// Xorshift32 PRNG state (seeded at init for variety)
+static uint32_t g_rng_state = 1;  // Will be seeded in hal_init()
 
 // Accumulated gyro bias (simulates sensor drift)
 static float g_gyro_bias[3] = {0.0f, 0.0f, 0.0f};
@@ -79,6 +100,12 @@ static const float MOTOR_SIGNS[NUM_MOTORS] = {-1.0f, 1.0f, -1.0f, 1.0f};
 
 int hal_init(void) {
     wb_robot_init();
+
+    // Seed PRNG from wall clock for variety in noise patterns each run.
+    // This makes drift direction random, demonstrating it's noise-induced random walk
+    // rather than systematic bias. Drift without position control is physically expected.
+    g_rng_state = (uint32_t)time(NULL) ^ 0xDEADBEEF;
+    if (g_rng_state == 0) g_rng_state = 12345;  // xorshift can't have zero state
 
     // Initialize motors
     const char *motor_names[NUM_MOTORS] = {

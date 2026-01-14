@@ -31,6 +31,10 @@ void altitude_actor_init(bus_id state_bus, bus_id thrust_bus, bus_id position_ta
 // Thrust ramp duration for gentle takeoff (microseconds)
 #define THRUST_RAMP_DURATION_US  (500000)  // 0.5 seconds
 
+// Debug: log every N iterations during startup (first 2 seconds)
+#define STARTUP_DEBUG_INTERVAL  25   // Every 100ms at 250Hz
+#define STARTUP_DEBUG_DURATION  500  // First 2 seconds (500 iterations at 250Hz)
+
 void altitude_actor(void *arg) {
     (void)arg;
 
@@ -44,6 +48,8 @@ void altitude_actor(void *arg) {
     float target_altitude = 0.0f;  // Default to ground (safe)
     uint64_t ramp_start_time = 0;  // For thrust ramp
     int count = 0;
+
+    HIVE_LOG_INFO("[ALT] Started, waiting for target altitude");
 
     // For measuring dt
     uint64_t prev_time = hive_get_time();

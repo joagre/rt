@@ -34,9 +34,18 @@ CFLAGS += -MMD -MP
 # Webots simulation uses simulated time
 CFLAGS += -DSIMULATED_TIME
 
-# Log level: DEBUG for development (shows telemetry)
-# Use HIVE_LOG_LEVEL_INFO to hide telemetry, HIVE_LOG_LEVEL_NONE to disable all
-CFLAGS += -DHIVE_LOG_LEVEL=HIVE_LOG_LEVEL_DEBUG
+# Flight profile selection (see waypoint_actor.c for details)
+#   FLIGHT_PROFILE_FIRST_TEST (1) - First flight test: hover at 0.5m, land
+#   FLIGHT_PROFILE_ALTITUDE   (2) - Altitude-only waypoints (no lateral movement)
+#   FLIGHT_PROFILE_FULL_3D    (3) - Full 3D waypoint navigation (default)
+# Example: make FLIGHT_PROFILE=1
+ifdef FLIGHT_PROFILE
+CFLAGS += -DFLIGHT_PROFILE=$(FLIGHT_PROFILE)
+endif
+
+# Log level: INFO for simulation (hides 250Hz debug spam that slows Webots)
+# Use HIVE_LOG_LEVEL_DEBUG for detailed debugging, HIVE_LOG_LEVEL_NONE to disable all
+CFLAGS += -DHIVE_LOG_LEVEL=HIVE_LOG_LEVEL_INFO
 
 # Hive memory configuration (match STM32 limits for realistic simulation)
 CFLAGS += -DHIVE_MAX_ACTORS=10
