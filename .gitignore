@@ -1,5 +1,6 @@
 # Build artifacts
 build/
+build_*/
 examples/pilot/pilot
 examples/pilot/controllers/
 
