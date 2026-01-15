@@ -168,11 +168,6 @@ help:
 	@echo "  make -C man        - Install/view man pages"
 	@echo "  make -C qemu       - QEMU cross-compile directly"
 
-# Dependencies
-.PHONY: deps
-deps:
-	@echo "No external dependencies required"
-
 # Print variables for debugging
 .PHONY: print-%
 print-%:
