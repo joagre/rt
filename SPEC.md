@@ -371,41 +371,9 @@ This pure single-threaded model provides:
 
 **STM32 (bare metal):**
 - Timers: Hardware timers (SysTick or TIM peripherals)
-- Network: lwIP in NO_SYS mode with ISR flag protocol (see below)
-- File: Direct synchronous I/O (FATFS/littlefs are fast, <1ms typically)
+- Network: Not yet implemented (planned: lwIP in NO_SYS mode)
+- File: Flash-backed virtual files with ring buffer (see File I/O section)
 - Event loop: WFI (Wait For Interrupt) when no actors runnable
-
-**lwIP NO_SYS ISR contract:**
-
-In NO_SYS mode, lwIP callbacks can occur from interrupt context. The runtime enforces strict separation:
-
-- **ISR responsibility:** Set flag only (`pending_events |= EVENT_NETWORK`), then return
-- **ISR prohibition:** Never call runtime APIs, never call `lwip_input()` or heavy lwIP paths
-- **Scheduler responsibility:** Check flags, call `lwip_input()` and process packets from scheduler context
-- **Rationale:** Runtime APIs are not reentrant; lwIP in NO_SYS mode is not ISR-safe for most operations
-
-```c
-// Separate flags per interrupt source (avoids RMW atomicity issues)
-volatile bool net_event_pending = false;
-volatile bool timer_event_pending = false;
-
-// ISR: minimal, single-word write (atomic on Cortex-M for aligned bool)
-void ETH_IRQHandler(void) {
-    ETH_DMAClearITPendingBit(ETH_DMA_IT_R);  // Clear interrupt
-    net_event_pending = true;                 // Single store, no RMW
-    // DO NOT call lwip_input() or runtime APIs here
-}
-
-// Scheduler: processes flags from non-ISR context
-if (net_event_pending) {
-    __disable_irq();
-    net_event_pending = false;
-    __enable_irq();
-    ethernetif_input(&netif);  // Safe: called from scheduler context
-}
-```
-
-**Atomicity note:** Using separate `volatile bool` flags per interrupt source avoids the read-modify-write (`|=`) atomicity issue. On Cortex-M, aligned word writes are atomic, but `|=` is not atomic (it's load-or-store). Separate flags ensure the ISR performs only a single store.
 
 **Key insight:** Modern OSes provide non-blocking I/O mechanisms (epoll, kqueue, IOCP). On bare metal, hardware interrupts and WFI provide equivalent functionality. The event loop pattern is standard in async runtimes (Node.js, Tokio, libuv, asyncio).
 
