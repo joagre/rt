@@ -109,6 +109,8 @@ All resource limits are defined at compile time. Edit and recompile to change:
 
 All structures are statically allocated. Actor stacks use a static arena allocator by default (configurable size), with optional malloc via `actor_config.malloc_stack = true`. Stack sizes are configurable per actor, allowing different actors to use different stack sizes. Arena memory is automatically reclaimed and reused when actors exit. No malloc in hot paths. Memory footprint calculable at link time when using arena allocator (default); optional malloc'd stacks add runtime-dependent heap usage.
 
+**Embedded footprint:** The defaults above are generous for Linux development. The `examples/pilot/` quadcopter application demonstrates a minimal embedded configuration: 10 actors, 40KB stack arena, 16-entry mailbox pool—suitable for microcontrollers with limited RAM.
+
 ## Running Examples
 
 ```bash
