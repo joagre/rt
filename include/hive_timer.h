@@ -14,12 +14,12 @@ typedef uint32_t timer_id;
 
 // One-shot: wake current actor after delay
 // Timer message: class=HIVE_MSG_TIMER, tag=timer_id, no payload
-// Use hive_msg_is_timer() to check, hive_msg_decode() to get timer_id from tag
+// Use hive_msg_is_timer() to check, msg.tag for timer_id
 hive_status hive_timer_after(uint32_t delay_us, timer_id *out);
 
 // Periodic: wake current actor every interval
 // Timer message: class=HIVE_MSG_TIMER, tag=timer_id, no payload
-// Use hive_msg_is_timer() to check, hive_msg_decode() to get timer_id from tag
+// Use hive_msg_is_timer() to check, msg.tag for timer_id
 hive_status hive_timer_every(uint32_t interval_us, timer_id *out);
 
 // Cancel timer

@@ -867,28 +867,6 @@ if (status.code == HIVE_ERR_TIMEOUT) {
 }
 ```
 
-#### Message Decoding (Optional)
-
-Since `hive_message` now provides pre-decoded `class`, `tag`, and direct `data` pointer, `hive_msg_decode()` is **rarely needed**. It remains available for backwards compatibility:
-
-```c
-// Returns pre-decoded values from hive_message struct
-// All output parameters are optional (may be NULL)
-hive_status hive_msg_decode(const hive_message *msg,
-                        hive_msg_class *class,    // out: msg->class
-                        uint32_t *tag,            // out: msg->tag
-                        const void **payload,     // out: msg->data
-                        size_t *payload_len);     // out: msg->len
-```
-
-**Preferred pattern (direct access):**
-```c
-hive_message msg;
-hive_ipc_recv(&msg, -1);
-my_data *data = (my_data *)msg.data;  // Direct payload access
-if (msg.class == HIVE_MSG_REQUEST) { ... }
-```
-
 ### API Contract: hive_ipc_notify()
 
 **Parameter validation:**
@@ -1528,11 +1506,11 @@ hive_status hive_sleep(uint32_t delay_us);
 // In simulation mode, returns simulated time.
 uint64_t hive_get_time(void);
 
-// Check if message is a timer tick (convenience wrapper for hive_msg_decode)
+// Check if message is a timer tick
 bool hive_msg_is_timer(const hive_message *msg);
 ```
 
-Timer wake-ups are delivered as messages with `class == HIVE_MSG_TIMER`. The tag contains the `timer_id`. The actor receives these in its normal `hive_ipc_recv()` loop and can use `hive_msg_is_timer()` or `hive_msg_decode()` to identify timer messages.
+Timer wake-ups are delivered as messages with `class == HIVE_MSG_TIMER`. The tag contains the `timer_id`. The actor receives these in its normal `hive_ipc_recv()` loop and can use `hive_msg_is_timer()` to identify timer messages.
 
 **Important:** When waiting for a specific timer, use selective receive with the timer_id as the tag filter:
 ```c

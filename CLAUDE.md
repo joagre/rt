@@ -155,7 +155,7 @@ All messages have a 4-byte header prepended to payload:
 **`hive_ipc_request()` errors**: Returns `HIVE_ERR_TIMEOUT` if no reply (including when target died), `HIVE_ERR_NOMEM` if pool exhausted, `HIVE_ERR_INVALID` for bad arguments. If linked/monitoring target, check for EXIT message after timeout to distinguish death from timeout.
 
 ### Message Structure (Pre-decoded)
-The `hive_message` struct provides direct access to all fields - no `hive_msg_decode()` needed:
+The `hive_message` struct provides direct access to all fields:
 ```c
 hive_message msg;
 hive_ipc_recv(&msg, -1);
