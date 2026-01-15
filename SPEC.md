@@ -164,7 +164,7 @@ For each event:
 - **Timer event (timerfd)**: Read timerfd, send timer tick message to actor's mailbox, wake actor
 - **Network event (socket)**: Perform I/O operation, store result in actor's `io_status`, wake actor
 
-**Event drain timing (Option A semantics):**
+**Event drain timing:**
 - If runnable actors exist, they run immediately (no `epoll_wait` call)
 - `epoll_wait` is only called when the run queue is empty
 - All events from a single `epoll_wait` call are drained before selecting the next actor
