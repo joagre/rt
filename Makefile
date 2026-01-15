@@ -63,11 +63,6 @@ test: $(LIB)
 tests: $(LIB)
 	$(MAKE) -C tests
 
-# Run targets (delegate to examples/)
-.PHONY: run-pingpong run-fileio run-echo
-run-pingpong run-fileio run-echo: $(LIB)
-	$(MAKE) -C examples $@
-
 # ============================================================================
 # QEMU Targets (delegate to qemu/)
 # ============================================================================
@@ -147,9 +142,6 @@ help:
 	@echo "  bench             - Build and run benchmark suite"
 	@echo "  install-man       - Install man pages to $(MANPREFIX)/man3"
 	@echo "  uninstall-man     - Remove installed man pages"
-	@echo "  run-pingpong      - Build and run ping-pong example"
-	@echo "  run-fileio        - Build and run file I/O example"
-	@echo "  run-echo          - Build and run echo server/client example"
 	@echo ""
 	@echo "QEMU targets (cross-compile for Cortex-M3):"
 	@echo "  qemu-build        - Build runtime for QEMU"
