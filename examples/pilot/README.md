@@ -23,8 +23,10 @@ Demonstrates waypoint navigation with a quadcopter using 9 actors:
 **Webots:** Flies a square pattern with altitude changes at each waypoint (full 3D navigation with GPS).
 
 **STEVAL-DRONE01:** Hovers and changes altitude only (no GPS, so XY position fixed at origin).
-Safety features enabled: 60-second startup delay, 12-second flight window, emergency cutoff
-on excessive tilt (>45°), excessive altitude (>2m), or landing.
+Additional 60-second startup delay before flight (real hardware only).
+
+**Safety features (both platforms):** Emergency cutoff on excessive tilt (>45°), excessive
+altitude (>2m), or touchdown. Flight duration limited by supervisor (10s/40s/60s per profile).
 
 ## Prerequisites
 
