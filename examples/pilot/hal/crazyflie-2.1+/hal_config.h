@@ -65,19 +65,6 @@
 #define HAL_POS_PID_OMAX  0.3f   // Max tilt angle command (rad)
 
 // ----------------------------------------------------------------------------
-// Bus Configuration
-// ----------------------------------------------------------------------------
-
-// STM32F405 has more RAM than F401 (192KB vs 64KB)
-#define HAL_BUS_CONFIG { \
-    .max_subscribers = 6, \
-    .consume_after_reads = 0, \
-    .max_age_ms = 0, \
-    .max_entries = 1, \
-    .max_entry_size = 128 \
-}
-
-// ----------------------------------------------------------------------------
 // Flow Deck Configuration
 // ----------------------------------------------------------------------------
 

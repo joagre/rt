@@ -52,16 +52,4 @@
 #define HAL_RATE_PID_OMAX_PITCH  0.08f
 #define HAL_RATE_PID_OMAX_YAW    0.12f
 
-// ----------------------------------------------------------------------------
-// Bus Configuration
-// ----------------------------------------------------------------------------
-// STM32 has smaller memory limits than simulation
-#define HAL_BUS_CONFIG { \
-    .max_subscribers = 6, \
-    .consume_after_reads = 0, \
-    .max_age_ms = 0, \
-    .max_entries = 1, \
-    .max_entry_size = 128 \
-}
-
 #endif // HAL_CONFIG_H
