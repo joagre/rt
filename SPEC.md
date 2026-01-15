@@ -6,8 +6,6 @@ A minimalistic actor-based runtime designed for **embedded and safety-critical s
 
 **Target use cases:** Drone autopilots, industrial sensor networks, robotics control systems, and other resource-constrained embedded applications requiring structured concurrency.
 
-**Safety-critical caveat:** File I/O operations stall the entire scheduler (see "File I/O"). Safety-critical deployments should restrict file I/O to initialization, shutdown, or non–time-critical phases.
-
 **Design principles:**
 
 1. **Minimalistic**: Only essential features, no bloat
