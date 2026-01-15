@@ -120,7 +120,7 @@ All structures are statically allocated. Actor stacks use a static arena allocat
 # Actor linking example (bidirectional links)
 ./build/link_demo
 
-# Supervisor pattern example (monitoring workers)
+# Worker monitoring example
 ./build/supervisor
 
 # File I/O example
