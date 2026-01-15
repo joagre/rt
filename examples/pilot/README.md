@@ -30,7 +30,6 @@ on excessive tilt (>45°), excessive altitude (>2m), or landing.
 
 **For Webots simulation:**
 - Webots installed (https://cyberbotics.com/)
-- hive runtime built: `cd ../.. && make`
 
 **For STM32 hardware:**
 - ARM GCC: `apt install gcc-arm-none-eabi`
