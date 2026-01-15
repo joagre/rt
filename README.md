@@ -371,14 +371,15 @@ if (hive_is_exit_msg(&msg)) {
 
 **Linux:** File operations block until complete. No timeout parameter.
 
-**STM32:** Uses flash-backed virtual files (e.g., `/log`) with a ring buffer for efficiency.
+**STM32:** Uses flash-backed virtual files with a ring buffer for efficiency.
 Most writes complete immediately. When the buffer fills up, `write()` blocks to flush data to
-flash before continuing. Board-specific flash layout is configured via compile flags:
+flash before continuing. Virtual file paths are hardcoded (`/log`, `/config`), enabled by defining their flash layout:
 ```c
--DHIVE_VFILE_LOG_BASE=0x08020000   // Flash address for /log file
+-DHIVE_VFILE_LOG_BASE=0x08020000   // Enables "/log" at this flash address
 -DHIVE_VFILE_LOG_SIZE=131072       // Size in bytes (128KB)
 -DHIVE_VFILE_LOG_SECTOR=5          // Flash sector number (for erase)
 -DHIVE_FILE_RING_SIZE=4096         // RAM ring buffer size
+// Optional: -DHIVE_VFILE_CONFIG_BASE/SIZE/SECTOR enables "/config"
 ```
 See `examples/pilot/Makefile.STEVAL-DRONE01` for a complete example and SPEC.md for full platform differences.
 
