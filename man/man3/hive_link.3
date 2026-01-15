@@ -16,7 +16,7 @@ hive_link, hive_link_remove, hive_monitor, hive_monitor_cancel, hive_is_exit_msg
 .fi
 .SH DESCRIPTION
 These functions enable actors to be notified when other actors die, supporting
-fault-tolerant supervisor patterns.
+fault-tolerant monitoring patterns.
 .SS Bidirectional Links
 .BR hive_link ()
 creates a bidirectional link between the calling actor and
@@ -129,18 +129,18 @@ Use
 for peer relationships where both parties need to know about failures (e.g.,
 two cooperating actors). Use
 .B monitors
-for supervisor relationships where only the supervisor needs notifications
-(e.g., supervisor watching workers).
-.SS Supervisor Pattern
-The common supervisor pattern:
+for one-way monitoring where only the monitoring actor needs notifications
+(e.g., manager watching workers).
+.SS Worker Monitoring Pattern
+The common worker monitoring pattern:
 .IP 1. 3
-Supervisor spawns workers
+Manager spawns workers
 .IP 2. 3
-Supervisor monitors each worker
+Manager monitors each worker
 .IP 3. 3
-When a worker dies, supervisor receives EXIT message
+When a worker dies, manager receives EXIT message
 .IP 4. 3
-Supervisor decides whether to restart worker, escalate, or ignore
+Manager decides whether to restart worker, escalate, or ignore
 .SS Multiple Links/Monitors
 .IP \(bu 2
 An actor can link to multiple other actors
@@ -176,7 +176,7 @@ No heap allocation
 .IP \(bu 2
 Deterministic behavior suitable for safety-critical systems
 .SH EXAMPLE
-.SS Supervisor Pattern
+.SS Worker Monitoring Pattern
 .nf
 #include <hive_runtime.h>
 #include <hive_link.h>
@@ -190,7 +190,7 @@ void worker(void *arg) {
     hive_exit();
 }
 
-void supervisor(void *arg) {
+void manager(void *arg) {
     (void)arg;
     int worker_ids[3] = {1, 2, 3};
     uint32_t monitors[3];
@@ -200,7 +200,7 @@ void supervisor(void *arg) {
         actor_id w;
         hive_spawn(worker, &worker_ids[i], &w);
         hive_monitor(w, &monitors[i]);
-        printf("Supervisor: monitoring worker %u\\n", w);
+        printf("Manager: monitoring worker %u\\n", w);
     }
 
     /* Wait for workers to exit */
@@ -212,25 +212,25 @@ void supervisor(void *arg) {
         if (hive_is_exit_msg(&msg)) {
             hive_exit_msg info;
             hive_decode_exit(&msg, &info);
-            printf("Supervisor: worker %u exited (%s)\\n",
+            printf("Manager: worker %u exited (%s)\\n",
                    info.actor, hive_exit_reason_str(info.reason));
             exited++;
 
             if (info.reason != HIVE_EXIT_NORMAL) {
                 /* Could restart worker here */
-                printf("Supervisor: would restart crashed worker\\n");
+                printf("Manager: would restart crashed worker\\n");
             }
         }
     }
 
-    printf("Supervisor: all workers done\\n");
+    printf("Manager: all workers done\\n");
     hive_exit();
 }
 
 int main(void) {
     hive_init();
-    actor_id sup;
-    hive_spawn(supervisor, NULL, &sup);
+    actor_id mgr;
+    hive_spawn(manager, NULL, &mgr);
     hive_run();
     hive_cleanup();
     return 0;

@@ -146,7 +146,7 @@ pushes to a RAM ring buffer (fast path). If the buffer is full, write blocks to 
 data to flash before continuing. This ensures no data loss.
 .IP \(bu 2
 .BR hive_file_sync ()
-drains the ring buffer to flash (blocking, call periodically from supervisor or low-priority actor)
+drains the ring buffer to flash (blocking, call periodically from a dedicated actor)
 .IP \(bu 2
 .B HIVE_O_TRUNC
 erases the flash sector (blocks 1-4 seconds for 128KB sectors)
@@ -350,7 +350,7 @@ Slow path: Ring buffer full \- write blocks to flush to flash
 .B Recommendation:
 Call
 .BR hive_file_sync ()
-periodically (e.g., every 4 seconds from supervisor actor) to ensure data is
+periodically (e.g., every 4 seconds from a dedicated actor) to ensure data is
 committed to flash before unexpected power loss.
 .SH SEE ALSO
 .BR hive_net (3),
