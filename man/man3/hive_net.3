@@ -15,8 +15,11 @@ hive_net_listen, hive_net_accept, hive_net_connect, hive_net_close, hive_net_rec
 .fi
 .SH DESCRIPTION
 These functions provide non-blocking TCP network I/O for actors. All operations
-integrate with the runtime's event loop (epoll on Linux, lwIP NO_SYS on STM32),
+integrate with the runtime's event loop (epoll on Linux),
 allowing other actors to run while waiting for network events.
+.PP
+.B Note:
+Network I/O is currently only available on Linux. STM32 support is not yet implemented.
 .SS Server Operations
 .BR hive_net_listen ()
 creates a listening socket bound to
@@ -174,7 +177,7 @@ is returned.
 Non-blocking sockets with epoll integration
 .IP \(bu 2
 .B STM32:
-lwIP NO_SYS mode (single-threaded, polled from scheduler)
+Not yet implemented
 .IP \(bu 2
 Zero heap allocation in I/O operations
 .IP \(bu 2
