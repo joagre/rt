@@ -1,7 +1,6 @@
 # Compiler and flags
 CC := gcc
 CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -Werror -O2 -g
-CPPFLAGS := -Iinclude -D_POSIX_C_SOURCE=200809L
 
 # Platform selection (linux or stm32)
 PLATFORM ?= linux
@@ -16,37 +15,18 @@ endif
 ENABLE_NET ?= 1
 ENABLE_FILE ?= 1
 
-# Add feature flags to compiler (for benchmarks)
-ifeq ($(ENABLE_NET),1)
-  CPPFLAGS += -DHIVE_ENABLE_NET=1
-else
-  CPPFLAGS += -DHIVE_ENABLE_NET=0
-endif
-
-ifeq ($(ENABLE_FILE),1)
-  CPPFLAGS += -DHIVE_ENABLE_FILE=1
-else
-  CPPFLAGS += -DHIVE_ENABLE_FILE=0
-endif
-
 # Directories
 BUILD_DIR := build
-MAN_DIR := man
 
-# Installation directories
+# Installation directories (exported to man/Makefile)
 PREFIX ?= /usr/local
 MANPREFIX ?= $(PREFIX)/share/man
 
 # Library (built by src/Makefile)
 LIB := $(BUILD_DIR)/libhive.a
 
-# Benchmarks
-BENCHMARKS_DIR := benchmarks
-BENCHMARK_SRCS := $(wildcard $(BENCHMARKS_DIR)/*.c)
-BENCHMARKS := $(BENCHMARK_SRCS:$(BENCHMARKS_DIR)/%.c=$(BUILD_DIR)/%)
-
 # Variables to export to sub-Makefiles
-export CC CFLAGS PLATFORM ENABLE_NET ENABLE_FILE
+export CC CFLAGS PLATFORM ENABLE_NET ENABLE_FILE PREFIX MANPREFIX
 
 # ============================================================================
 # Primary Targets
@@ -62,12 +42,10 @@ lib: $(LIB)
 $(LIB):
 	$(MAKE) -C src
 
-# Build benchmarks
-$(BUILD_DIR)/%: $(BENCHMARKS_DIR)/%.c $(LIB)
-	$(CC) $(CFLAGS) $(CPPFLAGS) $< -o $@ -L$(BUILD_DIR) -lhive
-
+# Build benchmarks (delegate to benchmarks/Makefile)
 .PHONY: benchmarks
-benchmarks: $(BENCHMARKS)
+benchmarks: $(LIB)
+	$(MAKE) -C benchmarks
 
 # ============================================================================
 # Delegated Targets
@@ -127,10 +105,10 @@ qemu-example-%:
 # Utility Targets
 # ============================================================================
 
-# Run benchmarks
+# Run benchmarks (delegate to benchmarks/Makefile)
 .PHONY: bench
-bench: $(BUILD_DIR)/bench
-	./$(BUILD_DIR)/bench
+bench: $(LIB)
+	$(MAKE) -C benchmarks run
 
 # Clean
 .PHONY: clean
@@ -145,18 +123,15 @@ clean-emacs:
 	find . -name '#*#' -delete
 	find . -name '.#*' -delete
 
-# Install man pages
+# Install man pages (delegate to man/Makefile)
 .PHONY: install-man
 install-man:
-	@echo "Installing man pages to $(MANPREFIX)/man3/"
-	install -d $(MANPREFIX)/man3
-	install -m 644 $(MAN_DIR)/man3/*.3 $(MANPREFIX)/man3/
+	$(MAKE) -C man install
 
-# Uninstall man pages
+# Uninstall man pages (delegate to man/Makefile)
 .PHONY: uninstall-man
 uninstall-man:
-	@echo "Removing man pages from $(MANPREFIX)/man3/"
-	rm -f $(MANPREFIX)/man3/hive_*.3
+	$(MAKE) -C man uninstall
 
 # ============================================================================
 # Help
@@ -194,10 +169,12 @@ help:
 	@echo "  ENABLE_FILE=1     - File I/O (default: 1)"
 	@echo ""
 	@echo "Sub-Makefiles:"
-	@echo "  make -C src       - Build library directly"
-	@echo "  make -C tests     - Build/run tests directly"
-	@echo "  make -C examples  - Build/run examples directly"
-	@echo "  make -C qemu      - QEMU cross-compile directly"
+	@echo "  make -C src        - Build library directly"
+	@echo "  make -C tests      - Build/run tests directly"
+	@echo "  make -C examples   - Build/run examples directly"
+	@echo "  make -C benchmarks - Build/run benchmarks directly"
+	@echo "  make -C man        - Install/view man pages"
+	@echo "  make -C qemu       - QEMU cross-compile directly"
 
 # Dependencies
 .PHONY: deps
