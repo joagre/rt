@@ -1,7 +1,7 @@
 # Pilot Example Specification
 
 A quadcopter autopilot example using the actor runtime. Supports Webots simulation
-(default) and STM32 hardware (STEVAL-DRONE01).
+(default) and STM32 hardware (Crazyflie 2.1+, STEVAL-DRONE01).
 
 ## Status
 
@@ -295,7 +295,7 @@ differentiating position error. This provides smoother response with less noise:
 thrust = BASE_THRUST + PI_correction - Kv * vertical_velocity
 ```
 
-Base thrust: 0.553 (Webots) / 0.29 (STEVAL-DRONE01)
+Base thrust: 0.553 (Webots) / platform-specific (see `hal/*/hal_config.h`)
 
 ### Mixer (Platform-Specific, X Configuration)
 
@@ -431,23 +431,24 @@ Actors use the HAL directly - no function pointers needed:
 - Build with: `make` (sets `-DSIMULATED_TIME`)
 - Uses `webots/robot.h` APIs
 
-**STM32 hardware (STEVAL-DRONE01):**
-- HAL implementation: `hal/STEVAL-DRONE01/hal_stm32.c`
-- Build with: `make -f Makefile.STEVAL-DRONE01`
-- Flash with: `make -f Makefile.STEVAL-DRONE01 flash`
-- Memory: ~60 KB flash (24% of 256 KB), ~57 KB RAM (88% of 64 KB)
+**STM32 hardware:**
+- Crazyflie 2.1+: `hal/crazyflie-2.1+/` (STM32F405, ~39 KB flash)
+- STEVAL-DRONE01: `hal/STEVAL-DRONE01/` (STM32F401, ~60 KB flash)
+- Build: `make -f Makefile.<platform>`
+- See `hal/<platform>/README.md` for hardware details
 
 ### Platform Differences
 
 All hardware differences are encapsulated in the HAL. Actor code is identical
 across platforms.
 
-| Component | Webots (Crazyflie) | STM32 (STEVAL-DRONE01) | Location |
-|-----------|-------------------|------------------------|----------|
-| Motor mixer | Crazyflie formula | STEVAL formula | HAL `hal_write_torque()` |
-| Pitch sign | Negated in mixer | Standard | HAL `hal_write_torque()` |
-| Motor output | Signed velocity | Unsigned PWM duty cycle | HAL implementation |
+| Component | Webots | STM32 Hardware | Location |
+|-----------|--------|----------------|----------|
+| Motor mixer | Crazyflie formula | Platform-specific | HAL `hal_write_torque()` |
+| Motor output | Signed velocity | Unsigned PWM | HAL implementation |
 | Sensor reading | Webots API | STM32 drivers | HAL `hal_read_sensors()` |
+
+See `hal/<platform>/README.md` for mixer formulas and pin assignments.
 
 The only compile-time difference in pilot.c is `SIMULATED_TIME`:
 
@@ -458,11 +459,10 @@ The only compile-time difference in pilot.c is `SIMULATED_TIME`:
 
 **Known limitations on STM32:**
 
-| Issue | Impact | Workaround |
-|-------|--------|------------|
-| No GPS/position feedback | x,y return 0.0 | Waypoints are altitude-only (x=0, y=0); drone hovers in place and cycles through altitudes |
-| Motor pin conflict | Only 2 of 4 motors on default pins | Use port D pins (PD12-PD15) via `motors_init_full()` |
-| PID gains | Tuned for Webots Crazyflie | May need retuning for hardware |
+| Issue | Impact | Notes |
+|-------|--------|-------|
+| Position feedback | Platform-dependent | Crazyflie with Flow deck has XY; STEVAL altitude-only |
+| PID gains | Tuned per platform | See `hal/*/hal_config.h` |
 
 ### Portable Code
 
@@ -507,7 +507,8 @@ examples/pilot/
     fusion/
         complementary_filter.c/h  # Portable attitude estimation
     Makefile                 # Webots simulation build
-    Makefile.STEVAL-DRONE01  # STM32 hardware build
+    Makefile.crazyflie-2.1+  # Crazyflie 2.1+ build
+    Makefile.STEVAL-DRONE01  # STEVAL-DRONE01 build
     SPEC.md              # This specification
     README.md            # Usage instructions
     worlds/
@@ -517,10 +518,8 @@ examples/pilot/
     hal/
         hal.h                # Common HAL interface
         webots-crazyflie/    # Webots simulation HAL
-            hal_webots.c     # Webots implementation
-        STEVAL-DRONE01/      # STM32F401 HAL
-            hal_stm32.c      # STM32 wrapper
-            platform_*.c/h   # Low-level drivers
+        crazyflie-2.1+/      # Crazyflie 2.1+ HAL (STM32F405)
+        STEVAL-DRONE01/      # STEVAL-DRONE01 HAL (STM32F401)
 ```
 
 ---
@@ -734,9 +733,9 @@ State Bus ──► Waypoint Actor ──► Position Target Bus
 - Loops forever: returns to first waypoint after completing route
 
 **Platform-specific routes:**
-- **Webots (GPS available):** 3D waypoints with square pattern (1.0m → 1.2m → 1.4m → 1.2m → 1.0m)
-- **STEVAL-DRONE01 (no GPS):** Altitude-only waypoints (0.5m → 1.0m → 1.5m → 1.0m), XY fixed at origin
-- **First flight test:** Hover at 0.25m for 6 seconds, then land (safe tethered test profile)
+- **Webots:** 3D waypoints with square pattern and altitude changes
+- **STM32 hardware:** Platform-dependent (see flight profiles in README.md)
+- **First flight test:** Hover at 0.5m briefly, then land (safe tethered test)
 
 **Benefits:**
 - Decouples waypoint logic from both position and altitude control
@@ -789,45 +788,15 @@ Supervisor Actor ──► START notification ──► Waypoint Actor
 
 ## Memory Requirements
 
-### STM32 Build (STEVAL-DRONE01)
+### STM32 Builds
 
-Actual memory usage from `make -f Makefile.STEVAL-DRONE01`:
+| Platform | Flash | RAM | MCU |
+|----------|-------|-----|-----|
+| Crazyflie 2.1+ | ~39 KB | ~140 KB | STM32F405 (1 MB / 192 KB) |
+| STEVAL-DRONE01 | ~60 KB | ~57 KB | STM32F401 (256 KB / 64 KB) |
 
-| Section | Size | Description |
-|---------|------|-------------|
-| Flash | ~60 KB | Code + constants (24% of 256 KB) |
-| RAM | ~57 KB | Static data (88% of 64 KB) |
-
-**RAM breakdown:**
-
-| Component | Size | Notes |
-|-----------|------|-------|
-| Stack arena | 40 KB | 9 actors × 4 KB + headroom |
-| Actor table | 1.2 KB | 10 slots |
-| Message pool | 4 KB | 32 entries × 128 bytes |
-| Bus structures | 2 KB | 8 buses + subscribers + entries |
-| Other pools | 1 KB | Mailbox, timers, links, monitors |
-| Ring buffer | 4 KB | Flash file I/O buffer (reduced from 8KB) |
-| Main stack | 3 KB | Heap + stack for main() |
-
-**Tightened configuration** (in Makefile.STEVAL-DRONE01):
-
-| Resource | Used | Configured | Default |
-|----------|------|------------|---------|
-| Actors | 9 | 10 | 64 |
-| Buses | 7 | 8 | 32 |
-| Stack per actor | 4 KB | 4 KB | 64 KB |
-| Stack arena | 36 KB | 40 KB | 1 MB |
-| Mailbox entries | 1 | 16 | 256 |
-| Message data | 7 | 32 | 256 |
-| Timer entries | 1 | 4 | 64 |
-| Link entries | 0 | 8 | 128 |
-| Monitor entries | 0 | 8 | 128 |
-| Max message size | 68 | 128 | 256 |
-
-**Stack safety margin:** 2x (worst-case ~1.5 KB per actor with FPU, 4096 available)
-
-Fits on STM32F401CCU6 (256 KB flash, 64 KB RAM) with ~7 KB RAM headroom.
+Resource limits are tightened per-platform in each Makefile. See `Makefile.<platform>`
+for exact configuration (actors, buses, stack sizes, pool sizes).
 
 ---
 
