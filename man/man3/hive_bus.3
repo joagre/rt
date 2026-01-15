@@ -163,9 +163,16 @@ which returns
 .B HIVE_ERR_NOMEM
 and never drops messages. Design subscribers to keep up with publishers; slow
 readers will miss messages.
-.SS Subscriber Limit
-Maximum 32 subscribers per bus (limited by uint32_t bitmask used internally for
-tracking reads). The actual limit is min(32, HIVE_MAX_BUS_SUBSCRIBERS).
+.SS Subscriber Limit (Architectural)
+Maximum 32 subscribers per bus. This is a
+.B hardcoded architectural limit
+enforced by the uint32_t
+.I readers_mask
+bitmask used to track which subscribers have read each entry (bit N = subscriber N has read).
+The configurable
+.B HIVE_MAX_BUS_SUBSCRIBERS
+defaults to 32 but cannot exceed this architectural limit.
+See SPEC.md "Architectural Limits" for all hardcoded constraints.
 .SS New Subscriber Read Position
 When an actor subscribes, its read position starts at the current head. It will
 not see entries published before subscribing. To capture all entries, subscribe
