@@ -41,20 +41,14 @@ The pilot serves dual purposes: a real-world stress test that exposes runtime we
 
 ### Why max_entries=1?
 
-All buses use `max_entries=1` (single entry, latest value only). Bus configuration
-is platform-specific, defined as `HAL_BUS_CONFIG` in each platform's `hal_config.h`:
+All buses use `max_entries=1` (single entry, latest value only):
 
 ```c
-// In hal_config.h (platform-specific)
 #define HAL_BUS_CONFIG { \
     .max_subscribers = 6, \
     .max_entries = 1, \      // Latest value only
     .max_entry_size = 128 \
 }
-
-// In pilot.c
-#define PILOT_BUS_CONFIG HAL_BUS_CONFIG
-hive_bus_config cfg = PILOT_BUS_CONFIG;
 ```
 
 - Control loops need current state, not history
