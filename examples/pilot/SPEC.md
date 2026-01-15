@@ -325,13 +325,16 @@ M3 (front-right, CCW): thrust + roll - pitch + yaw
 M4 (rear-right, CW):   thrust + roll + pitch - yaw
 ```
 
-**STEVAL-DRONE01 (hal/STEVAL-DRONE01/):** Different sign conventions
+**STEVAL-DRONE01 (hal/STEVAL-DRONE01/):** Brushed DC motors on TIM4
 ```
-M1 (rear-left, CCW):   thrust + roll + pitch - yaw
-M2 (front-left, CW):   thrust + roll - pitch + yaw
-M3 (front-right, CCW): thrust - roll - pitch - yaw
-M4 (rear-right, CW):   thrust - roll + pitch + yaw
+M1 (rear-left, CCW):   thrust - roll - pitch + yaw  → P1 (TIM4_CH1, PB6)
+M2 (front-left, CW):   thrust - roll + pitch - yaw  → P2 (TIM4_CH2, PB7)
+M3 (front-right, CCW): thrust + roll + pitch + yaw  → P4 (TIM4_CH3, PB8)
+M4 (rear-right, CW):   thrust + roll - pitch - yaw  → P5 (TIM4_CH4, PB9)
 ```
+
+Note: Board connectors are labeled P1, P2, P4, P5 (no P3). Motor direction is
+reversed by flipping the 2-wire connector (reversing polarity on brushed DC motor).
 
 The mixer is implemented in each HAL's `hal_write_torque()` function.
 

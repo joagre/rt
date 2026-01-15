@@ -8,27 +8,31 @@
  *
  * Usage:
  *   1. REMOVE PROPELLERS or use a test rig!
- *   2. Build: make -f Makefile.STEVAL-DRONE01 TEST=sensor_motor_test
- *   3. Flash: make -f Makefile.STEVAL-DRONE01 TEST=sensor_motor_test flash
- *   4. Connect serial at 115200 baud (P7 header)
- *   5. Follow on-screen instructions
- *   6. Record the output to configure motors.h and hal_stm32.c
+ *   2. Build: cd vendor && make
+ *   3. Flash: make flash
+ *   4. Connect serial at 115200 baud (P7 header) - optional
+ *   5. Count LED blinks to identify which channel is being tested
+ *   6. Observe motor position and rotation direction
  *
  * Expected motor layout for X-quad (looking down):
  *
  *            Front
- *          M2    M3
- *            \  /
- *             \/
- *             /\
- *            /  \
- *          M1    M4
+ *        M2(CW)  M3(CCW)
+ *         P2  \  /  P4
+ *              \/
+ *              /\
+ *         P1  /  \  P5
+ *        M1(CCW) M4(CW)
  *            Rear
  *
- *   M1 (rear-left):   CCW rotation
- *   M2 (front-left):  CW rotation
- *   M3 (front-right): CCW rotation
- *   M4 (rear-right):  CW rotation
+ * Channel to connector mapping:
+ *   CH1 (1 blink) → P1 → M1 (rear-left, CCW)
+ *   CH2 (2 blinks) → P2 → M2 (front-left, CW)
+ *   CH3 (3 blinks) → P4 → M3 (front-right, CCW)
+ *   CH4 (4 blinks) → P5 → M4 (rear-right, CW)
+ *
+ * Note: Board connectors are labeled P1, P2, P4, P5 (no P3).
+ * To reverse motor direction: flip the 2-wire connector.
  */
 
 #include "stm32f4xx_hal.h"

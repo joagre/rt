@@ -213,11 +213,13 @@ PB10 - LPS22HB_CS
 
 ### TIM4 PWM (Motors)
 ```
-PB6  - TIM4_CH1 (M1)
-PB7  - TIM4_CH2 (M2)
-PB8  - TIM4_CH3 (M3)
-PB9  - TIM4_CH4 (M4)
+PB6  - TIM4_CH1 (M1, rear-left, CCW)   → Connector P1
+PB7  - TIM4_CH2 (M2, front-left, CW)   → Connector P2
+PB8  - TIM4_CH3 (M3, front-right, CCW) → Connector P4
+PB9  - TIM4_CH4 (M4, rear-right, CW)   → Connector P5
 ```
+
+Note: Board connectors are labeled P1, P2, P4, P5 (no P3).
 
 ### USART1 (Debug Serial)
 ```
@@ -302,24 +304,39 @@ Key differences from Webots:
 
 ## Motor Layout
 
-X-configuration quadcopter:
+X-configuration quadcopter with brushed DC motors:
 
 ```
-           Front
-         M2    M3
-     (CW)  \  /  (CCW)
-            \/
-            /\
-     (CCW) /  \ (CW)
-         M1    M4
-           Rear
-
-Motor mixing:
-  M1 = throttle + roll + pitch - yaw
-  M2 = throttle + roll - pitch + yaw
-  M3 = throttle - roll - pitch - yaw
-  M4 = throttle - roll + pitch + yaw
+             Front
+         M2(CW)    M3(CCW)
+          P2  \    /  P4
+               \  /
+                \/
+                /\
+               /  \
+          P1  /    \  P5
+         M1(CCW)  M4(CW)
+             Rear
 ```
+
+**Motor to connector mapping:**
+
+| Motor | Position | Rotation | Connector | Pin |
+|-------|----------|----------|-----------|-----|
+| M1 | rear-left | CCW | P1 | PB6 (TIM4_CH1) |
+| M2 | front-left | CW | P2 | PB7 (TIM4_CH2) |
+| M3 | front-right | CCW | P4 | PB8 (TIM4_CH3) |
+| M4 | rear-right | CW | P5 | PB9 (TIM4_CH4) |
+
+**Motor mixing (in hal_stm32.c):**
+```
+M1 = thrust - roll - pitch + yaw
+M2 = thrust - roll + pitch - yaw
+M3 = thrust + roll + pitch + yaw
+M4 = thrust + roll - pitch - yaw
+```
+
+**To reverse motor direction:** Flip the 2-wire motor connector (reverses polarity).
 
 ## Calibration
 

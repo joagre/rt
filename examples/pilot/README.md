@@ -237,13 +237,15 @@ M3 = thrust + roll - pitch + yaw  (front-right, CCW)
 M4 = thrust + roll + pitch - yaw  (rear-right, CW)
 ```
 
-**STEVAL-DRONE01 (hal/STEVAL-DRONE01/):** Different sign conventions
+**STEVAL-DRONE01 (hal/STEVAL-DRONE01/):** Brushed DC motors on TIM4
 ```
-M1 = thrust + roll + pitch - yaw  (rear-left, CCW)
-M2 = thrust + roll - pitch + yaw  (front-left, CW)
-M3 = thrust - roll - pitch - yaw  (front-right, CCW)
-M4 = thrust - roll + pitch + yaw  (rear-right, CW)
+M1 = thrust - roll - pitch + yaw  (rear-left, CCW)   → P1 (TIM4_CH1, PB6)
+M2 = thrust - roll + pitch - yaw  (front-left, CW)   → P2 (TIM4_CH2, PB7)
+M3 = thrust + roll + pitch + yaw  (front-right, CCW) → P4 (TIM4_CH3, PB8)
+M4 = thrust + roll - pitch - yaw  (rear-right, CW)   → P5 (TIM4_CH4, PB9)
 ```
+
+Note: Board connectors are labeled P1, P2, P4, P5 (no P3).
 
 The mixer is implemented in each HAL's `hal_write_torque()` function.
 

@@ -47,16 +47,22 @@ void hal_read_sensors(sensor_data_t *sensors) {
 // STEVAL-DRONE01 X-configuration mixer
 //
 // Motor layout:
-//         Front
-//       M2    M3
-//         \  /
-//          \/
-//          /\.
-//         /  \.
-//       M1    M4
-//         Rear
+//          Front
+//      M2(CW)  M3(CCW)
+//       P2  \  /  P4
+//            \/
+//            /\
+//       P1  /  \  P5
+//      M1(CCW) M4(CW)
+//          Rear
 //
-// Motor rotation: M1(CCW), M2(CW), M3(CCW), M4(CW)
+// Channel to connector mapping:
+//   M1 (rear-left, CCW)   → P1 (TIM4_CH1, PB6)
+//   M2 (front-left, CW)   → P2 (TIM4_CH2, PB7)
+//   M3 (front-right, CCW) → P4 (TIM4_CH3, PB8)
+//   M4 (rear-right, CW)   → P5 (TIM4_CH4, PB9)
+//
+// Note: Board connectors are labeled P1, P2, P4, P5 (no P3).
 
 void hal_write_torque(const torque_cmd_t *cmd) {
     // Apply mixer: convert torque to individual motor commands

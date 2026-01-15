@@ -11,19 +11,26 @@
 // Configuration
 // ----------------------------------------------------------------------------
 
-// Motor to TIM4 channel mapping
-// With I2C1 using PB6/PB7, we only have TIM4 CH3/CH4 available on PB8/PB9
-// For full quad support, would need alternative pins or timer
+// Motor to TIM4 channel mapping (X-configuration)
 //
-// Current mapping (2 motors on TIM4):
-//   M3 (front-right): TIM4_CH3 (PB8)
-//   M4 (rear-right):  TIM4_CH4 (PB9)
+// Motor layout:
+//          Front
+//      M2(CW)  M3(CCW)
+//         \    /
+//          \  /
+//           \/
+//           /\
+//          /  \
+//      M1(CCW) M4(CW)
+//          Rear
 //
-// Full mapping (if using PD12-PD15 or not using I2C1):
-//   M1 (rear-left):   TIM4_CH1
-//   M2 (front-left):  TIM4_CH2
-//   M3 (front-right): TIM4_CH3
-//   M4 (rear-right):  TIM4_CH4
+// Channel to connector mapping:
+//   M1 (rear-left, CCW):   TIM4_CH1 (PB6) → Connector P1
+//   M2 (front-left, CW):   TIM4_CH2 (PB7) → Connector P2
+//   M3 (front-right, CCW): TIM4_CH3 (PB8) → Connector P4
+//   M4 (rear-right, CW):   TIM4_CH4 (PB9) → Connector P5
+//
+// Note: Board connectors are labeled P1, P2, P4, P5 (no P3).
 
 static const tim4_channel_t motor_channel[MOTORS_COUNT] = {
     TIM4_CH1,   // M1 - rear-left
