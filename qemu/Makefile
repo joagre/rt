@@ -20,7 +20,8 @@ ARM_SIZE := arm-none-eabi-size
 ARM_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -O2 -g \
               -mcpu=cortex-m3 -mthumb -mfloat-abi=soft \
               -ffunction-sections -fdata-sections -fno-common \
-              -ffreestanding -nostdlib
+              -ffreestanding -nostdlib \
+              -MMD -MP
 
 # QEMU test uses smaller config values suitable for 64KB RAM
 ARM_CPPFLAGS := -I../include -I. \
@@ -256,3 +257,10 @@ help:
 	@echo ""
 	@echo "Requirements:"
 	@echo "  sudo apt install gcc-arm-none-eabi qemu-system-arm"
+
+# ============================================================================
+# Auto-generated Dependencies
+# ============================================================================
+
+# Include all .d files in build directory (silently ignore if missing)
+-include $(wildcard $(BUILD_DIR)/*.d)
