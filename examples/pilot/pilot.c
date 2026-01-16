@@ -130,6 +130,7 @@ int main(void) {
     // Spawn order matters: flight_manager last so its whereis() targets are registered.
     // Control loop order: sensor -> estimator -> waypoint -> altitude ->
     //                     position -> attitude -> rate -> motor -> flight_manager
+    // clang-format off
     hive_child_spec children[] = {
         {.id = "sensor",        .fn = sensor_actor,         .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = {.priority = HIVE_PRIORITY_CRITICAL, .name = "sensor"}},
@@ -150,7 +151,6 @@ int main(void) {
         {.id = "flight_manager",.fn = flight_manager_actor, .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = {.priority = HIVE_PRIORITY_CRITICAL, .name = "flight_mgr"}},
     };
-    // clang-format on
 
     // Configure supervisor with ONE_FOR_ALL strategy:
     // If any actor crashes, all are killed and restarted together.
