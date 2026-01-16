@@ -73,7 +73,7 @@ Timer messages have:
 = 0 (no payload)
 .IP \(bu 2
 .B sender
-= HIVE_SENDER_TIMER (0xFFFFFFFF)
+= the owning actor (the actor that created the timer)
 .PP
 Use
 .BR hive_msg_is_timer ()

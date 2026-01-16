@@ -243,7 +243,7 @@ hive_timer_cancel(periodic);
 // File operations (block until complete)
 int fd;
 size_t bytes_written, bytes_read;
-hive_file_open("test.txt", O_RDWR | O_CREAT, 0644, &fd);
+hive_file_open("test.txt", HIVE_O_RDWR | HIVE_O_CREAT, 0644, &fd);
 hive_file_write(fd, data, len, &bytes_written);
 hive_file_read(fd, buffer, sizeof(buffer), &bytes_read);
 hive_file_close(fd);
@@ -391,10 +391,12 @@ See `examples/pilot/Makefile.STEVAL-DRONE01` for a complete example and SPEC.md 
 - `HIVE_LOG_WARN(fmt, ...)` - Warnings
 - `HIVE_LOG_ERROR(fmt, ...)` - Errors
 
-**File logging** (managed by application):
+**Logging lifecycle** (managed by application):
+- `hive_log_init()` - Initialize logging subsystem (called by `hive_init()`)
 - `hive_log_file_open(path)` - Open log file (on STM32, erases flash sector)
 - `hive_log_file_sync()` - Flush to storage (call periodically)
 - `hive_log_file_close()` - Close log file
+- `hive_log_cleanup()` - Cleanup logging subsystem
 
 **Compile-time configuration** (`-D` flags or `hive_static_config.h`):
 - `HIVE_LOG_LEVEL` - Minimum level to compile (default: `HIVE_LOG_LEVEL_INFO`)

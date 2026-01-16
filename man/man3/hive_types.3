@@ -19,16 +19,20 @@ Opaque 32-bit handle identifying an actor.
 Sentinel value (0) indicating an invalid or uninitialized actor ID.
 .TP
 .B bus_id
-Opaque 32-bit handle identifying a bus.
+Opaque 32-bit handle identifying a bus (defined in
+.IR <hive_bus.h> ).
 .TP
 .B BUS_ID_INVALID
-Sentinel value (0) indicating an invalid bus ID.
+Sentinel value (0) indicating an invalid bus ID (defined in
+.IR <hive_bus.h> ).
 .TP
 .B timer_id
-Opaque 32-bit handle identifying a timer.
+Opaque 32-bit handle identifying a timer (defined in
+.IR <hive_timer.h> ).
 .TP
 .B TIMER_ID_INVALID
-Sentinel value (0) indicating an invalid timer ID.
+Sentinel value (0) indicating an invalid timer ID (defined in
+.IR <hive_timer.h> ).
 .SS Status Type
 .PP
 .nf
@@ -131,13 +135,13 @@ Wildcard for filtering in
 .SS Special Sender IDs
 .TP
 .B HIVE_SENDER_ANY
-Wildcard for filtering (0xFFFFFFFF).
-.TP
-.B HIVE_SENDER_TIMER
-Timer tick messages (0xFFFFFFFF).
-.TP
-.B HIVE_SENDER_SYSTEM
-System messages like exit notifications (0xFFFFFFFE).
+Wildcard for filtering in
+.BR hive_ipc_recv_match ()
+(0xFFFFFFFF).
+.PP
+.B Note:
+Timer messages have the owning actor as sender. Exit notifications have the
+dying actor as sender. Use message class to identify system messages.
 .SS Timeout Constants
 .TP
 .B HIVE_TIMEOUT_INFINITE (-1)
@@ -195,6 +199,9 @@ Stack overflow detected (reserved for future hardware-based detection).
 Actor was killed externally (reserved for future use).
 .SS Exit Message Payload
 .PP
+Defined in
+.IR <hive_link.h> :
+.PP
 .nf
 typedef struct {
     actor_id       actor;   /* ID of the actor that died */
@@ -202,8 +209,11 @@ typedef struct {
 } hive_exit_msg;
 .fi
 .PP
-Access via cast:
-.I hive_exit_msg *info = (hive_exit_msg *)msg.data;
+Use helper functions from
+.BR hive_link (3):
+.BR hive_is_exit_msg ()
+and
+.BR hive_decode_exit ().
 .SH COMPILE-TIME CONFIGURATION
 All resource limits are defined in
 .I hive_static_config.h
