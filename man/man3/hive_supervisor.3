@@ -201,6 +201,40 @@ on each interaction or after any failure signal (timeout, EXIT message).
 .PP
 This prevents the classic bug: client caches ID, server restarts, client sends
 to dead ID, silent failure or mysterious behavior.
+.SS Restart Contract Checklist
+.B On child restart, these are always reset:
+.IP \(bu 2
+Mailbox empty
+.IP \(bu 2
+Bus subscriptions gone
+.IP \(bu 2
+Bus cursors reset (fresh subscribe required)
+.IP \(bu 2
+Timers cancelled
+.IP \(bu 2
+Links and monitors cleared
+.IP \(bu 2
+actor_id changes
+.IP \(bu 2
+Name registration removed (must re-register)
+.IP \(bu 2
+External handles invalid (must reacquire)
+.PP
+.B Supervisor guarantees:
+.IP \(bu 2
+Restart order is deterministic: child spec order
+.IP \(bu 2
+Restart strategy applied exactly as defined (no hidden backoff)
+.IP \(bu 2
+Intensity limit is deterministic: when exceeded, supervisor shuts down, no further restarts
+.IP \(bu 2
+Supervisor never uses heap in hot paths; child-arg copies are bounded and static
+.PP
+.B Failure visibility:
+.IP \(bu 2
+Every restart attempt is observable (log)
+.IP \(bu 2
+Every give-up is observable (log + shutdown callback)
 .SH EXAMPLE
 .nf
 #include <hive_runtime.h>

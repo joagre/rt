@@ -1913,6 +1913,31 @@ Failure to do so causes "works in simulation, dies on hardware" bugs because res
 
 This prevents the classic bug: client caches ID → server restarts → client sends to dead ID → silent failure or mysterious behavior.
 
+### Restart Contract Checklist
+
+**On child restart, these are always reset:**
+
+- [ ] Mailbox empty
+- [ ] Bus subscriptions gone
+- [ ] Bus cursors reset (fresh subscribe required)
+- [ ] Timers cancelled
+- [ ] Links and monitors cleared
+- [ ] actor_id changes
+- [ ] Name registration removed (must re-register)
+- [ ] External handles invalid (must reacquire)
+
+**Supervisor guarantees:**
+
+- [ ] Restart order is deterministic: child spec order
+- [ ] Restart strategy applied exactly as defined (no hidden backoff)
+- [ ] Intensity limit is deterministic: when exceeded, supervisor shuts down, no further restarts
+- [ ] Supervisor never uses heap in hot paths; child-arg copies are bounded and static
+
+**Failure visibility:**
+
+- [ ] Every restart attempt is observable (log)
+- [ ] Every give-up is observable (log + shutdown callback)
+
 ### Example
 
 ```c
