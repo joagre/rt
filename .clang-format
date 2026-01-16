@@ -17,14 +17,6 @@ NamespaceIndentation: None
 
 # Braces - K&R/1TBS style (opening brace on same line)
 BreakBeforeBraces: Attach
-BraceWrapping:
-  AfterFunction: false
-  AfterControlStatement: false
-  AfterStruct: false
-  AfterEnum: false
-  AfterUnion: false
-  BeforeElse: false
-  BeforeWhile: false
 
 # Line width
 ColumnLimit: 80
@@ -73,4 +65,4 @@ BreakBeforeBinaryOperators: None
 BreakBeforeTernaryOperators: true
 BreakStringLiterals: true
 MaxEmptyLinesToKeep: 1
-ReflowComments: true
+ReflowComments: false
