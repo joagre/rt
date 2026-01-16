@@ -52,10 +52,10 @@
 // HELPER MACROS
 // ============================================================================
 
-// Spawn an actor at CRITICAL priority. Assigns result to 'id'.
-#define SPAWN_CRITICAL_ACTOR(func, name_str, id) do { \
+// Spawn an actor at specified priority. Assigns result to 'id'.
+#define SPAWN_ACTOR(func, name_str, prio, id) do { \
     actor_config _cfg = HIVE_ACTOR_CONFIG_DEFAULT; \
-    _cfg.priority = HIVE_PRIORITY_CRITICAL; \
+    _cfg.priority = (prio); \
     _cfg.name = name_str; \
     hive_status _status = hive_spawn_ex(func, NULL, &_cfg, &id); \
     assert(HIVE_SUCCEEDED(_status)); \
@@ -112,29 +112,34 @@ int main(void) {
     // Spawn order matters for IPC dependencies:
     // - Supervisor needs waypoint, altitude, and motor IDs (for START, LANDING, STOP)
     // - Altitude needs supervisor ID (for landing complete notification)
+    //
+    // Priority assignment:
+    // - CRITICAL: Core control loop (sensor → estimator → rate → attitude → motor)
+    // - HIGH: Outer loop controllers (altitude, position)
+    // - NORMAL: Mission-level (waypoint, supervisor)
     actor_id sensor, estimator, altitude, waypoint, position, attitude, rate, motor, supervisor;
-    SPAWN_CRITICAL_ACTOR(sensor_actor,    "sensor",    sensor);
-    SPAWN_CRITICAL_ACTOR(estimator_actor, "estimator", estimator);
-    SPAWN_CRITICAL_ACTOR(motor_actor,     "motor",     motor);
+    SPAWN_ACTOR(sensor_actor,    "sensor",    HIVE_PRIORITY_CRITICAL, sensor);
+    SPAWN_ACTOR(estimator_actor, "estimator", HIVE_PRIORITY_CRITICAL, estimator);
+    SPAWN_ACTOR(motor_actor,     "motor",     HIVE_PRIORITY_CRITICAL, motor);
 
     // Spawn supervisor first (waypoint and altitude IDs filled in after)
     supervisor_actor_init(0, 0, motor);
-    SPAWN_CRITICAL_ACTOR(supervisor_actor, "supervisor", supervisor);
+    SPAWN_ACTOR(supervisor_actor, "supervisor", HIVE_PRIORITY_NORMAL, supervisor);
 
     // Spawn altitude with supervisor ID
     altitude_actor_init(s_state_bus, s_thrust_bus, s_position_target_bus, supervisor);
-    SPAWN_CRITICAL_ACTOR(altitude_actor,  "altitude",  altitude);
+    SPAWN_ACTOR(altitude_actor,  "altitude",  HIVE_PRIORITY_HIGH, altitude);
 
     // Spawn waypoint (no IPC dependencies, just bus connections)
     waypoint_actor_init(s_state_bus, s_position_target_bus);
-    SPAWN_CRITICAL_ACTOR(waypoint_actor,  "waypoint",  waypoint);
+    SPAWN_ACTOR(waypoint_actor,  "waypoint",  HIVE_PRIORITY_NORMAL, waypoint);
 
     // Update supervisor with waypoint and altitude IDs
     supervisor_actor_init(waypoint, altitude, motor);
 
-    SPAWN_CRITICAL_ACTOR(position_actor,  "position",  position);
-    SPAWN_CRITICAL_ACTOR(attitude_actor,  "attitude",  attitude);
-    SPAWN_CRITICAL_ACTOR(rate_actor,      "rate",      rate);
+    SPAWN_ACTOR(position_actor,  "position",  HIVE_PRIORITY_HIGH,     position);
+    SPAWN_ACTOR(attitude_actor,  "attitude",  HIVE_PRIORITY_CRITICAL, attitude);
+    SPAWN_ACTOR(rate_actor,      "rate",      HIVE_PRIORITY_CRITICAL, rate);
 
     (void)sensor; (void)estimator; (void)altitude; (void)waypoint;
     (void)position; (void)attitude; (void)rate; (void)motor; (void)supervisor;

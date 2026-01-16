@@ -56,6 +56,45 @@ All buses use `max_entries=1` (single entry, latest value only):
 - Larger buffers would cause processing of outdated sensor readings
 - This matches how real flight controllers handle sensor data
 
+### Startup Ordering
+
+Actors must be spawned in dependency order for correct initialization:
+
+1. **Sensor → Estimator** - Estimator subscribes to sensor bus
+2. **Controllers** - Subscribe to state bus (created by estimator)
+3. **Motor** - Subscribes to torque bus (created by rate actor)
+4. **Supervisor** - Needs actor IDs for IPC notifications
+
+**Important:** Bus subscriptions see nothing until first publish *after* subscription.
+A subscriber spawned before the first publish will get valid data on first read.
+A subscriber spawned *after* a publish sees nothing until the next publish.
+
+The current spawn order in `pilot.c` ensures all subscribers are ready before
+their data sources begin publishing. If spawn order is changed, verify that
+subscribers don't miss initial data.
+
+### Pipeline Model
+
+The control system is a pipeline, not a synchronous snapshot. Each actor processes
+the most recent data available when it runs, not a coordinated snapshot from the
+same instant.
+
+**Timing characteristics (250 Hz, 4ms tick):**
+- Sensor reads hardware, publishes to sensor bus
+- Estimator processes sensor data, publishes state estimate
+- Controllers cascade: altitude → position → attitude → rate
+- Motor receives torque commands, outputs to hardware
+
+**Worst-case latency:** One tick (4ms) from sensor read to motor output. This occurs
+when sensor publishes just after motor finishes reading, requiring a full tick before
+motor sees the new data.
+
+**Why this is acceptable:**
+- This pipelined approach is standard practice in flight controllers (PX4, ArduPilot)
+- At 250 Hz, one tick of latency is 4ms—well within control loop requirements
+- Synchronous snapshotting would add complexity with minimal benefit
+- Controllers use rate damping terms that compensate for small latencies
+
 ## Non-Goals (Future Work)
 
 - Full state estimation (Kalman filter)
@@ -118,6 +157,24 @@ For a production system, each actor should:
 3. Implement timeouts for expected data
 4. Report health status to a supervisor actor
 5. Respond to emergency stop commands
+
+### Production Instrumentation Requirements
+
+The following instrumentation should be added for production flight software:
+
+**Error Counters (per actor):**
+- `bus_read_fail_count` - incremented when `hive_bus_read()` returns error
+- `bus_publish_fail_count` - incremented when `hive_bus_publish()` returns error
+- Counters exposed via telemetry or debug interface
+
+**Motor Deadman Watchdog:**
+- Production motor actor requires a torque watchdog
+- If no valid torque command received within 3 ticks (12ms), zero all motors
+- Protects against controller actor crash leaving motors at last commanded value
+- This example omits the watchdog to keep motor actor minimal
+
+These requirements are documented here but not implemented in the example to
+maintain code clarity. A production system would add these as first priorities.
 
 ---
 
@@ -469,13 +526,13 @@ graph LR
 |-------|-------|--------|----------|----------------|
 | **Sensor** | Hardware | Sensor Bus | CRITICAL | Read raw sensors, publish |
 | **Estimator** | Sensor Bus | State Bus | CRITICAL | Complementary filter fusion, state estimate |
-| **Altitude** | State + Position Target Bus | Thrust Bus | CRITICAL | Altitude PID (250Hz) |
-| **Waypoint** | State Bus + START notification | Position Target Bus | CRITICAL | Waypoint navigation (3D on Webots, altitude-only on STM32) |
-| **Position** | Position Target + State Bus | Attitude Setpoint Bus | CRITICAL | Position PD (250Hz) |
+| **Altitude** | State + Position Target Bus | Thrust Bus | HIGH | Altitude PID (250Hz) |
+| **Waypoint** | State Bus + START notification | Position Target Bus | NORMAL | Waypoint navigation (3D on Webots, altitude-only on STM32) |
+| **Position** | Position Target + State Bus | Attitude Setpoint Bus | HIGH | Position PD (250Hz) |
 | **Attitude** | Attitude Setpoint + State | Rate Setpoint Bus | CRITICAL | Attitude PIDs (250Hz) |
 | **Rate** | State + Thrust + Rate SP | Torque Bus | CRITICAL | Rate PIDs (250Hz) |
 | **Motor** | Torque Bus + STOP notification | Hardware | CRITICAL | Output to hardware via HAL |
-| **Supervisor** | (none) | START/STOP notifications | CRITICAL | Startup delay, flight window cutoff |
+| **Supervisor** | (none) | START/STOP notifications | NORMAL | Startup delay, flight window cutoff |
 
 ### Step 1: Motor Actor ✓
 
