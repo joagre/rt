@@ -14,8 +14,8 @@
 
 // Initialize the altitude actor module with bus IDs and supervisor actor.
 // Must be called before spawning the actor.
-void altitude_actor_init(bus_id state_bus, bus_id thrust_bus, bus_id position_target_bus,
-                         actor_id supervisor_actor);
+void altitude_actor_init(bus_id state_bus, bus_id thrust_bus,
+                         bus_id position_target_bus, actor_id supervisor_actor);
 
 // Actor entry point - spawn this with hive_spawn()
 void altitude_actor(void *arg);

@@ -15,53 +15,53 @@
 
 // PWM frequency options
 typedef enum {
-    TIM4_PWM_8KHZ   = 8000,     // 8 kHz - audible but efficient
-    TIM4_PWM_16KHZ  = 16000,    // 16 kHz - near ultrasonic
-    TIM4_PWM_20KHZ  = 20000,    // 20 kHz - ultrasonic (default)
-    TIM4_PWM_25KHZ  = 25000     // 25 kHz - higher switching losses
+    TIM4_PWM_8KHZ = 8000,   // 8 kHz - audible but efficient
+    TIM4_PWM_16KHZ = 16000, // 16 kHz - near ultrasonic
+    TIM4_PWM_20KHZ = 20000, // 20 kHz - ultrasonic (default)
+    TIM4_PWM_25KHZ = 25000  // 25 kHz - higher switching losses
 } tim4_pwm_freq_t;
 
 // Default PWM frequency (20kHz - inaudible)
-#define TIM4_DEFAULT_PWM_FREQ   TIM4_PWM_20KHZ
+#define TIM4_DEFAULT_PWM_FREQ TIM4_PWM_20KHZ
 
-// PWM resolution (10-bit = 1024 steps, good balance of resolution and frequency)
-#define TIM4_PWM_RESOLUTION     1024
+// PWM resolution (10-bit = 1024 steps, good balance of resolution and
+// frequency)
+#define TIM4_PWM_RESOLUTION 1024
 
 // Motor channel definitions
-// Note: CH1/CH2 (PB6/PB7) conflict with I2C1, so we use alternative configuration
+// Note: CH1/CH2 (PB6/PB7) conflict with I2C1, so we use alternative
+// configuration
 typedef enum {
-    TIM4_CH1 = 0,   // Channel 1 (PB6 or PD12)
-    TIM4_CH2 = 1,   // Channel 2 (PB7 or PD13)
-    TIM4_CH3 = 2,   // Channel 3 (PB8 or PD14)
-    TIM4_CH4 = 3    // Channel 4 (PB9 or PD15)
+    TIM4_CH1 = 0, // Channel 1 (PB6 or PD12)
+    TIM4_CH2 = 1, // Channel 2 (PB7 or PD13)
+    TIM4_CH3 = 2, // Channel 3 (PB8 or PD14)
+    TIM4_CH4 = 3  // Channel 4 (PB9 or PD15)
 } tim4_channel_t;
 
 // Pin configuration options
 typedef enum {
-    TIM4_PINS_PB6_PB9,      // PB6-PB9 (conflicts with I2C1 on PB6/PB7)
-    TIM4_PINS_PD12_PD15,    // PD12-PD15 (alternative, no conflicts)
-    TIM4_PINS_PB8_PB9_ONLY  // Only PB8/PB9 (CH3/CH4), for use with I2C1
+    TIM4_PINS_PB6_PB9,     // PB6-PB9 (conflicts with I2C1 on PB6/PB7)
+    TIM4_PINS_PD12_PD15,   // PD12-PD15 (alternative, no conflicts)
+    TIM4_PINS_PB8_PB9_ONLY // Only PB8/PB9 (CH3/CH4), for use with I2C1
 } tim4_pin_config_t;
 
 // Configuration structure
 typedef struct {
-    tim4_pwm_freq_t frequency;      // PWM frequency
-    tim4_pin_config_t pin_config;   // Pin configuration
-    bool ch1_enable;                // Enable channel 1
-    bool ch2_enable;                // Enable channel 2
-    bool ch3_enable;                // Enable channel 3
-    bool ch4_enable;                // Enable channel 4
+    tim4_pwm_freq_t frequency;    // PWM frequency
+    tim4_pin_config_t pin_config; // Pin configuration
+    bool ch1_enable;              // Enable channel 1
+    bool ch2_enable;              // Enable channel 2
+    bool ch3_enable;              // Enable channel 3
+    bool ch4_enable;              // Enable channel 4
 } tim4_config_t;
 
 // Default configuration: 20kHz, PB8/PB9 only (compatible with I2C1)
-#define TIM4_CONFIG_DEFAULT { \
-    .frequency = TIM4_PWM_20KHZ, \
-    .pin_config = TIM4_PINS_PB8_PB9_ONLY, \
-    .ch1_enable = false, \
-    .ch2_enable = false, \
-    .ch3_enable = true, \
-    .ch4_enable = true \
-}
+#define TIM4_CONFIG_DEFAULT                                                \
+    {                                                                      \
+        .frequency = TIM4_PWM_20KHZ, .pin_config = TIM4_PINS_PB8_PB9_ONLY, \
+        .ch1_enable = false, .ch2_enable = false, .ch3_enable = true,      \
+        .ch4_enable = true                                                 \
+    }
 
 // ----------------------------------------------------------------------------
 // API

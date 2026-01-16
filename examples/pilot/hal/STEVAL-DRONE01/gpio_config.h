@@ -1,7 +1,8 @@
 // GPIO configuration for STEVAL-DRONE01
 //
-// Pin definitions and low-level GPIO helpers for motors, debug serial, LED, button.
-// Note: Sensor GPIO (SPI2, chip selects) handled by ST BSP drivers in vendor/.
+// Pin definitions and low-level GPIO helpers for motors, debug serial, LED,
+// button. Note: Sensor GPIO (SPI2, chip selects) handled by ST BSP drivers in
+// vendor/.
 
 #ifndef GPIO_CONFIG_H
 #define GPIO_CONFIG_H
@@ -14,58 +15,55 @@
 // ----------------------------------------------------------------------------
 
 // TIM4 - Motor PWM (channels 1-4)
-#define TIM4_CH1_PORT       'B'
-#define TIM4_CH1_PIN        6
-#define TIM4_CH2_PORT       'B'
-#define TIM4_CH2_PIN        7
-#define TIM4_CH3_PORT       'B'
-#define TIM4_CH3_PIN        8
-#define TIM4_CH4_PORT       'B'
-#define TIM4_CH4_PIN        9
-#define TIM4_AF             2       // Alternate function 2
+#define TIM4_CH1_PORT 'B'
+#define TIM4_CH1_PIN 6
+#define TIM4_CH2_PORT 'B'
+#define TIM4_CH2_PIN 7
+#define TIM4_CH3_PORT 'B'
+#define TIM4_CH3_PIN 8
+#define TIM4_CH4_PORT 'B'
+#define TIM4_CH4_PIN 9
+#define TIM4_AF 2 // Alternate function 2
 
 // USART1 - Debug serial
-#define USART1_TX_PORT      'A'
-#define USART1_TX_PIN       9
-#define USART1_RX_PORT      'A'
-#define USART1_RX_PIN       10
-#define USART1_AF           7       // Alternate function 7
+#define USART1_TX_PORT 'A'
+#define USART1_TX_PIN 9
+#define USART1_RX_PORT 'A'
+#define USART1_RX_PIN 10
+#define USART1_AF 7 // Alternate function 7
 
 // LED (PB5 = LD1 on STEVAL-FCU001V1)
-#define LED_PORT            'B'
-#define LED_PIN             5
+#define LED_PORT 'B'
+#define LED_PIN 5
 
 // User button (optional, board-dependent)
-#define BTN_PORT            'A'
-#define BTN_PIN             0
+#define BTN_PORT 'A'
+#define BTN_PIN 0
 
 // ----------------------------------------------------------------------------
 // GPIO Mode and Configuration Types
 // ----------------------------------------------------------------------------
 
 typedef enum {
-    GPIO_MODE_INPUT     = 0,
-    GPIO_MODE_OUTPUT    = 1,
-    GPIO_MODE_AF        = 2,    // Alternate function
-    GPIO_MODE_ANALOG    = 3
+    GPIO_MODE_INPUT = 0,
+    GPIO_MODE_OUTPUT = 1,
+    GPIO_MODE_AF = 2, // Alternate function
+    GPIO_MODE_ANALOG = 3
 } gpio_mode_t;
 
-typedef enum {
-    GPIO_OTYPE_PUSHPULL  = 0,
-    GPIO_OTYPE_OPENDRAIN = 1
-} gpio_otype_t;
+typedef enum { GPIO_OTYPE_PUSHPULL = 0, GPIO_OTYPE_OPENDRAIN = 1 } gpio_otype_t;
 
 typedef enum {
-    GPIO_SPEED_LOW      = 0,
-    GPIO_SPEED_MEDIUM   = 1,
-    GPIO_SPEED_HIGH     = 2,
+    GPIO_SPEED_LOW = 0,
+    GPIO_SPEED_MEDIUM = 1,
+    GPIO_SPEED_HIGH = 2,
     GPIO_SPEED_VERYHIGH = 3
 } gpio_speed_t;
 
 typedef enum {
-    GPIO_PUPD_NONE      = 0,
-    GPIO_PUPD_PULLUP    = 1,
-    GPIO_PUPD_PULLDOWN  = 2
+    GPIO_PUPD_NONE = 0,
+    GPIO_PUPD_PULLUP = 1,
+    GPIO_PUPD_PULLDOWN = 2
 } gpio_pupd_t;
 
 // ----------------------------------------------------------------------------

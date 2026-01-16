@@ -12,9 +12,9 @@
 // Loop timing configuration
 // ----------------------------------------------------------------------------
 
-#define PLATFORM_LOOP_FREQ_HZ       400
-#define PLATFORM_LOOP_PERIOD_US     (1000000 / PLATFORM_LOOP_FREQ_HZ)
-#define PLATFORM_LOOP_DT            (1.0f / PLATFORM_LOOP_FREQ_HZ)
+#define PLATFORM_LOOP_FREQ_HZ 400
+#define PLATFORM_LOOP_PERIOD_US (1000000 / PLATFORM_LOOP_FREQ_HZ)
+#define PLATFORM_LOOP_DT (1.0f / PLATFORM_LOOP_FREQ_HZ)
 
 // ----------------------------------------------------------------------------
 // Platform state
@@ -36,27 +36,27 @@ typedef enum {
 // Sensor data snapshot (updated each loop iteration)
 typedef struct {
     // Attitude (from complementary filter)
-    float roll;         // radians
-    float pitch;        // radians
-    float yaw;          // radians
+    float roll;  // radians
+    float pitch; // radians
+    float yaw;   // radians
 
     // Angular rates (from gyro)
-    float roll_rate;    // rad/s
-    float pitch_rate;   // rad/s
-    float yaw_rate;     // rad/s
+    float roll_rate;  // rad/s
+    float pitch_rate; // rad/s
+    float yaw_rate;   // rad/s
 
     // Altitude (from barometer)
-    float altitude;     // meters (relative to ground)
-    float pressure;     // hPa
+    float altitude; // meters (relative to ground)
+    float pressure; // hPa
 
     // Raw accelerometer (for vertical velocity estimation)
-    float accel_x;      // m/s²
-    float accel_y;      // m/s²
-    float accel_z;      // m/s²
+    float accel_x; // m/s²
+    float accel_y; // m/s²
+    float accel_z; // m/s²
 
     // Timestamps
-    uint32_t timestamp_ms;      // Milliseconds since boot
-    uint32_t loop_count;        // Loop iteration counter
+    uint32_t timestamp_ms; // Milliseconds since boot
+    uint32_t loop_count;   // Loop iteration counter
 } platform_sensors_t;
 
 // ----------------------------------------------------------------------------
@@ -65,10 +65,10 @@ typedef struct {
 
 // Motor command (matches pilot example)
 typedef struct {
-    float m1;   // Rear-left (0.0-1.0)
-    float m2;   // Front-left
-    float m3;   // Front-right
-    float m4;   // Rear-right
+    float m1; // Rear-left (0.0-1.0)
+    float m2; // Front-left
+    float m3; // Front-right
+    float m4; // Rear-right
 } platform_motors_t;
 
 #endif // PLATFORM_TYPES_H

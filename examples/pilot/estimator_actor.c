@@ -42,7 +42,7 @@ void estimator_actor(void *arg) {
     // Initialize complementary filter
     cf_state_t filter;
     cf_config_t config = CF_CONFIG_DEFAULT;
-    config.use_mag = true;  // Use magnetometer for yaw if available
+    config.use_mag = true; // Use magnetometer for yaw if available
     cf_init(&filter, &config);
 
     // State for velocity estimation (differentiate GPS position)
@@ -97,7 +97,8 @@ void estimator_actor(void *arg) {
                 if (baro_ref_pressure == 0.0f) {
                     baro_ref_pressure = sensors.pressure_hpa;
                 }
-                state.altitude = pressure_to_altitude(sensors.pressure_hpa, baro_ref_pressure);
+                state.altitude = pressure_to_altitude(sensors.pressure_hpa,
+                                                      baro_ref_pressure);
             } else {
                 state.altitude = 0.0f;
             }
@@ -115,7 +116,8 @@ void estimator_actor(void *arg) {
             float raw_vvel = (state.altitude - prev_altitude) / dt;
             x_velocity = LPF(x_velocity, raw_vx, HVEL_FILTER_ALPHA);
             y_velocity = LPF(y_velocity, raw_vy, HVEL_FILTER_ALPHA);
-            vertical_velocity = LPF(vertical_velocity, raw_vvel, VVEL_FILTER_ALPHA);
+            vertical_velocity =
+                LPF(vertical_velocity, raw_vvel, VVEL_FILTER_ALPHA);
         }
         prev_x = state.x;
         prev_y = state.y;

@@ -10,7 +10,8 @@
 
 // Initialize the position actor module with bus IDs.
 // Must be called before spawning the actor.
-void position_actor_init(bus_id state_bus, bus_id attitude_setpoint_bus, bus_id position_target_bus);
+void position_actor_init(bus_id state_bus, bus_id attitude_setpoint_bus,
+                         bus_id position_target_bus);
 
 // Actor entry point - spawn this with hive_spawn()
 void position_actor(void *arg);

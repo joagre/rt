@@ -44,94 +44,94 @@
 // Test Configuration
 // ============================================================================
 
-#define TEST_SPEED          40      // ~16% duty cycle - enough to spin but safe
-#define SPIN_DURATION_MS    2000    // How long to spin each motor
-#define GYRO_SAMPLES        50      // Gyro samples during spin
+#define TEST_SPEED 40         // ~16% duty cycle - enough to spin but safe
+#define SPIN_DURATION_MS 2000 // How long to spin each motor
+#define GYRO_SAMPLES 50       // Gyro samples during spin
 
 // ============================================================================
 // Hardware Addresses
 // ============================================================================
 
 // Peripheral bases
-#define PERIPH_BASE       0x40000000UL
-#define APB1PERIPH_BASE   PERIPH_BASE
-#define APB2PERIPH_BASE   (PERIPH_BASE + 0x00010000UL)
-#define AHB1PERIPH_BASE   (PERIPH_BASE + 0x00020000UL)
+#define PERIPH_BASE 0x40000000UL
+#define APB1PERIPH_BASE PERIPH_BASE
+#define APB2PERIPH_BASE (PERIPH_BASE + 0x00010000UL)
+#define AHB1PERIPH_BASE (PERIPH_BASE + 0x00020000UL)
 
 // GPIO
-#define GPIOA_BASE        (AHB1PERIPH_BASE + 0x0000UL)
-#define GPIOB_BASE        (AHB1PERIPH_BASE + 0x0400UL)
-#define GPIOC_BASE        (AHB1PERIPH_BASE + 0x0800UL)
+#define GPIOA_BASE (AHB1PERIPH_BASE + 0x0000UL)
+#define GPIOB_BASE (AHB1PERIPH_BASE + 0x0400UL)
+#define GPIOC_BASE (AHB1PERIPH_BASE + 0x0800UL)
 
-#define GPIOA_MODER       (*(volatile uint32_t *)(GPIOA_BASE + 0x00))
-#define GPIOA_OSPEEDR     (*(volatile uint32_t *)(GPIOA_BASE + 0x08))
-#define GPIOA_PUPDR       (*(volatile uint32_t *)(GPIOA_BASE + 0x0C))
-#define GPIOA_AFR0        (*(volatile uint32_t *)(GPIOA_BASE + 0x20))
+#define GPIOA_MODER (*(volatile uint32_t *)(GPIOA_BASE + 0x00))
+#define GPIOA_OSPEEDR (*(volatile uint32_t *)(GPIOA_BASE + 0x08))
+#define GPIOA_PUPDR (*(volatile uint32_t *)(GPIOA_BASE + 0x0C))
+#define GPIOA_AFR0 (*(volatile uint32_t *)(GPIOA_BASE + 0x20))
 
-#define GPIOB_MODER       (*(volatile uint32_t *)(GPIOB_BASE + 0x00))
-#define GPIOB_OSPEEDR     (*(volatile uint32_t *)(GPIOB_BASE + 0x08))
-#define GPIOB_PUPDR       (*(volatile uint32_t *)(GPIOB_BASE + 0x0C))
-#define GPIOB_ODR         (*(volatile uint32_t *)(GPIOB_BASE + 0x14))
-#define GPIOB_BSRR        (*(volatile uint32_t *)(GPIOB_BASE + 0x18))
+#define GPIOB_MODER (*(volatile uint32_t *)(GPIOB_BASE + 0x00))
+#define GPIOB_OSPEEDR (*(volatile uint32_t *)(GPIOB_BASE + 0x08))
+#define GPIOB_PUPDR (*(volatile uint32_t *)(GPIOB_BASE + 0x0C))
+#define GPIOB_ODR (*(volatile uint32_t *)(GPIOB_BASE + 0x14))
+#define GPIOB_BSRR (*(volatile uint32_t *)(GPIOB_BASE + 0x18))
 
-#define GPIOC_MODER       (*(volatile uint32_t *)(GPIOC_BASE + 0x00))
-#define GPIOC_OSPEEDR     (*(volatile uint32_t *)(GPIOC_BASE + 0x08))
-#define GPIOC_ODR         (*(volatile uint32_t *)(GPIOC_BASE + 0x14))
+#define GPIOC_MODER (*(volatile uint32_t *)(GPIOC_BASE + 0x00))
+#define GPIOC_OSPEEDR (*(volatile uint32_t *)(GPIOC_BASE + 0x08))
+#define GPIOC_ODR (*(volatile uint32_t *)(GPIOC_BASE + 0x14))
 
 // RCC
-#define RCC_BASE          (AHB1PERIPH_BASE + 0x3800UL)
-#define RCC_AHB1ENR       (*(volatile uint32_t *)(RCC_BASE + 0x30))
-#define RCC_APB1ENR       (*(volatile uint32_t *)(RCC_BASE + 0x40))
-#define RCC_APB2ENR       (*(volatile uint32_t *)(RCC_BASE + 0x44))
+#define RCC_BASE (AHB1PERIPH_BASE + 0x3800UL)
+#define RCC_AHB1ENR (*(volatile uint32_t *)(RCC_BASE + 0x30))
+#define RCC_APB1ENR (*(volatile uint32_t *)(RCC_BASE + 0x40))
+#define RCC_APB2ENR (*(volatile uint32_t *)(RCC_BASE + 0x44))
 
 // TIM2
-#define TIM2_BASE         (APB1PERIPH_BASE + 0x0000UL)
-#define TIM2_CR1          (*(volatile uint32_t *)(TIM2_BASE + 0x00))
-#define TIM2_CCMR1        (*(volatile uint32_t *)(TIM2_BASE + 0x18))
-#define TIM2_CCMR2        (*(volatile uint32_t *)(TIM2_BASE + 0x1C))
-#define TIM2_CCER         (*(volatile uint32_t *)(TIM2_BASE + 0x20))
-#define TIM2_PSC          (*(volatile uint32_t *)(TIM2_BASE + 0x28))
-#define TIM2_ARR          (*(volatile uint32_t *)(TIM2_BASE + 0x2C))
-#define TIM2_CCR1         (*(volatile uint32_t *)(TIM2_BASE + 0x34))
-#define TIM2_CCR2         (*(volatile uint32_t *)(TIM2_BASE + 0x38))
-#define TIM2_CCR3         (*(volatile uint32_t *)(TIM2_BASE + 0x3C))
-#define TIM2_CCR4         (*(volatile uint32_t *)(TIM2_BASE + 0x40))
-#define TIM2_EGR          (*(volatile uint32_t *)(TIM2_BASE + 0x14))
+#define TIM2_BASE (APB1PERIPH_BASE + 0x0000UL)
+#define TIM2_CR1 (*(volatile uint32_t *)(TIM2_BASE + 0x00))
+#define TIM2_CCMR1 (*(volatile uint32_t *)(TIM2_BASE + 0x18))
+#define TIM2_CCMR2 (*(volatile uint32_t *)(TIM2_BASE + 0x1C))
+#define TIM2_CCER (*(volatile uint32_t *)(TIM2_BASE + 0x20))
+#define TIM2_PSC (*(volatile uint32_t *)(TIM2_BASE + 0x28))
+#define TIM2_ARR (*(volatile uint32_t *)(TIM2_BASE + 0x2C))
+#define TIM2_CCR1 (*(volatile uint32_t *)(TIM2_BASE + 0x34))
+#define TIM2_CCR2 (*(volatile uint32_t *)(TIM2_BASE + 0x38))
+#define TIM2_CCR3 (*(volatile uint32_t *)(TIM2_BASE + 0x3C))
+#define TIM2_CCR4 (*(volatile uint32_t *)(TIM2_BASE + 0x40))
+#define TIM2_EGR (*(volatile uint32_t *)(TIM2_BASE + 0x14))
 
 // SPI1
-#define SPI1_BASE         (APB2PERIPH_BASE + 0x3000UL)
-#define SPI1_CR1          (*(volatile uint32_t *)(SPI1_BASE + 0x00))
-#define SPI1_CR2          (*(volatile uint32_t *)(SPI1_BASE + 0x04))
-#define SPI1_SR           (*(volatile uint32_t *)(SPI1_BASE + 0x08))
-#define SPI1_DR           (*(volatile uint32_t *)(SPI1_BASE + 0x0C))
+#define SPI1_BASE (APB2PERIPH_BASE + 0x3000UL)
+#define SPI1_CR1 (*(volatile uint32_t *)(SPI1_BASE + 0x00))
+#define SPI1_CR2 (*(volatile uint32_t *)(SPI1_BASE + 0x04))
+#define SPI1_SR (*(volatile uint32_t *)(SPI1_BASE + 0x08))
+#define SPI1_DR (*(volatile uint32_t *)(SPI1_BASE + 0x0C))
 
 // SysTick
-#define SYSTICK_BASE      0xE000E010UL
-#define SYSTICK_CTRL      (*(volatile uint32_t *)(SYSTICK_BASE + 0x00))
-#define SYSTICK_LOAD      (*(volatile uint32_t *)(SYSTICK_BASE + 0x04))
-#define SYSTICK_VAL       (*(volatile uint32_t *)(SYSTICK_BASE + 0x08))
+#define SYSTICK_BASE 0xE000E010UL
+#define SYSTICK_CTRL (*(volatile uint32_t *)(SYSTICK_BASE + 0x00))
+#define SYSTICK_LOAD (*(volatile uint32_t *)(SYSTICK_BASE + 0x04))
+#define SYSTICK_VAL (*(volatile uint32_t *)(SYSTICK_BASE + 0x08))
 
 // Flash
-#define FLASH_BASE        (AHB1PERIPH_BASE + 0x3C00UL)
-#define FLASH_ACR         (*(volatile uint32_t *)(FLASH_BASE + 0x00))
+#define FLASH_BASE (AHB1PERIPH_BASE + 0x3C00UL)
+#define FLASH_ACR (*(volatile uint32_t *)(FLASH_BASE + 0x00))
 
 // PWM configuration
-#define PWM_PRESCALER     0
-#define PWM_PERIOD        255
+#define PWM_PRESCALER 0
+#define PWM_PERIOD 255
 
 // LED (PC4)
-#define LED_PIN           (1 << 4)
+#define LED_PIN (1 << 4)
 
 // BMI088 chip selects (directly on STM32)
-#define BMI088_GYRO_CS_PIN   (1 << 4)   // PB4
-#define BMI088_ACCEL_CS_PIN  (1 << 5)   // PB5
+#define BMI088_GYRO_CS_PIN (1 << 4)  // PB4
+#define BMI088_ACCEL_CS_PIN (1 << 5) // PB5
 
 // BMI088 registers
-#define BMI088_GYRO_CHIP_ID      0x00
-#define BMI088_GYRO_RATE_Z_LSB   0x06
-#define BMI088_GYRO_RANGE        0x0F
-#define BMI088_GYRO_BANDWIDTH    0x10
-#define BMI088_GYRO_SOFTRESET    0x14
+#define BMI088_GYRO_CHIP_ID 0x00
+#define BMI088_GYRO_RATE_Z_LSB 0x06
+#define BMI088_GYRO_RANGE 0x0F
+#define BMI088_GYRO_BANDWIDTH 0x10
+#define BMI088_GYRO_SOFTRESET 0x14
 
 // ============================================================================
 // Global State
@@ -141,7 +141,7 @@ static volatile uint32_t g_ticks = 0;
 
 typedef struct {
     int channel;
-    int rotation;       // +1=CW, -1=CCW, 0=unknown
+    int rotation; // +1=CW, -1=CCW, 0=unknown
     int gyro_z_sum;
 } motor_info_t;
 
@@ -161,12 +161,19 @@ void SysTick_Handler(void) {
 
 static void delay_ms(uint32_t ms) {
     uint32_t start = g_ticks;
-    while ((g_ticks - start) < ms);
+    while ((g_ticks - start) < ms)
+        ;
 }
 
-static void led_on(void)     { GPIOC_ODR |= LED_PIN; }
-static void led_off(void)    { GPIOC_ODR &= ~LED_PIN; }
-static void led_toggle(void) { GPIOC_ODR ^= LED_PIN; }
+static void led_on(void) {
+    GPIOC_ODR |= LED_PIN;
+}
+static void led_off(void) {
+    GPIOC_ODR &= ~LED_PIN;
+}
+static void led_toggle(void) {
+    GPIOC_ODR ^= LED_PIN;
+}
 
 static void blink_n(int n, int on_ms, int off_ms) {
     for (int i = 0; i < n; i++) {
@@ -191,34 +198,38 @@ static void clock_init(void) {
     volatile uint32_t *RCC_CFGR = (volatile uint32_t *)(RCC_BASE + 0x08);
 
     // Enable HSE
-    *RCC_CR |= (1 << 16);  // HSEON
-    while (!(*RCC_CR & (1 << 17)));  // Wait for HSERDY
+    *RCC_CR |= (1 << 16); // HSEON
+    while (!(*RCC_CR & (1 << 17)))
+        ; // Wait for HSERDY
 
     // Configure PLL: HSE=8MHz, PLLM=4, PLLN=168, PLLP=2, PLLQ=7
     *RCC_PLLCFGR = (4 << 0) | (168 << 6) | (0 << 16) | (1 << 22) | (7 << 24);
 
     // Enable PLL
     *RCC_CR |= (1 << 24);
-    while (!(*RCC_CR & (1 << 25)));
+    while (!(*RCC_CR & (1 << 25)))
+        ;
 
     // Configure prescalers: AHB=1, APB1=4, APB2=2
     *RCC_CFGR = (0 << 4) | (5 << 10) | (4 << 13);
 
     // Switch to PLL
     *RCC_CFGR |= (2 << 0);
-    while (((*RCC_CFGR >> 2) & 0x3) != 2);
+    while (((*RCC_CFGR >> 2) & 0x3) != 2)
+        ;
 }
 
 static void systick_init(void) {
-    SYSTICK_LOAD = 168000 - 1;  // 1ms ticks at 168 MHz
+    SYSTICK_LOAD = 168000 - 1; // 1ms ticks at 168 MHz
     SYSTICK_VAL = 0;
     SYSTICK_CTRL = (1 << 2) | (1 << 1) | (1 << 0);
 }
 
 static void gpio_init(void) {
     // Enable GPIO clocks
-    RCC_AHB1ENR |= (1 << 0) | (1 << 1) | (1 << 2);  // GPIOA, GPIOB, GPIOC
-    for (volatile int i = 0; i < 100; i++);
+    RCC_AHB1ENR |= (1 << 0) | (1 << 1) | (1 << 2); // GPIOA, GPIOB, GPIOC
+    for (volatile int i = 0; i < 100; i++)
+        ;
 
     // Configure PC4 as output (LED)
     GPIOC_MODER &= ~(3 << 8);
@@ -237,7 +248,8 @@ static void gpio_init(void) {
 static bool motors_init(void) {
     // Enable TIM2 clock
     RCC_APB1ENR |= (1 << 0);
-    for (volatile int i = 0; i < 100; i++);
+    for (volatile int i = 0; i < 100; i++)
+        ;
 
     // Configure PA0-PA3 as alternate function (AF1 = TIM2)
     GPIOA_MODER &= ~((3 << 0) | (3 << 2) | (3 << 4) | (3 << 6));
@@ -265,12 +277,21 @@ static bool motors_init(void) {
 }
 
 static void motor_set(int channel, uint16_t speed) {
-    if (speed > PWM_PERIOD) speed = PWM_PERIOD;
+    if (speed > PWM_PERIOD)
+        speed = PWM_PERIOD;
     switch (channel) {
-        case 0: TIM2_CCR1 = speed; break;
-        case 1: TIM2_CCR2 = speed; break;
-        case 2: TIM2_CCR3 = speed; break;
-        case 3: TIM2_CCR4 = speed; break;
+    case 0:
+        TIM2_CCR1 = speed;
+        break;
+    case 1:
+        TIM2_CCR2 = speed;
+        break;
+    case 2:
+        TIM2_CCR3 = speed;
+        break;
+    case 3:
+        TIM2_CCR4 = speed;
+        break;
     }
 }
 
@@ -288,7 +309,8 @@ static void motors_stop_all(void) {
 static void spi_init(void) {
     // Enable SPI1 clock
     RCC_APB2ENR |= (1 << 12);
-    for (volatile int i = 0; i < 100; i++);
+    for (volatile int i = 0; i < 100; i++)
+        ;
 
     // Configure PA5 (SCK), PA6 (MISO), PA7 (MOSI) as AF5 (SPI1)
     GPIOA_MODER &= ~((3 << 10) | (3 << 12) | (3 << 14));
@@ -303,31 +325,37 @@ static void spi_init(void) {
     // For BMI088: CPOL=1, CPHA=1 (SPI mode 3)
     SPI1_CR1 = 0;
     SPI1_CR1 = (1 << 2)    // MSTR (Master)
-             | (3 << 3)    // BR = /16 (84MHz APB2 / 16 = 5.25 MHz)
-             | (1 << 1)    // CPOL = 1
-             | (1 << 0)    // CPHA = 1
-             | (1 << 9)    // SSM (Software slave management)
-             | (1 << 8);   // SSI (Internal slave select high)
+               | (3 << 3)  // BR = /16 (84MHz APB2 / 16 = 5.25 MHz)
+               | (1 << 1)  // CPOL = 1
+               | (1 << 0)  // CPHA = 1
+               | (1 << 9)  // SSM (Software slave management)
+               | (1 << 8); // SSI (Internal slave select high)
 
     // Enable SPI
-    SPI1_CR1 |= (1 << 6);  // SPE
+    SPI1_CR1 |= (1 << 6); // SPE
 }
 
 static uint8_t spi_transfer(uint8_t data) {
     // Wait for TXE
-    while (!(SPI1_SR & (1 << 1)));
+    while (!(SPI1_SR & (1 << 1)))
+        ;
     SPI1_DR = data;
     // Wait for RXNE
-    while (!(SPI1_SR & (1 << 0)));
+    while (!(SPI1_SR & (1 << 0)))
+        ;
     return (uint8_t)SPI1_DR;
 }
 
-static void gyro_cs_low(void)  { GPIOB_ODR &= ~BMI088_GYRO_CS_PIN; }
-static void gyro_cs_high(void) { GPIOB_ODR |= BMI088_GYRO_CS_PIN; }
+static void gyro_cs_low(void) {
+    GPIOB_ODR &= ~BMI088_GYRO_CS_PIN;
+}
+static void gyro_cs_high(void) {
+    GPIOB_ODR |= BMI088_GYRO_CS_PIN;
+}
 
 static uint8_t gyro_read_reg(uint8_t reg) {
     gyro_cs_low();
-    spi_transfer(reg | 0x80);  // Read bit
+    spi_transfer(reg | 0x80); // Read bit
     uint8_t val = spi_transfer(0x00);
     gyro_cs_high();
     return val;
@@ -335,7 +363,7 @@ static uint8_t gyro_read_reg(uint8_t reg) {
 
 static void gyro_write_reg(uint8_t reg, uint8_t val) {
     gyro_cs_low();
-    spi_transfer(reg & 0x7F);  // Write bit
+    spi_transfer(reg & 0x7F); // Write bit
     spi_transfer(val);
     gyro_cs_high();
 }
@@ -413,13 +441,13 @@ static void test_single_motor(int channel) {
     // 5000 raw ~= 82 dps
     if (avg_gyro > 300) {
         info->rotation = -1;  // CCW (positive gyro = drone rotating CCW)
-        blink_n(1, 400, 400);  // 1 slow blink = CCW
+        blink_n(1, 400, 400); // 1 slow blink = CCW
     } else if (avg_gyro < -300) {
         info->rotation = 1;   // CW
-        blink_n(2, 400, 400);  // 2 slow blinks = CW
+        blink_n(2, 400, 400); // 2 slow blinks = CW
     } else {
         info->rotation = 0;   // Unclear
-        blink_n(3, 400, 400);  // 3 slow blinks = unclear
+        blink_n(3, 400, 400); // 3 slow blinks = unclear
     }
 
     delay_ms(500);
@@ -457,11 +485,11 @@ static void test_all_motors(void) {
     // 2 slow blinks = rotating CCW
     // 3 slow blinks = rotating CW
     if (avg > -200 && avg < 200) {
-        blink_n(1, 500, 500);  // Balanced
+        blink_n(1, 500, 500); // Balanced
     } else if (avg > 0) {
-        blink_n(2, 500, 500);  // Rotating CCW
+        blink_n(2, 500, 500); // Rotating CCW
     } else {
-        blink_n(3, 500, 500);  // Rotating CW
+        blink_n(3, 500, 500); // Rotating CW
     }
 
     delay_ms(500);
@@ -484,7 +512,10 @@ int main(void) {
     // Initialize motors
     if (!motors_init()) {
         // Error: continuous fast blink
-        while (1) { led_toggle(); delay_ms(100); }
+        while (1) {
+            led_toggle();
+            delay_ms(100);
+        }
     }
 
     // 3 quick blinks = Motors OK
@@ -494,7 +525,10 @@ int main(void) {
     // Initialize gyroscope
     if (!gyro_init()) {
         // Error: continuous medium blink
-        while (1) { led_toggle(); delay_ms(250); }
+        while (1) {
+            led_toggle();
+            delay_ms(250);
+        }
     }
 
     // 4 quick blinks = Gyro OK
@@ -527,26 +561,31 @@ extern uint32_t _sbss, _ebss;
 void Reset_Handler(void) {
     uint32_t *src = &_sidata;
     uint32_t *dst = &_sdata;
-    while (dst < &_edata) *dst++ = *src++;
+    while (dst < &_edata)
+        *dst++ = *src++;
     dst = &_sbss;
-    while (dst < &_ebss) *dst++ = 0;
+    while (dst < &_ebss)
+        *dst++ = 0;
     main();
-    while (1);
+    while (1)
+        ;
 }
 
-void Default_Handler(void) { while (1); }
+void Default_Handler(void) {
+    while (1)
+        ;
+}
 
-void NMI_Handler(void)        __attribute__((weak, alias("Default_Handler")));
-void HardFault_Handler(void)  __attribute__((weak, alias("Default_Handler")));
-void MemManage_Handler(void)  __attribute__((weak, alias("Default_Handler")));
-void BusFault_Handler(void)   __attribute__((weak, alias("Default_Handler")));
+void NMI_Handler(void) __attribute__((weak, alias("Default_Handler")));
+void HardFault_Handler(void) __attribute__((weak, alias("Default_Handler")));
+void MemManage_Handler(void) __attribute__((weak, alias("Default_Handler")));
+void BusFault_Handler(void) __attribute__((weak, alias("Default_Handler")));
 void UsageFault_Handler(void) __attribute__((weak, alias("Default_Handler")));
-void SVC_Handler(void)        __attribute__((weak, alias("Default_Handler")));
-void DebugMon_Handler(void)   __attribute__((weak, alias("Default_Handler")));
-void PendSV_Handler(void)     __attribute__((weak, alias("Default_Handler")));
+void SVC_Handler(void) __attribute__((weak, alias("Default_Handler")));
+void DebugMon_Handler(void) __attribute__((weak, alias("Default_Handler")));
+void PendSV_Handler(void) __attribute__((weak, alias("Default_Handler")));
 
-__attribute__((section(".isr_vector")))
-const uint32_t g_vectors[] = {
+__attribute__((section(".isr_vector"))) const uint32_t g_vectors[] = {
     (uint32_t)&_estack,
     (uint32_t)Reset_Handler,
     (uint32_t)NMI_Handler,
@@ -554,7 +593,10 @@ const uint32_t g_vectors[] = {
     (uint32_t)MemManage_Handler,
     (uint32_t)BusFault_Handler,
     (uint32_t)UsageFault_Handler,
-    0, 0, 0, 0,
+    0,
+    0,
+    0,
+    0,
     (uint32_t)SVC_Handler,
     (uint32_t)DebugMon_Handler,
     0,

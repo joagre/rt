@@ -21,11 +21,11 @@
 
 // Motion data from sensor
 typedef struct {
-    int16_t delta_x;     // Motion in X direction (pixels)
-    int16_t delta_y;     // Motion in Y direction (pixels)
-    uint8_t squal;       // Surface quality (0-255, higher = better)
-    uint16_t shutter;    // Shutter time (exposure indicator)
-    bool motion;         // True if motion detected
+    int16_t delta_x;  // Motion in X direction (pixels)
+    int16_t delta_y;  // Motion in Y direction (pixels)
+    uint8_t squal;    // Surface quality (0-255, higher = better)
+    uint16_t shutter; // Shutter time (exposure indicator)
+    bool motion;      // True if motion detected
 } pmw3901_motion_t;
 
 // ----------------------------------------------------------------------------

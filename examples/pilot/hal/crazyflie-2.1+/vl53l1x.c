@@ -9,28 +9,28 @@
 // Register Definitions (16-bit register addresses)
 // ----------------------------------------------------------------------------
 
-#define VL53L1X_SOFT_RESET                      0x0000
-#define VL53L1X_I2C_SLAVE_DEVICE_ADDRESS        0x0001
-#define VL53L1X_MODEL_ID                        0x010F
-#define VL53L1X_MODULE_TYPE                     0x0110
-#define VL53L1X_FIRMWARE_SYSTEM_STATUS          0x00E5
-#define VL53L1X_GPIO_HV_MUX_CTRL                0x0030
-#define VL53L1X_GPIO_TIO_HV_STATUS              0x0031
-#define VL53L1X_SYSTEM_MODE_START               0x0087
-#define VL53L1X_RESULT_RANGE_STATUS             0x0089
+#define VL53L1X_SOFT_RESET 0x0000
+#define VL53L1X_I2C_SLAVE_DEVICE_ADDRESS 0x0001
+#define VL53L1X_MODEL_ID 0x010F
+#define VL53L1X_MODULE_TYPE 0x0110
+#define VL53L1X_FIRMWARE_SYSTEM_STATUS 0x00E5
+#define VL53L1X_GPIO_HV_MUX_CTRL 0x0030
+#define VL53L1X_GPIO_TIO_HV_STATUS 0x0031
+#define VL53L1X_SYSTEM_MODE_START 0x0087
+#define VL53L1X_RESULT_RANGE_STATUS 0x0089
 #define VL53L1X_RESULT_DSS_ACTUAL_EFFECTIVE_SPADS 0x008C
-#define VL53L1X_RESULT_AMBIENT_COUNT_RATE_MCPS  0x0090
-#define VL53L1X_RESULT_SIGNAL_COUNT_RATE_MCPS   0x0096
-#define VL53L1X_RESULT_SIGMA                    0x009C
-#define VL53L1X_RESULT_FINAL_RANGE_MM           0x0096
-#define VL53L1X_RANGE_CONFIG_VCSEL_PERIOD_A     0x0060
-#define VL53L1X_RANGE_CONFIG_TIMEOUT_MACROP_A   0x005E
-#define VL53L1X_SYSTEM_INTERRUPT_CLEAR          0x0086
-#define VL53L1X_SYSTEM_THRESH_HIGH              0x0072
-#define VL53L1X_SYSTEM_THRESH_LOW               0x0074
+#define VL53L1X_RESULT_AMBIENT_COUNT_RATE_MCPS 0x0090
+#define VL53L1X_RESULT_SIGNAL_COUNT_RATE_MCPS 0x0096
+#define VL53L1X_RESULT_SIGMA 0x009C
+#define VL53L1X_RESULT_FINAL_RANGE_MM 0x0096
+#define VL53L1X_RANGE_CONFIG_VCSEL_PERIOD_A 0x0060
+#define VL53L1X_RANGE_CONFIG_TIMEOUT_MACROP_A 0x005E
+#define VL53L1X_SYSTEM_INTERRUPT_CLEAR 0x0086
+#define VL53L1X_SYSTEM_THRESH_HIGH 0x0072
+#define VL53L1X_SYSTEM_THRESH_LOW 0x0074
 
 // Expected model ID
-#define VL53L1X_MODEL_ID_VALUE  0xEACC
+#define VL53L1X_MODEL_ID_VALUE 0xEACC
 
 // ----------------------------------------------------------------------------
 // Default Configuration (from ST ULD)
@@ -45,9 +45,8 @@ static const uint8_t VL53L1X_DEFAULT_CONFIG[] = {
     0x00, 0x01, 0xdb, 0x0f, 0x01, 0xf1, 0x0d, 0x01, 0x68, 0x00, 0x80, 0x08,
     0xb8, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x89, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x01, 0x0f, 0x0d, 0x0e, 0x0e, 0x00, 0x00, 0x02, 0xc7, 0xff,
-    0x9B, 0x00, 0x00, 0x00, 0x01, 0x01, 0x40
-};
-#define VL53L1X_DEFAULT_CONFIG_SIZE  91
+    0x9B, 0x00, 0x00, 0x00, 0x01, 0x01, 0x40};
+#define VL53L1X_DEFAULT_CONFIG_SIZE 91
 
 // ----------------------------------------------------------------------------
 // Static State
@@ -84,12 +83,8 @@ static bool write_reg16(uint16_t reg, uint16_t value) {
 }
 
 static bool write_reg32(uint16_t reg, uint32_t value) {
-    uint8_t buf[4] = {
-        (uint8_t)(value >> 24),
-        (uint8_t)(value >> 16),
-        (uint8_t)(value >> 8),
-        (uint8_t)(value & 0xFF)
-    };
+    uint8_t buf[4] = {(uint8_t)(value >> 24), (uint8_t)(value >> 16),
+                      (uint8_t)(value >> 8), (uint8_t)(value & 0xFF)};
     return vl53l1x_i2c_write(s_i2c_addr, reg, buf, 4);
 }
 
@@ -99,18 +94,18 @@ static bool write_reg32(uint16_t reg, uint32_t value) {
 
 static bool wait_for_boot(void) {
     uint8_t status = 0;
-    int timeout = 100;  // 1 second timeout
+    int timeout = 100; // 1 second timeout
 
     while (timeout-- > 0) {
         if (read_reg8(VL53L1X_FIRMWARE_SYSTEM_STATUS, &status)) {
             if (status & 0x01) {
-                return true;  // Boot complete
+                return true; // Boot complete
             }
         }
         vl53l1x_delay_ms(10);
     }
 
-    return false;  // Timeout
+    return false; // Timeout
 }
 
 static bool sensor_init(void) {
@@ -224,7 +219,7 @@ bool vl53l1x_start_ranging(void) {
     if (!s_initialized) {
         return false;
     }
-    return write_reg8(VL53L1X_SYSTEM_MODE_START, 0x40);  // Continuous mode
+    return write_reg8(VL53L1X_SYSTEM_MODE_START, 0x40); // Continuous mode
 }
 
 bool vl53l1x_stop_ranging(void) {
@@ -282,27 +277,27 @@ bool vl53l1x_read_result(vl53l1x_result_t *result) {
 
     // Map status
     switch (range_status) {
-        case 9:
-            result->status = VL53L1X_RANGE_VALID;
-            break;
-        case 6:
-            result->status = VL53L1X_RANGE_SIGMA_FAIL;
-            break;
-        case 4:
-            result->status = VL53L1X_RANGE_SIGNAL_FAIL;
-            break;
-        case 8:
-            result->status = VL53L1X_RANGE_OUT_OF_BOUNDS_FAIL;
-            break;
-        case 5:
-            result->status = VL53L1X_RANGE_HARDWARE_FAIL;
-            break;
-        case 7:
-            result->status = VL53L1X_RANGE_WRAP_TARGET_FAIL;
-            break;
-        default:
-            result->status = VL53L1X_RANGE_NO_TARGET;
-            break;
+    case 9:
+        result->status = VL53L1X_RANGE_VALID;
+        break;
+    case 6:
+        result->status = VL53L1X_RANGE_SIGMA_FAIL;
+        break;
+    case 4:
+        result->status = VL53L1X_RANGE_SIGNAL_FAIL;
+        break;
+    case 8:
+        result->status = VL53L1X_RANGE_OUT_OF_BOUNDS_FAIL;
+        break;
+    case 5:
+        result->status = VL53L1X_RANGE_HARDWARE_FAIL;
+        break;
+    case 7:
+        result->status = VL53L1X_RANGE_WRAP_TARGET_FAIL;
+        break;
+    default:
+        result->status = VL53L1X_RANGE_NO_TARGET;
+        break;
     }
 
     // Clear interrupt
@@ -350,10 +345,14 @@ bool vl53l1x_set_distance_mode(vl53l1x_dist_mode_t mode) {
         period_b = 0x000F;
     }
 
-    if (!write_reg8(0x0060, timing_a)) return false;
-    if (!write_reg8(0x0063, timing_b)) return false;
-    if (!write_reg16(0x0069, period_a)) return false;
-    if (!write_reg16(0x0071, period_b)) return false;
+    if (!write_reg8(0x0060, timing_a))
+        return false;
+    if (!write_reg8(0x0063, timing_b))
+        return false;
+    if (!write_reg16(0x0069, period_a))
+        return false;
+    if (!write_reg16(0x0071, period_b))
+        return false;
 
     s_config.distance_mode = mode;
     return true;
@@ -365,40 +364,42 @@ bool vl53l1x_set_timing_budget(vl53l1x_timing_t timing_ms) {
     uint32_t timeout;
 
     switch (timing_ms) {
-        case VL53L1X_TIMING_15MS:
-            macro_period = 0x001D;
-            timeout = 0x0027;
-            break;
-        case VL53L1X_TIMING_20MS:
-            macro_period = 0x0051;
-            timeout = 0x006E;
-            break;
-        case VL53L1X_TIMING_33MS:
-            macro_period = 0x00D6;
-            timeout = 0x01AE;
-            break;
-        case VL53L1X_TIMING_50MS:
-            macro_period = 0x01AE;
-            timeout = 0x02E1;
-            break;
-        case VL53L1X_TIMING_100MS:
-            macro_period = 0x02E1;
-            timeout = 0x0591;
-            break;
-        case VL53L1X_TIMING_200MS:
-            macro_period = 0x03E1;
-            timeout = 0x0B31;
-            break;
-        case VL53L1X_TIMING_500MS:
-            macro_period = 0x0591;
-            timeout = 0x1C31;
-            break;
-        default:
-            return false;
+    case VL53L1X_TIMING_15MS:
+        macro_period = 0x001D;
+        timeout = 0x0027;
+        break;
+    case VL53L1X_TIMING_20MS:
+        macro_period = 0x0051;
+        timeout = 0x006E;
+        break;
+    case VL53L1X_TIMING_33MS:
+        macro_period = 0x00D6;
+        timeout = 0x01AE;
+        break;
+    case VL53L1X_TIMING_50MS:
+        macro_period = 0x01AE;
+        timeout = 0x02E1;
+        break;
+    case VL53L1X_TIMING_100MS:
+        macro_period = 0x02E1;
+        timeout = 0x0591;
+        break;
+    case VL53L1X_TIMING_200MS:
+        macro_period = 0x03E1;
+        timeout = 0x0B31;
+        break;
+    case VL53L1X_TIMING_500MS:
+        macro_period = 0x0591;
+        timeout = 0x1C31;
+        break;
+    default:
+        return false;
     }
 
-    if (!write_reg16(VL53L1X_RANGE_CONFIG_TIMEOUT_MACROP_A, macro_period)) return false;
-    if (!write_reg16(0x0061, (uint16_t)timeout)) return false;
+    if (!write_reg16(VL53L1X_RANGE_CONFIG_TIMEOUT_MACROP_A, macro_period))
+        return false;
+    if (!write_reg16(0x0061, (uint16_t)timeout))
+        return false;
 
     s_config.timing_budget_ms = timing_ms;
     return true;

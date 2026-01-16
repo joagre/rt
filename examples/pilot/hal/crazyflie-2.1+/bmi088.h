@@ -20,8 +20,8 @@
 
 // Accelerometer range options
 typedef enum {
-    BMI088_ACC_RANGE_3G  = 0x00,
-    BMI088_ACC_RANGE_6G  = 0x01,
+    BMI088_ACC_RANGE_3G = 0x00,
+    BMI088_ACC_RANGE_6G = 0x01,
     BMI088_ACC_RANGE_12G = 0x02,
     BMI088_ACC_RANGE_24G = 0x03
 } bmi088_acc_range_t;
@@ -30,21 +30,21 @@ typedef enum {
 typedef enum {
     BMI088_GYRO_RANGE_2000DPS = 0x00,
     BMI088_GYRO_RANGE_1000DPS = 0x01,
-    BMI088_GYRO_RANGE_500DPS  = 0x02,
-    BMI088_GYRO_RANGE_250DPS  = 0x03,
-    BMI088_GYRO_RANGE_125DPS  = 0x04
+    BMI088_GYRO_RANGE_500DPS = 0x02,
+    BMI088_GYRO_RANGE_250DPS = 0x03,
+    BMI088_GYRO_RANGE_125DPS = 0x04
 } bmi088_gyro_range_t;
 
 // Accelerometer ODR/bandwidth options
 typedef enum {
-    BMI088_ACC_ODR_12_5HZ  = 0x05,
-    BMI088_ACC_ODR_25HZ    = 0x06,
-    BMI088_ACC_ODR_50HZ    = 0x07,
-    BMI088_ACC_ODR_100HZ   = 0x08,
-    BMI088_ACC_ODR_200HZ   = 0x09,
-    BMI088_ACC_ODR_400HZ   = 0x0A,
-    BMI088_ACC_ODR_800HZ   = 0x0B,
-    BMI088_ACC_ODR_1600HZ  = 0x0C
+    BMI088_ACC_ODR_12_5HZ = 0x05,
+    BMI088_ACC_ODR_25HZ = 0x06,
+    BMI088_ACC_ODR_50HZ = 0x07,
+    BMI088_ACC_ODR_100HZ = 0x08,
+    BMI088_ACC_ODR_200HZ = 0x09,
+    BMI088_ACC_ODR_400HZ = 0x0A,
+    BMI088_ACC_ODR_800HZ = 0x0B,
+    BMI088_ACC_ODR_1600HZ = 0x0C
 } bmi088_acc_odr_t;
 
 // Gyroscope ODR/bandwidth options
@@ -52,28 +52,28 @@ typedef enum {
     BMI088_GYRO_ODR_2000HZ_BW_532HZ = 0x00,
     BMI088_GYRO_ODR_2000HZ_BW_230HZ = 0x01,
     BMI088_GYRO_ODR_1000HZ_BW_116HZ = 0x02,
-    BMI088_GYRO_ODR_400HZ_BW_47HZ   = 0x03,
-    BMI088_GYRO_ODR_200HZ_BW_23HZ   = 0x04,
-    BMI088_GYRO_ODR_100HZ_BW_12HZ   = 0x05,
-    BMI088_GYRO_ODR_200HZ_BW_64HZ   = 0x06,
-    BMI088_GYRO_ODR_100HZ_BW_32HZ   = 0x07
+    BMI088_GYRO_ODR_400HZ_BW_47HZ = 0x03,
+    BMI088_GYRO_ODR_200HZ_BW_23HZ = 0x04,
+    BMI088_GYRO_ODR_100HZ_BW_12HZ = 0x05,
+    BMI088_GYRO_ODR_200HZ_BW_64HZ = 0x06,
+    BMI088_GYRO_ODR_100HZ_BW_32HZ = 0x07
 } bmi088_gyro_odr_t;
 
 // Configuration structure
 typedef struct {
-    bmi088_acc_range_t  acc_range;
-    bmi088_acc_odr_t    acc_odr;
+    bmi088_acc_range_t acc_range;
+    bmi088_acc_odr_t acc_odr;
     bmi088_gyro_range_t gyro_range;
-    bmi088_gyro_odr_t   gyro_odr;
+    bmi088_gyro_odr_t gyro_odr;
 } bmi088_config_t;
 
 // Default configuration (good for flight control)
-#define BMI088_CONFIG_DEFAULT { \
-    .acc_range  = BMI088_ACC_RANGE_6G, \
-    .acc_odr    = BMI088_ACC_ODR_400HZ, \
-    .gyro_range = BMI088_GYRO_RANGE_1000DPS, \
-    .gyro_odr   = BMI088_GYRO_ODR_400HZ_BW_47HZ \
-}
+#define BMI088_CONFIG_DEFAULT                                              \
+    {                                                                      \
+        .acc_range = BMI088_ACC_RANGE_6G, .acc_odr = BMI088_ACC_ODR_400HZ, \
+        .gyro_range = BMI088_GYRO_RANGE_1000DPS,                           \
+        .gyro_odr = BMI088_GYRO_ODR_400HZ_BW_47HZ                          \
+    }
 
 // ----------------------------------------------------------------------------
 // Data Structures
@@ -86,7 +86,7 @@ typedef struct {
 
 // Scaled sensor data (SI units)
 typedef struct {
-    float x, y, z;  // Accel: m/s², Gyro: rad/s
+    float x, y, z; // Accel: m/s², Gyro: rad/s
 } bmi088_data_t;
 
 // ----------------------------------------------------------------------------

@@ -24,16 +24,16 @@
 // Configuration
 // ----------------------------------------------------------------------------
 
-#define CALIBRATION_SAMPLES     500     // Gyro calibration samples
-#define BARO_CALIBRATION_SAMPLES 50     // Barometer calibration samples
+#define CALIBRATION_SAMPLES 500     // Gyro calibration samples
+#define BARO_CALIBRATION_SAMPLES 50 // Barometer calibration samples
 
 // Conversion constants
-#define GRAVITY             9.80665f    // m/s²
+#define GRAVITY 9.80665f // m/s²
 #ifndef M_PI
-#define M_PI                3.14159265358979323846f
+#define M_PI 3.14159265358979323846f
 #endif
-#define DEG_TO_RAD          (M_PI / 180.0f)
-#define MGAUSS_TO_UT        0.1f        // 1 mGauss = 0.1 µT
+#define DEG_TO_RAD (M_PI / 180.0f)
+#define MGAUSS_TO_UT 0.1f // 1 mGauss = 0.1 µT
 
 // ----------------------------------------------------------------------------
 // Static State
@@ -90,7 +90,7 @@ static void error_blink_forever(void) {
 
 int platform_init(void) {
     // Set system clock before HAL_Init
-    SystemCoreClock = 16000000;  // 16 MHz HSI
+    SystemCoreClock = 16000000; // 16 MHz HSI
 
     // Initialize HAL
     if (HAL_Init() != HAL_OK) {
@@ -109,42 +109,42 @@ int platform_init(void) {
 
     // Initialize sensor SPI bus
     if (Sensor_IO_SPI_Init() != COMPONENT_OK) {
-        init_blink(2, 100, 100);  // 2 fast blinks = SPI failed
+        init_blink(2, 100, 100); // 2 fast blinks = SPI failed
         error_blink_forever();
     }
     Sensor_IO_SPI_CS_Init_All();
 
     // Initialize accelerometer (LSM6DSL)
     if (BSP_ACCELERO_Init(LSM6DSL_X_0, &s_accel_handle) != COMPONENT_OK) {
-        init_blink(3, 100, 100);  // 3 fast blinks = accel failed
+        init_blink(3, 100, 100); // 3 fast blinks = accel failed
         error_blink_forever();
     }
     BSP_ACCELERO_Sensor_Enable(s_accel_handle);
 
     // Initialize gyroscope (LSM6DSL - same chip as accelerometer)
     if (BSP_GYRO_Init(LSM6DSL_G_0, &s_gyro_handle) != COMPONENT_OK) {
-        init_blink(4, 100, 100);  // 4 fast blinks = gyro failed
+        init_blink(4, 100, 100); // 4 fast blinks = gyro failed
         error_blink_forever();
     }
     BSP_GYRO_Sensor_Enable(s_gyro_handle);
 
     // Initialize magnetometer (LIS2MDL)
     if (BSP_MAGNETO_Init(LIS2MDL_M_0, &s_mag_handle) != COMPONENT_OK) {
-        init_blink(5, 100, 100);  // 5 fast blinks = mag failed
+        init_blink(5, 100, 100); // 5 fast blinks = mag failed
         error_blink_forever();
     }
     BSP_MAGNETO_Sensor_Enable(s_mag_handle);
 
     // Initialize pressure sensor (LPS22HB)
     if (BSP_PRESSURE_Init(LPS22HB_P_0, &s_press_handle) != COMPONENT_OK) {
-        init_blink(6, 100, 100);  // 6 fast blinks = pressure failed
+        init_blink(6, 100, 100); // 6 fast blinks = pressure failed
         error_blink_forever();
     }
     BSP_PRESSURE_Sensor_Enable(s_press_handle);
 
     // Initialize temperature sensor (LPS22HB - same chip as pressure)
     if (BSP_TEMPERATURE_Init(LPS22HB_T_0, &s_temp_handle) != COMPONENT_OK) {
-        init_blink(7, 100, 100);  // 7 fast blinks = temp failed
+        init_blink(7, 100, 100); // 7 fast blinks = temp failed
         error_blink_forever();
     }
     BSP_TEMPERATURE_Sensor_Enable(s_temp_handle);
@@ -154,8 +154,8 @@ int platform_init(void) {
 
     // Initialize motors (TIM4 PWM on PB6-PB9)
     // Note: Sensors use SPI, so PB6/PB7 are free for TIM4 CH1/CH2
-    if (!motors_init_full(NULL, false)) {  // false = use PB6-PB9, not PD12-PD15
-        init_blink(8, 100, 100);  // 8 fast blinks = motors failed
+    if (!motors_init_full(NULL, false)) { // false = use PB6-PB9, not PD12-PD15
+        init_blink(8, 100, 100);          // 8 fast blinks = motors failed
         error_blink_forever();
     }
 
@@ -187,7 +187,7 @@ int platform_calibrate(void) {
             gyro_sum[1] += (float)gyro_axes.AXIS_Y * 0.001f * DEG_TO_RAD;
             gyro_sum[2] += (float)gyro_axes.AXIS_Z * 0.001f * DEG_TO_RAD;
         }
-        HAL_Delay(2);  // ~500Hz
+        HAL_Delay(2); // ~500Hz
     }
 
     s_gyro_bias[0] = gyro_sum[0] / CALIBRATION_SAMPLES;
@@ -231,9 +231,12 @@ void platform_read_sensors(sensor_data_t *sensors) {
     // -------------------------------------------------------------------------
     if (BSP_GYRO_Get_Axes(s_gyro_handle, &axes) == COMPONENT_OK) {
         // mdps to rad/s: divide by 1000 to get dps, multiply by pi/180
-        sensors->gyro[0] = (float)axes.AXIS_X * 0.001f * DEG_TO_RAD - s_gyro_bias[0];
-        sensors->gyro[1] = (float)axes.AXIS_Y * 0.001f * DEG_TO_RAD - s_gyro_bias[1];
-        sensors->gyro[2] = (float)axes.AXIS_Z * 0.001f * DEG_TO_RAD - s_gyro_bias[2];
+        sensors->gyro[0] =
+            (float)axes.AXIS_X * 0.001f * DEG_TO_RAD - s_gyro_bias[0];
+        sensors->gyro[1] =
+            (float)axes.AXIS_Y * 0.001f * DEG_TO_RAD - s_gyro_bias[1];
+        sensors->gyro[2] =
+            (float)axes.AXIS_Z * 0.001f * DEG_TO_RAD - s_gyro_bias[2];
     }
 
     // -------------------------------------------------------------------------
@@ -291,14 +294,14 @@ void platform_arm(void) {
     if (s_initialized && s_calibrated) {
         motors_arm();
         s_armed = true;
-        BSP_LED_On(LED1);  // LED on when armed
+        BSP_LED_On(LED1); // LED on when armed
     }
 }
 
 void platform_disarm(void) {
     motors_disarm();
     s_armed = false;
-    BSP_LED_Off(LED1);  // LED off when disarmed
+    BSP_LED_Off(LED1); // LED off when disarmed
 }
 
 uint32_t platform_get_time_ms(void) {
@@ -325,7 +328,7 @@ void platform_delay_us(uint32_t us) {
 
 void platform_debug_init(void) {
     // Initialize USART1 for debug output (115200 baud, TX only)
-    usart1_init(NULL);  // NULL = use defaults
+    usart1_init(NULL); // NULL = use defaults
 }
 
 void platform_debug_printf(const char *fmt, ...) {

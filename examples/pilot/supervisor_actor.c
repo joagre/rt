@@ -21,13 +21,13 @@
 
 // Flight duration per profile (supervisor decides when to land)
 #if FLIGHT_PROFILE == FLIGHT_PROFILE_FIRST_TEST
-#define FLIGHT_DURATION_US  (10 * 1000000)  // 10 seconds
+#define FLIGHT_DURATION_US (10 * 1000000) // 10 seconds
 #elif FLIGHT_PROFILE == FLIGHT_PROFILE_ALTITUDE
-#define FLIGHT_DURATION_US  (40 * 1000000)  // 40 seconds
+#define FLIGHT_DURATION_US (40 * 1000000) // 40 seconds
 #elif FLIGHT_PROFILE == FLIGHT_PROFILE_FULL_3D
-#define FLIGHT_DURATION_US  (60 * 1000000)  // 60 seconds
+#define FLIGHT_DURATION_US (60 * 1000000) // 60 seconds
 #else
-#define FLIGHT_DURATION_US  (20 * 1000000)  // Default: 20 seconds
+#define FLIGHT_DURATION_US (20 * 1000000) // Default: 20 seconds
 #endif
 
 // Log sync interval (4 seconds)
@@ -37,7 +37,8 @@ static actor_id s_waypoint_actor;
 static actor_id s_altitude_actor;
 static actor_id s_motor_actor;
 
-void supervisor_actor_init(actor_id waypoint_actor, actor_id altitude_actor, actor_id motor_actor) {
+void supervisor_actor_init(actor_id waypoint_actor, actor_id altitude_actor,
+                           actor_id motor_actor) {
     s_waypoint_actor = waypoint_actor;
     s_altitude_actor = altitude_actor;
     s_motor_actor = motor_actor;
@@ -52,9 +53,10 @@ void supervisor_actor(void *arg) {
 
     // Sleep in 10-second intervals with progress logging
     for (int i = 6; i > 0; i--) {
-        hive_sleep(10 * 1000000);  // 10 seconds
+        hive_sleep(10 * 1000000); // 10 seconds
         if (i > 1) {
-            HIVE_LOG_INFO("[SUP] Startup delay: %d seconds remaining", (i - 1) * 10);
+            HIVE_LOG_INFO("[SUP] Startup delay: %d seconds remaining",
+                          (i - 1) * 10);
         }
     }
 
@@ -69,7 +71,8 @@ void supervisor_actor(void *arg) {
     HIVE_LOG_INFO("[SUP] Opening log file: %s", HIVE_LOG_FILE_PATH);
     hive_status log_status = hive_log_file_open(HIVE_LOG_FILE_PATH);
     if (HIVE_FAILED(log_status)) {
-        HIVE_LOG_WARN("[SUP] Failed to open log file: %s", HIVE_ERR_STR(log_status));
+        HIVE_LOG_WARN("[SUP] Failed to open log file: %s",
+                      HIVE_ERR_STR(log_status));
     } else {
         HIVE_LOG_INFO("[SUP] Log file opened");
     }
@@ -84,7 +87,8 @@ void supervisor_actor(void *arg) {
     hive_ipc_notify(s_waypoint_actor, NOTIFY_FLIGHT_START, NULL, 0);
 
     // Flight duration timer, then initiate controlled landing
-    HIVE_LOG_INFO("[SUP] Flight duration: %.0f seconds", FLIGHT_DURATION_US / 1000000.0f);
+    HIVE_LOG_INFO("[SUP] Flight duration: %.0f seconds",
+                  FLIGHT_DURATION_US / 1000000.0f);
 
     timer_id flight_timer;
     hive_timer_after(FLIGHT_DURATION_US, &flight_timer);
@@ -116,7 +120,8 @@ void supervisor_actor(void *arg) {
 
         if (msg.class == HIVE_MSG_TIMER && msg.tag == sync_timer) {
             hive_log_file_sync();
-        } else if (msg.class == HIVE_MSG_NOTIFY && msg.tag == NOTIFY_FLIGHT_LANDED) {
+        } else if (msg.class == HIVE_MSG_NOTIFY &&
+                   msg.tag == NOTIFY_FLIGHT_LANDED) {
             landed = true;
         }
     }

@@ -22,7 +22,8 @@ static bus_id s_state_bus;
 static bus_id s_attitude_setpoint_bus;
 static bus_id s_position_target_bus;
 
-void position_actor_init(bus_id state_bus, bus_id attitude_setpoint_bus, bus_id position_target_bus) {
+void position_actor_init(bus_id state_bus, bus_id attitude_setpoint_bus,
+                         bus_id position_target_bus) {
     s_state_bus = state_bus;
     s_attitude_setpoint_bus = attitude_setpoint_bus;
     s_position_target_bus = position_target_bus;
@@ -48,7 +49,9 @@ void position_actor(void *arg) {
         hive_bus_read_wait(s_state_bus, &state, sizeof(state), &len, -1);
 
         // Read target from waypoint actor (non-blocking, use last known)
-        if (hive_bus_read(s_position_target_bus, &new_target, sizeof(new_target), &len).code == HIVE_OK) {
+        if (hive_bus_read(s_position_target_bus, &new_target,
+                          sizeof(new_target), &len)
+                .code == HIVE_OK) {
             target = new_target;
         }
 
@@ -69,19 +72,16 @@ void position_actor(void *arg) {
         float sin_yaw = sinf(state.yaw);
 
         float pitch_cmd = accel_x * cos_yaw + accel_y * sin_yaw;
-        float roll_cmd  = -accel_x * sin_yaw + accel_y * cos_yaw;
+        float roll_cmd = -accel_x * sin_yaw + accel_y * cos_yaw;
 
         // Clamp to maximum tilt angle for safety
         pitch_cmd = CLAMPF(pitch_cmd, -MAX_TILT_ANGLE, MAX_TILT_ANGLE);
-        roll_cmd  = CLAMPF(roll_cmd,  -MAX_TILT_ANGLE, MAX_TILT_ANGLE);
+        roll_cmd = CLAMPF(roll_cmd, -MAX_TILT_ANGLE, MAX_TILT_ANGLE);
 
         // Sign conversion to aerospace convention:
         // - Roll negated: positive body Y error → negative roll → +Y accel
         attitude_setpoint_t setpoint = {
-            .roll = -roll_cmd,
-            .pitch = pitch_cmd,
-            .yaw = target.yaw
-        };
+            .roll = -roll_cmd, .pitch = pitch_cmd, .yaw = target.yaw};
 
         hive_bus_publish(s_attitude_setpoint_bus, &setpoint, sizeof(setpoint));
     }

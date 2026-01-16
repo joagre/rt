@@ -53,7 +53,8 @@ void platform_delay_us(uint32_t us);
 
 // Debug output (requires UART initialized).
 void platform_debug_init(void);
-void platform_debug_printf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+void platform_debug_printf(const char *fmt, ...)
+    __attribute__((format(printf, 1, 2)));
 
 // Emergency stop - immediately stop all motors.
 void platform_emergency_stop(void);

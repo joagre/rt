@@ -38,9 +38,12 @@ void rate_actor(void *arg) {
 
     pid_state_t roll_pid, pitch_pid, yaw_pid;
     // Note: Different output limits per axis (yaw needs more authority)
-    pid_init_full(&roll_pid,  HAL_RATE_PID_KP, HAL_RATE_PID_KI, HAL_RATE_PID_KD, HAL_RATE_PID_IMAX, HAL_RATE_PID_OMAX_ROLL);
-    pid_init_full(&pitch_pid, HAL_RATE_PID_KP, HAL_RATE_PID_KI, HAL_RATE_PID_KD, HAL_RATE_PID_IMAX, HAL_RATE_PID_OMAX_PITCH);
-    pid_init_full(&yaw_pid,   HAL_RATE_PID_KP, HAL_RATE_PID_KI, HAL_RATE_PID_KD, HAL_RATE_PID_IMAX, HAL_RATE_PID_OMAX_YAW);
+    pid_init_full(&roll_pid, HAL_RATE_PID_KP, HAL_RATE_PID_KI, HAL_RATE_PID_KD,
+                  HAL_RATE_PID_IMAX, HAL_RATE_PID_OMAX_ROLL);
+    pid_init_full(&pitch_pid, HAL_RATE_PID_KP, HAL_RATE_PID_KI, HAL_RATE_PID_KD,
+                  HAL_RATE_PID_IMAX, HAL_RATE_PID_OMAX_PITCH);
+    pid_init_full(&yaw_pid, HAL_RATE_PID_KP, HAL_RATE_PID_KI, HAL_RATE_PID_KD,
+                  HAL_RATE_PID_IMAX, HAL_RATE_PID_OMAX_YAW);
 
     float thrust = 0.0f;
     rate_setpoint_t rate_sp = RATE_SETPOINT_ZERO;
@@ -63,20 +66,24 @@ void rate_actor(void *arg) {
         prev_time = now;
 
         // Read thrust and rate setpoints (non-blocking, use last known)
-        if (hive_bus_read(s_thrust_bus, &thrust_cmd, sizeof(thrust_cmd), &len).code == HIVE_OK) {
+        if (hive_bus_read(s_thrust_bus, &thrust_cmd, sizeof(thrust_cmd), &len)
+                .code == HIVE_OK) {
             thrust = thrust_cmd.thrust;
         }
 
-        if (hive_bus_read(s_rate_setpoint_bus, &new_rate_sp, sizeof(new_rate_sp), &len).code == HIVE_OK) {
+        if (hive_bus_read(s_rate_setpoint_bus, &new_rate_sp,
+                          sizeof(new_rate_sp), &len)
+                .code == HIVE_OK) {
             rate_sp = new_rate_sp;
         }
 
-        // Torque command uses standard conventions (HAL handles platform differences)
+        // Torque command uses standard conventions (HAL handles platform
+        // differences)
         torque_cmd_t cmd;
         cmd.thrust = thrust;
-        cmd.roll   = pid_update(&roll_pid,  rate_sp.roll,  state.roll_rate,  dt);
-        cmd.pitch  = pid_update(&pitch_pid, rate_sp.pitch, state.pitch_rate, dt);
-        cmd.yaw    = pid_update(&yaw_pid,   rate_sp.yaw,   state.yaw_rate,   dt);
+        cmd.roll = pid_update(&roll_pid, rate_sp.roll, state.roll_rate, dt);
+        cmd.pitch = pid_update(&pitch_pid, rate_sp.pitch, state.pitch_rate, dt);
+        cmd.yaw = pid_update(&yaw_pid, rate_sp.yaw, state.yaw_rate, dt);
 
         hive_bus_publish(s_torque_bus, &cmd, sizeof(cmd));
     }

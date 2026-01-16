@@ -75,10 +75,14 @@ void hal_write_torque(const torque_cmd_t *cmd) {
     // Apply mixer: convert torque to individual motor commands
     motor_cmd_t motors;
 
-    motors.motor[0] = cmd->thrust - cmd->roll + cmd->pitch + cmd->yaw;  // M1 (front-left, CCW)
-    motors.motor[1] = cmd->thrust + cmd->roll + cmd->pitch - cmd->yaw;  // M2 (front-right, CW)
-    motors.motor[2] = cmd->thrust + cmd->roll - cmd->pitch + cmd->yaw;  // M3 (rear-right, CCW)
-    motors.motor[3] = cmd->thrust - cmd->roll - cmd->pitch - cmd->yaw;  // M4 (rear-left, CW)
+    motors.motor[0] =
+        cmd->thrust - cmd->roll + cmd->pitch + cmd->yaw; // M1 (front-left, CCW)
+    motors.motor[1] =
+        cmd->thrust + cmd->roll + cmd->pitch - cmd->yaw; // M2 (front-right, CW)
+    motors.motor[2] =
+        cmd->thrust + cmd->roll - cmd->pitch + cmd->yaw; // M3 (rear-right, CCW)
+    motors.motor[3] =
+        cmd->thrust - cmd->roll - cmd->pitch - cmd->yaw; // M4 (rear-left, CW)
 
     // Clamp motor values
     for (int i = 0; i < 4; i++) {

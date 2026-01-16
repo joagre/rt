@@ -85,7 +85,7 @@ void hal_write_torque(const torque_cmd_t *cmd);
 bool hal_step(void);
 
 // Get simulation time step in microseconds.
-#define HAL_TIME_STEP_US  (TIME_STEP_MS * 1000)
+#define HAL_TIME_STEP_US (TIME_STEP_MS * 1000)
 
 #endif // SIMULATED_TIME
 

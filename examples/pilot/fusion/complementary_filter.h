@@ -31,24 +31,23 @@ typedef struct {
 } cf_config_t;
 
 // Default configuration
-// alpha = 0.995: High gyro trust, slow accel correction (reduces noise sensitivity)
-// Accel thresholds: Only trust accelerometer near 1g (not during maneuvers)
-#define CF_CONFIG_DEFAULT { \
-    .alpha = 0.995f, \
-    .mag_alpha = 0.95f, \
-    .use_mag = false, \
-    .accel_threshold_lo = 0.8f, \
-    .accel_threshold_hi = 1.2f \
-}
+// alpha = 0.995: High gyro trust, slow accel correction (reduces noise
+// sensitivity) Accel thresholds: Only trust accelerometer near 1g (not during
+// maneuvers)
+#define CF_CONFIG_DEFAULT                                      \
+    {                                                          \
+        .alpha = 0.995f, .mag_alpha = 0.95f, .use_mag = false, \
+        .accel_threshold_lo = 0.8f, .accel_threshold_hi = 1.2f \
+    }
 
 // Filter state
 typedef struct {
-    float roll;               // Current roll estimate (radians)
-    float pitch;              // Current pitch estimate (radians)
-    float yaw;                // Current yaw estimate (radians)
-    float gyro_bias[3];       // Optional gyro bias (subtracted from readings)
-    cf_config_t config;       // Filter configuration
-    bool initialized;         // True after first update
+    float roll;         // Current roll estimate (radians)
+    float pitch;        // Current pitch estimate (radians)
+    float yaw;          // Current yaw estimate (radians)
+    float gyro_bias[3]; // Optional gyro bias (subtracted from readings)
+    cf_config_t config; // Filter configuration
+    bool initialized;   // True after first update
 } cf_state_t;
 
 // ----------------------------------------------------------------------------
@@ -68,7 +67,8 @@ void cf_reset(cf_state_t *state);
 void cf_update(cf_state_t *state, const struct sensor_data *sensors, float dt);
 
 // Get current attitude estimate.
-void cf_get_attitude(const cf_state_t *state, float *roll, float *pitch, float *yaw);
+void cf_get_attitude(const cf_state_t *state, float *roll, float *pitch,
+                     float *yaw);
 
 // Set gyro bias (subtracted from gyro readings before integration).
 // bias: [x, y, z] bias in rad/s
@@ -84,6 +84,7 @@ float cf_accel_pitch(const float accel[3]);
 
 // Utility: Check if accelerometer reading is valid for attitude correction.
 // Returns true if magnitude is within threshold (near 1g).
-bool cf_accel_valid(const float accel[3], float threshold_lo, float threshold_hi);
+bool cf_accel_valid(const float accel[3], float threshold_lo,
+                    float threshold_hi);
 
 #endif // COMPLEMENTARY_FILTER_H

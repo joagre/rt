@@ -27,34 +27,35 @@
 // Automatically disabled for FIRST_TEST profile (clean, predictable behavior).
 // Override with -DSENSOR_NOISE=0 or -DSENSOR_NOISE=1 if needed.
 
-#include "config.h"       // For FLIGHT_PROFILE
-#include "math_utils.h"   // For CLAMPF
+#include "config.h"     // For FLIGHT_PROFILE
+#include "math_utils.h" // For CLAMPF
 
 // Noise level: 0=off, 1=low (10%), 2=full (100%)
 // Default: full noise for all profiles (realistic simulation)
 // Override with -DSENSOR_NOISE=0 or -DSENSOR_NOISE=1 if needed
 #ifndef SENSOR_NOISE
-  #define SENSOR_NOISE 2  // Full noise - realistic simulation
+#define SENSOR_NOISE 2 // Full noise - realistic simulation
 #endif
 
 #if SENSOR_NOISE == 0
-#define ACCEL_NOISE_STDDEV  0.0f
-#define GYRO_NOISE_STDDEV   0.0f
+#define ACCEL_NOISE_STDDEV 0.0f
+#define GYRO_NOISE_STDDEV 0.0f
 #elif SENSOR_NOISE == 1
-#define ACCEL_NOISE_STDDEV  0.01f   // Low - m/s² (~0.1% of gravity)
-#define GYRO_NOISE_STDDEV   0.0005f // Low - rad/s (~0.03 deg/s)
+#define ACCEL_NOISE_STDDEV 0.01f  // Low - m/s² (~0.1% of gravity)
+#define GYRO_NOISE_STDDEV 0.0005f // Low - rad/s (~0.03 deg/s)
 #else
 // Realistic MEMS IMU noise (MPU6050/BMI088 class)
 // Accel: ~150 µg/√Hz at 125Hz BW → 0.016 m/s²
 // Gyro:  ~0.007 °/s/√Hz at 125Hz BW → 0.0014 rad/s
-#define ACCEL_NOISE_STDDEV  0.02f   // Realistic - m/s² (~0.2% of gravity)
-#define GYRO_NOISE_STDDEV   0.001f  // Realistic - rad/s (~0.06 deg/s)
+#define ACCEL_NOISE_STDDEV 0.02f // Realistic - m/s² (~0.2% of gravity)
+#define GYRO_NOISE_STDDEV 0.001f // Realistic - rad/s (~0.06 deg/s)
 #endif
-#define GYRO_BIAS_DRIFT     0.0f    // rad/s per step (0 = disabled)
-#define GPS_NOISE_STDDEV    0.0f    // meters (disabled - causes velocity noise issues)
+#define GYRO_BIAS_DRIFT 0.0f // rad/s per step (0 = disabled)
+#define GPS_NOISE_STDDEV \
+    0.0f // meters (disabled - causes velocity noise issues)
 
 // Xorshift32 PRNG state (seeded at init for variety)
-static uint32_t g_rng_state = 1;  // Will be seeded in hal_init()
+static uint32_t g_rng_state = 1; // Will be seeded in hal_init()
 
 // Accumulated gyro bias (simulates sensor drift)
 static float g_gyro_bias[3] = {0.0f, 0.0f, 0.0f};
@@ -79,7 +80,8 @@ static float randf_gaussian(void) {
     float u1 = randf_uniform();
     float u2 = randf_uniform();
     // Avoid log(0)
-    if (u1 < 1e-10f) u1 = 1e-10f;
+    if (u1 < 1e-10f)
+        u1 = 1e-10f;
     return sqrtf(-2.0f * logf(u1)) * cosf(2.0f * (float)M_PI * u2);
 }
 
@@ -103,15 +105,16 @@ int hal_init(void) {
     wb_robot_init();
 
     // Seed PRNG from wall clock for variety in noise patterns each run.
-    // This makes drift direction random, demonstrating it's noise-induced random walk
-    // rather than systematic bias. Drift without position control is physically expected.
+    // This makes drift direction random, demonstrating it's noise-induced
+    // random walk rather than systematic bias. Drift without position control
+    // is physically expected.
     g_rng_state = (uint32_t)time(NULL) ^ 0xDEADBEEF;
-    if (g_rng_state == 0) g_rng_state = 12345;  // xorshift can't have zero state
+    if (g_rng_state == 0)
+        g_rng_state = 12345; // xorshift can't have zero state
 
     // Initialize motors
-    const char *motor_names[NUM_MOTORS] = {
-        "m1_motor", "m2_motor", "m3_motor", "m4_motor"
-    };
+    const char *motor_names[NUM_MOTORS] = {"m1_motor", "m2_motor", "m3_motor",
+                                           "m4_motor"};
 
     for (int i = 0; i < NUM_MOTORS; i++) {
         g_motors[i] = wb_robot_get_device(motor_names[i]);
@@ -236,16 +239,16 @@ void hal_write_torque(const torque_cmd_t *cmd) {
 
     // Apply mixer: convert torque to individual motor commands
     float motors[NUM_MOTORS];
-    motors[0] = cmd->thrust - cmd->roll + pitch + cmd->yaw;  // M1 (rear-left)
-    motors[1] = cmd->thrust - cmd->roll - pitch - cmd->yaw;  // M2 (front-left)
-    motors[2] = cmd->thrust + cmd->roll - pitch + cmd->yaw;  // M3 (front-right)
-    motors[3] = cmd->thrust + cmd->roll + pitch - cmd->yaw;  // M4 (rear-right)
+    motors[0] = cmd->thrust - cmd->roll + pitch + cmd->yaw; // M1 (rear-left)
+    motors[1] = cmd->thrust - cmd->roll - pitch - cmd->yaw; // M2 (front-left)
+    motors[2] = cmd->thrust + cmd->roll - pitch + cmd->yaw; // M3 (front-right)
+    motors[3] = cmd->thrust + cmd->roll + pitch - cmd->yaw; // M4 (rear-right)
 
     // Clamp and output to Webots motors
     for (int i = 0; i < NUM_MOTORS; i++) {
         float clamped = CLAMPF(motors[i], 0.0f, 1.0f);
         wb_motor_set_velocity(g_motors[i],
-            MOTOR_SIGNS[i] * clamped * MOTOR_MAX_VELOCITY);
+                              MOTOR_SIGNS[i] * clamped * MOTOR_MAX_VELOCITY);
     }
 }
 

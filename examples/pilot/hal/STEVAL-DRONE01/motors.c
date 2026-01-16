@@ -1,8 +1,9 @@
 // Motor PWM driver for STEVAL-DRONE01
 //
 // TIM4 PWM output for 4 brushed DC motors.
-// Note: Using CH3/CH4 only (PB8/PB9) since CH1/CH2 (PB6/PB7) conflict with I2C1.
-// For full 4-motor support, use alternative pins (PD12-PD15) or separate timer.
+// Note: Using CH3/CH4 only (PB8/PB9) since CH1/CH2 (PB6/PB7) conflict with
+// I2C1. For full 4-motor support, use alternative pins (PD12-PD15) or separate
+// timer.
 
 #include "motors.h"
 #include "tim4.h"
@@ -11,6 +12,7 @@
 // Configuration
 // ----------------------------------------------------------------------------
 
+// clang-format off
 // Motor to TIM4 channel mapping (X-configuration)
 //
 // Motor layout:
@@ -31,12 +33,13 @@
 //   M4 (rear-right, CW):   TIM4_CH4 (PB9) → Connector P5
 //
 // Note: Board connectors are labeled P1, P2, P4, P5 (no P3).
+// clang-format on
 
 static const tim4_channel_t motor_channel[MOTORS_COUNT] = {
-    TIM4_CH1,   // M1 - rear-left
-    TIM4_CH2,   // M2 - front-left
-    TIM4_CH3,   // M3 - front-right
-    TIM4_CH4    // M4 - rear-right
+    TIM4_CH1, // M1 - rear-left
+    TIM4_CH2, // M2 - front-left
+    TIM4_CH3, // M3 - front-right
+    TIM4_CH4  // M4 - rear-right
 };
 
 // ----------------------------------------------------------------------------
@@ -83,14 +86,13 @@ bool motors_init(const motors_config_t *config) {
 
     // Determine TIM4 configuration based on motor config
     // Default: Only CH3/CH4 to avoid I2C1 conflict
-    tim4_config_t tim_config = {
-        .frequency = (tim4_pwm_freq_t)s_config.frequency_hz,
-        .pin_config = TIM4_PINS_PB8_PB9_ONLY,
-        .ch1_enable = false,
-        .ch2_enable = false,
-        .ch3_enable = true,
-        .ch4_enable = true
-    };
+    tim4_config_t tim_config = {.frequency =
+                                    (tim4_pwm_freq_t)s_config.frequency_hz,
+                                .pin_config = TIM4_PINS_PB8_PB9_ONLY,
+                                .ch1_enable = false,
+                                .ch2_enable = false,
+                                .ch3_enable = true,
+                                .ch4_enable = true};
 
     // Update max_pulse to match TIM4 resolution if using default
     if (s_config.max_pulse == 1000) {
@@ -130,8 +132,7 @@ bool motors_init_full(const motors_config_t *config, bool use_port_d) {
         .ch1_enable = true,
         .ch2_enable = true,
         .ch3_enable = true,
-        .ch4_enable = true
-    };
+        .ch4_enable = true};
 
     if (s_config.max_pulse == 1000) {
         s_config.max_pulse = TIM4_PWM_RESOLUTION - 1;
@@ -171,7 +172,7 @@ bool motors_is_armed(void) {
 
 void motors_set(const motors_cmd_t *cmd) {
     if (!s_armed) {
-        return;  // Ignore commands when disarmed
+        return; // Ignore commands when disarmed
     }
 
     // Convert float commands to PWM values and set

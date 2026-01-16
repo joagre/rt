@@ -29,7 +29,8 @@ static float pid_update_internal(pid_state_t *pid, float error, float dt) {
 
     // Integral with anti-windup
     pid->integral += error * dt;
-    pid->integral = CLAMPF(pid->integral, -pid->integral_max, pid->integral_max);
+    pid->integral =
+        CLAMPF(pid->integral, -pid->integral_max, pid->integral_max);
     float i = pid->ki * pid->integral;
 
     // Derivative
@@ -41,12 +42,14 @@ static float pid_update_internal(pid_state_t *pid, float error, float dt) {
     return CLAMPF(output, -pid->output_max, pid->output_max);
 }
 
-float pid_update(pid_state_t *pid, float setpoint, float measurement, float dt) {
+float pid_update(pid_state_t *pid, float setpoint, float measurement,
+                 float dt) {
     float error = setpoint - measurement;
     return pid_update_internal(pid, error, dt);
 }
 
-float pid_update_angle(pid_state_t *pid, float setpoint, float measurement, float dt) {
+float pid_update_angle(pid_state_t *pid, float setpoint, float measurement,
+                       float dt) {
     float error = NORMALIZE_ANGLE(setpoint - measurement);
     return pid_update_internal(pid, error, dt);
 }

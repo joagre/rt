@@ -9,39 +9,39 @@
 // Register Definitions
 // ----------------------------------------------------------------------------
 
-#define REG_PRODUCT_ID      0x00
-#define REG_REVISION_ID     0x01
-#define REG_MOTION          0x02
-#define REG_DELTA_X_L       0x03
-#define REG_DELTA_X_H       0x04
-#define REG_DELTA_Y_L       0x05
-#define REG_DELTA_Y_H       0x06
-#define REG_SQUAL           0x07
-#define REG_RAW_DATA_SUM    0x08
-#define REG_MAXIMUM_RAW     0x09
-#define REG_MINIMUM_RAW     0x0A
-#define REG_SHUTTER_LOWER   0x0B
-#define REG_SHUTTER_UPPER   0x0C
-#define REG_OBSERVATION     0x15
-#define REG_MOTION_BURST    0x16
-#define REG_POWER_UP_RESET  0x3A
-#define REG_SHUTDOWN        0x3B
-#define REG_RAW_DATA_GRAB   0x58
+#define REG_PRODUCT_ID 0x00
+#define REG_REVISION_ID 0x01
+#define REG_MOTION 0x02
+#define REG_DELTA_X_L 0x03
+#define REG_DELTA_X_H 0x04
+#define REG_DELTA_Y_L 0x05
+#define REG_DELTA_Y_H 0x06
+#define REG_SQUAL 0x07
+#define REG_RAW_DATA_SUM 0x08
+#define REG_MAXIMUM_RAW 0x09
+#define REG_MINIMUM_RAW 0x0A
+#define REG_SHUTTER_LOWER 0x0B
+#define REG_SHUTTER_UPPER 0x0C
+#define REG_OBSERVATION 0x15
+#define REG_MOTION_BURST 0x16
+#define REG_POWER_UP_RESET 0x3A
+#define REG_SHUTDOWN 0x3B
+#define REG_RAW_DATA_GRAB 0x58
 #define REG_RAW_DATA_GRAB_STATUS 0x59
-#define REG_RAWDATA_OUT     0x5A
+#define REG_RAWDATA_OUT 0x5A
 #define REG_INVERSE_PRODUCT_ID 0x5F
 
 // Expected IDs
-#define PMW3901_PRODUCT_ID  0x49
-#define PMW3901_INVERSE_ID  0xB6
+#define PMW3901_PRODUCT_ID 0x49
+#define PMW3901_INVERSE_ID 0xB6
 
 // SPI read/write flags
-#define SPI_READ   0x00
-#define SPI_WRITE  0x80
+#define SPI_READ 0x00
+#define SPI_WRITE 0x80
 
 // Motion register bits
-#define MOTION_MOT          0x80
-#define MOTION_OVF          0x10
+#define MOTION_MOT 0x80
+#define MOTION_OVF 0x10
 
 // ----------------------------------------------------------------------------
 // Static State
@@ -55,20 +55,20 @@ static bool s_initialized = false;
 
 static uint8_t read_reg(uint8_t reg) {
     pmw3901_cs_low();
-    pmw3901_spi_transfer(reg & 0x7F);  // MSB = 0 for read
-    pmw3901_delay_us(50);              // Wait time between address and data
+    pmw3901_spi_transfer(reg & 0x7F); // MSB = 0 for read
+    pmw3901_delay_us(50);             // Wait time between address and data
     uint8_t value = pmw3901_spi_transfer(0x00);
     pmw3901_cs_high();
-    pmw3901_delay_us(200);             // Minimum time between transactions
+    pmw3901_delay_us(200); // Minimum time between transactions
     return value;
 }
 
 static void write_reg(uint8_t reg, uint8_t value) {
     pmw3901_cs_low();
-    pmw3901_spi_transfer(reg | 0x80);  // MSB = 1 for write
+    pmw3901_spi_transfer(reg | 0x80); // MSB = 1 for write
     pmw3901_spi_transfer(value);
     pmw3901_cs_high();
-    pmw3901_delay_us(200);             // Minimum time between transactions
+    pmw3901_delay_us(200); // Minimum time between transactions
 }
 
 // Burst read for motion data
@@ -82,7 +82,7 @@ static void read_motion_burst(uint8_t *buf, uint8_t len) {
     }
 
     pmw3901_cs_high();
-    pmw3901_delay_us(500);  // Longer delay after burst read
+    pmw3901_delay_us(500); // Longer delay after burst read
 }
 
 // ----------------------------------------------------------------------------
@@ -216,7 +216,8 @@ bool pmw3901_read_motion(pmw3901_motion_t *data) {
         return false;
     }
 
-    // Motion burst read: Motion, Obs, Delta_X_L, Delta_X_H, Delta_Y_L, Delta_Y_H,
+    // Motion burst read: Motion, Obs, Delta_X_L, Delta_X_H, Delta_Y_L,
+    // Delta_Y_H,
     //                    SQUAL, RawData_Sum, Maximum_RawData, Minimum_RawData,
     //                    Shutter_Upper, Shutter_Lower
     uint8_t buf[12];
@@ -238,8 +239,10 @@ bool pmw3901_read_delta(int16_t *delta_x, int16_t *delta_y) {
         return false;
     }
 
-    if (delta_x) *delta_x = motion.delta_x;
-    if (delta_y) *delta_y = motion.delta_y;
+    if (delta_x)
+        *delta_x = motion.delta_x;
+    if (delta_y)
+        *delta_y = motion.delta_y;
 
     return true;
 }
@@ -294,8 +297,10 @@ bool pmw3901_get_accumulated(int16_t *delta_x, int16_t *delta_y) {
     uint8_t yl = read_reg(REG_DELTA_Y_L);
     uint8_t yh = read_reg(REG_DELTA_Y_H);
 
-    if (delta_x) *delta_x = (int16_t)((xh << 8) | xl);
-    if (delta_y) *delta_y = (int16_t)((yh << 8) | yl);
+    if (delta_x)
+        *delta_x = (int16_t)((xh << 8) | xl);
+    if (delta_y)
+        *delta_y = (int16_t)((yh << 8) | yl);
 
     return true;
 }

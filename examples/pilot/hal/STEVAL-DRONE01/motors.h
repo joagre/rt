@@ -26,39 +26,39 @@
 #define MOTORS_COUNT 4
 
 // Motor indices (matching pilot example motor_cmd_t)
-#define MOTOR_M1_REAR_LEFT   0
-#define MOTOR_M2_FRONT_LEFT  1
+#define MOTOR_M1_REAR_LEFT 0
+#define MOTOR_M2_FRONT_LEFT 1
 #define MOTOR_M3_FRONT_RIGHT 2
-#define MOTOR_M4_REAR_RIGHT  3
+#define MOTOR_M4_REAR_RIGHT 3
 
 // Motor command (normalized 0.0 to 1.0)
 typedef struct {
     float motor[MOTORS_COUNT];
 } motors_cmd_t;
 
-#define MOTORS_CMD_ZERO {.motor = {0.0f, 0.0f, 0.0f, 0.0f}}
+#define MOTORS_CMD_ZERO                     \
+    {                                       \
+        .motor = { 0.0f, 0.0f, 0.0f, 0.0f } \
+    }
 
 // PWM configuration
 typedef struct {
-    uint32_t frequency_hz;  // PWM frequency (e.g., 20000 for 20kHz)
-    uint16_t min_pulse;     // Minimum pulse width (motor off threshold)
-    uint16_t max_pulse;     // Maximum pulse width (full throttle)
+    uint32_t frequency_hz; // PWM frequency (e.g., 20000 for 20kHz)
+    uint16_t min_pulse;    // Minimum pulse width (motor off threshold)
+    uint16_t max_pulse;    // Maximum pulse width (full throttle)
 } motors_config_t;
 
 // Default: 20kHz PWM, 0-100% range
-#define MOTORS_CONFIG_DEFAULT { \
-    .frequency_hz = 20000, \
-    .min_pulse = 0, \
-    .max_pulse = 1000 \
-}
+#define MOTORS_CONFIG_DEFAULT \
+    { .frequency_hz = 20000, .min_pulse = 0, .max_pulse = 1000 }
 
 // ----------------------------------------------------------------------------
 // API
 // ----------------------------------------------------------------------------
 
 // Initialize motor PWM outputs.
-// Default configuration uses TIM4 CH3/CH4 only (PB8/PB9) to avoid I2C1 conflict.
-// Motors start in stopped state.
+// Default configuration uses TIM4 CH3/CH4 only (PB8/PB9) to avoid I2C1
+// conflict. Motors start in stopped state.
 bool motors_init(const motors_config_t *config);
 
 // Initialize all 4 motor channels.

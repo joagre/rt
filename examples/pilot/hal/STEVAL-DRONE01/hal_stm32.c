@@ -5,7 +5,7 @@
 
 #include "../hal.h"
 #include "platform_stm32f4.h"
-#include "steval_fcu001_v1.h"  // For BSP_LED_Toggle
+#include "steval_fcu001_v1.h" // For BSP_LED_Toggle
 
 // ----------------------------------------------------------------------------
 // Platform Lifecycle
@@ -44,6 +44,7 @@ void hal_read_sensors(sensor_data_t *sensors) {
 // Motor Interface
 // ----------------------------------------------------------------------------
 
+// clang-format off
 // STEVAL-DRONE01 X-configuration mixer
 //
 // Motor layout:
@@ -63,15 +64,21 @@ void hal_read_sensors(sensor_data_t *sensors) {
 //   M4 (rear-right, CW)   → P5 (TIM4_CH4, PB9)
 //
 // Note: Board connectors are labeled P1, P2, P4, P5 (no P3).
+// clang-format on
 
 void hal_write_torque(const torque_cmd_t *cmd) {
     // Apply mixer: convert torque to individual motor commands
-    // Signs matched to Webots simulation (validated in sim, pitch sign inverted)
+    // Signs matched to Webots simulation (validated in sim, pitch sign
+    // inverted)
     motor_cmd_t motors;
-    motors.motor[0] = cmd->thrust - cmd->roll - cmd->pitch + cmd->yaw;  // M1 (rear-left)
-    motors.motor[1] = cmd->thrust - cmd->roll + cmd->pitch - cmd->yaw;  // M2 (front-left)
-    motors.motor[2] = cmd->thrust + cmd->roll + cmd->pitch + cmd->yaw;  // M3 (front-right)
-    motors.motor[3] = cmd->thrust + cmd->roll - cmd->pitch - cmd->yaw;  // M4 (rear-right)
+    motors.motor[0] =
+        cmd->thrust - cmd->roll - cmd->pitch + cmd->yaw; // M1 (rear-left)
+    motors.motor[1] =
+        cmd->thrust - cmd->roll + cmd->pitch - cmd->yaw; // M2 (front-left)
+    motors.motor[2] =
+        cmd->thrust + cmd->roll + cmd->pitch + cmd->yaw; // M3 (front-right)
+    motors.motor[3] =
+        cmd->thrust + cmd->roll - cmd->pitch - cmd->yaw; // M4 (rear-right)
 
     // Clamp motor values
     for (int i = 0; i < NUM_MOTORS; i++) {

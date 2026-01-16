@@ -11,17 +11,17 @@
 // ----------------------------------------------------------------------------
 
 // PWM resolution (8-bit for compatibility with Crazyflie firmware)
-#define PWM_RESOLUTION  255
+#define PWM_RESOLUTION 255
 
 // TIM2 runs at APB1*2 = 84 MHz (assuming 168 MHz system clock)
 // For 328 kHz PWM: 84 MHz / 256 = 328.125 kHz
 // For 50 kHz PWM: 84 MHz / 1680 = 50 kHz
 
 // Motor to channel mapping
-#define MOTOR_M1_CHANNEL  TIM_CHANNEL_1  // PA0
-#define MOTOR_M2_CHANNEL  TIM_CHANNEL_2  // PA1
-#define MOTOR_M3_CHANNEL  TIM_CHANNEL_3  // PA2
-#define MOTOR_M4_CHANNEL  TIM_CHANNEL_4  // PA3
+#define MOTOR_M1_CHANNEL TIM_CHANNEL_1 // PA0
+#define MOTOR_M2_CHANNEL TIM_CHANNEL_2 // PA1
+#define MOTOR_M3_CHANNEL TIM_CHANNEL_3 // PA2
+#define MOTOR_M4_CHANNEL TIM_CHANNEL_4 // PA3
 
 // ----------------------------------------------------------------------------
 // Static State
@@ -74,10 +74,10 @@ static void gpio_init(void) {
 
     // Set alternate function to AF1 (TIM2) for PA0-PA3
     // AFRL handles pins 0-7
-    GPIOA->AFR[0] &= ~(GPIO_AFRL_AFRL0 | GPIO_AFRL_AFRL1 |
-                       GPIO_AFRL_AFRL2 | GPIO_AFRL_AFRL3);
-    GPIOA->AFR[0] |= (1 << (0 * 4)) | (1 << (1 * 4)) |
-                     (1 << (2 * 4)) | (1 << (3 * 4));
+    GPIOA->AFR[0] &= ~(GPIO_AFRL_AFRL0 | GPIO_AFRL_AFRL1 | GPIO_AFRL_AFRL2 |
+                       GPIO_AFRL_AFRL3);
+    GPIOA->AFR[0] |=
+        (1 << (0 * 4)) | (1 << (1 * 4)) | (1 << (2 * 4)) | (1 << (3 * 4));
 }
 
 static void timer_init(void) {
@@ -112,8 +112,7 @@ static void timer_init(void) {
                   (6 << TIM_CCMR2_OC4M_Pos) | TIM_CCMR2_OC4PE;
 
     // Enable outputs (CC1E, CC2E, CC3E, CC4E)
-    TIM2->CCER = TIM_CCER_CC1E | TIM_CCER_CC2E |
-                 TIM_CCER_CC3E | TIM_CCER_CC4E;
+    TIM2->CCER = TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E;
 
     // Initialize all compare values to 0 (motors off)
     TIM2->CCR1 = 0;

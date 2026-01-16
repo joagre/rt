@@ -38,8 +38,7 @@ static bool check_arrival(const waypoint_t *wp, const state_estimate_t *state) {
 
     return (dist_xy < WAYPOINT_TOLERANCE_XY) &&
            (alt_err < WAYPOINT_TOLERANCE_Z) &&
-           (yaw_err < WAYPOINT_TOLERANCE_YAW) &&
-           (vel < WAYPOINT_TOLERANCE_VEL);
+           (yaw_err < WAYPOINT_TOLERANCE_YAW) && (vel < WAYPOINT_TOLERANCE_VEL);
 }
 
 void waypoint_actor(void *arg) {
@@ -54,7 +53,8 @@ void waypoint_actor(void *arg) {
                   WAYPOINT_HOVER_TIME_US / 1000000.0f);
     HIVE_LOG_INFO("[WPT] Waiting for supervisor START signal");
     hive_message msg;
-    hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, NOTIFY_FLIGHT_START, &msg, -1);
+    hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, NOTIFY_FLIGHT_START,
+                        &msg, -1);
     HIVE_LOG_INFO("[WPT] START received - beginning flight sequence");
 
     int waypoint_index = 0;
@@ -66,11 +66,7 @@ void waypoint_actor(void *arg) {
 
         // Publish current target
         position_target_t target = {
-            .x = wp->x,
-            .y = wp->y,
-            .z = wp->z,
-            .yaw = wp->yaw
-        };
+            .x = wp->x, .y = wp->y, .z = wp->z, .yaw = wp->yaw};
         hive_bus_publish(s_position_target_bus, &target, sizeof(target));
 
         // Wait for state update
@@ -81,13 +77,15 @@ void waypoint_actor(void *arg) {
         // Check for hover timer expiry
         if (hovering) {
             hive_message timer_msg;
-            if (HIVE_SUCCEEDED(hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER,
-                                                    hover_timer, &timer_msg, 0))) {
+            if (HIVE_SUCCEEDED(hive_ipc_recv_match(HIVE_SENDER_ANY,
+                                                   HIVE_MSG_TIMER, hover_timer,
+                                                   &timer_msg, 0))) {
                 // Timer fired - advance to next waypoint (loops back to 0)
                 hovering = false;
                 hover_timer = TIMER_ID_INVALID;
                 waypoint_index = (waypoint_index + 1) % (int)NUM_WAYPOINTS;
-                HIVE_LOG_INFO("[WPT] Advancing to waypoint %d: (%.1f, %.1f, %.1f) yaw=%.0f deg",
+                HIVE_LOG_INFO("[WPT] Advancing to waypoint %d: (%.1f, %.1f, "
+                              "%.1f) yaw=%.0f deg",
                               waypoint_index, waypoints[waypoint_index].x,
                               waypoints[waypoint_index].y,
                               waypoints[waypoint_index].z,
@@ -97,7 +95,8 @@ void waypoint_actor(void *arg) {
 
         // Check arrival and start hover timer
         if (!hovering && check_arrival(wp, &state)) {
-            HIVE_LOG_INFO("[WPT] Arrived at waypoint %d - hovering", waypoint_index);
+            HIVE_LOG_INFO("[WPT] Arrived at waypoint %d - hovering",
+                          waypoint_index);
             hive_timer_after(WAYPOINT_HOVER_TIME_US, &hover_timer);
             hovering = true;
         }

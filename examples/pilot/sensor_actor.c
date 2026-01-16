@@ -12,7 +12,7 @@
 #include "hive_ipc.h"
 #include <assert.h>
 
-#define SENSOR_INTERVAL_US  (TIME_STEP_MS * 1000)
+#define SENSOR_INTERVAL_US (TIME_STEP_MS * 1000)
 
 static bus_id s_sensor_bus;
 

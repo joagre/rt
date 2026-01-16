@@ -19,10 +19,10 @@
 
 // Common baud rates
 typedef enum {
-    USART1_BAUD_9600   = 9600,
-    USART1_BAUD_19200  = 19200,
-    USART1_BAUD_38400  = 38400,
-    USART1_BAUD_57600  = 57600,
+    USART1_BAUD_9600 = 9600,
+    USART1_BAUD_19200 = 19200,
+    USART1_BAUD_38400 = 38400,
+    USART1_BAUD_57600 = 57600,
     USART1_BAUD_115200 = 115200,
     USART1_BAUD_230400 = 230400,
     USART1_BAUD_460800 = 460800,
@@ -30,21 +30,18 @@ typedef enum {
 } usart1_baud_t;
 
 // Default baud rate
-#define USART1_DEFAULT_BAUD     USART1_BAUD_115200
+#define USART1_DEFAULT_BAUD USART1_BAUD_115200
 
 // Configuration structure
 typedef struct {
-    uint32_t baud_rate;     // Baud rate (e.g., 115200)
-    bool tx_enable;         // Enable transmitter
-    bool rx_enable;         // Enable receiver
+    uint32_t baud_rate; // Baud rate (e.g., 115200)
+    bool tx_enable;     // Enable transmitter
+    bool rx_enable;     // Enable receiver
 } usart1_config_t;
 
 // Default configuration: 115200 baud, TX only
-#define USART1_CONFIG_DEFAULT { \
-    .baud_rate = 115200, \
-    .tx_enable = true, \
-    .rx_enable = false \
-}
+#define USART1_CONFIG_DEFAULT \
+    { .baud_rate = 115200, .tx_enable = true, .rx_enable = false }
 
 // ----------------------------------------------------------------------------
 // API

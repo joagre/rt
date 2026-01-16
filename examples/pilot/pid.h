@@ -34,6 +34,7 @@ float pid_update(pid_state_t *pid, float setpoint, float measurement, float dt);
 //
 // Same as pid_update but normalizes error to [-π, π] range to ensure
 // the controller takes the shortest path around the circle.
-float pid_update_angle(pid_state_t *pid, float setpoint, float measurement, float dt);
+float pid_update_angle(pid_state_t *pid, float setpoint, float measurement,
+                       float dt);
 
 #endif // PID_H

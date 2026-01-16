@@ -12,26 +12,26 @@
 // ----------------------------------------------------------------------------
 
 // RCC registers
-#define RCC_BASE            0x40023800U
-#define RCC_AHB1ENR         (*(volatile uint32_t *)(RCC_BASE + 0x30))
-#define RCC_APB2ENR         (*(volatile uint32_t *)(RCC_BASE + 0x44))
+#define RCC_BASE 0x40023800U
+#define RCC_AHB1ENR (*(volatile uint32_t *)(RCC_BASE + 0x30))
+#define RCC_APB2ENR (*(volatile uint32_t *)(RCC_BASE + 0x44))
 
 // RCC bits
 #define RCC_AHB1ENR_GPIOAEN (1U << 0)
 #define RCC_APB2ENR_USART1EN (1U << 4)
 
 // GPIOA registers (USART1 TX=PA9, RX=PA10)
-#define GPIOA_BASE          0x40020000U
-#define GPIOA_MODER         (*(volatile uint32_t *)(GPIOA_BASE + 0x00))
-#define GPIOA_OTYPER        (*(volatile uint32_t *)(GPIOA_BASE + 0x04))
-#define GPIOA_OSPEEDR       (*(volatile uint32_t *)(GPIOA_BASE + 0x08))
-#define GPIOA_PUPDR         (*(volatile uint32_t *)(GPIOA_BASE + 0x0C))
-#define GPIOA_AFRH          (*(volatile uint32_t *)(GPIOA_BASE + 0x24))
+#define GPIOA_BASE 0x40020000U
+#define GPIOA_MODER (*(volatile uint32_t *)(GPIOA_BASE + 0x00))
+#define GPIOA_OTYPER (*(volatile uint32_t *)(GPIOA_BASE + 0x04))
+#define GPIOA_OSPEEDR (*(volatile uint32_t *)(GPIOA_BASE + 0x08))
+#define GPIOA_PUPDR (*(volatile uint32_t *)(GPIOA_BASE + 0x0C))
+#define GPIOA_AFRH (*(volatile uint32_t *)(GPIOA_BASE + 0x24))
 
 // Clock frequency for baud rate calculation
 // Default: 16 MHz HSI (overridden if system uses PLL)
 #ifndef PCLK2_FREQ
-#define PCLK2_FREQ          16000000U
+#define PCLK2_FREQ 16000000U
 #endif
 
 // SysTick for timeout (optional, weak symbol)
@@ -46,51 +46,51 @@ __attribute__((weak)) uint32_t system_get_tick(void) {
 // USART1 Register Definitions
 // ----------------------------------------------------------------------------
 
-#define USART1_BASE         0x40011000U
+#define USART1_BASE 0x40011000U
 
-#define USART1_SR           (*(volatile uint32_t *)(USART1_BASE + 0x00))
-#define USART1_DR           (*(volatile uint32_t *)(USART1_BASE + 0x04))
-#define USART1_BRR          (*(volatile uint32_t *)(USART1_BASE + 0x08))
-#define USART1_CR1          (*(volatile uint32_t *)(USART1_BASE + 0x0C))
-#define USART1_CR2          (*(volatile uint32_t *)(USART1_BASE + 0x10))
-#define USART1_CR3          (*(volatile uint32_t *)(USART1_BASE + 0x14))
-#define USART1_GTPR         (*(volatile uint32_t *)(USART1_BASE + 0x18))
+#define USART1_SR (*(volatile uint32_t *)(USART1_BASE + 0x00))
+#define USART1_DR (*(volatile uint32_t *)(USART1_BASE + 0x04))
+#define USART1_BRR (*(volatile uint32_t *)(USART1_BASE + 0x08))
+#define USART1_CR1 (*(volatile uint32_t *)(USART1_BASE + 0x0C))
+#define USART1_CR2 (*(volatile uint32_t *)(USART1_BASE + 0x10))
+#define USART1_CR3 (*(volatile uint32_t *)(USART1_BASE + 0x14))
+#define USART1_GTPR (*(volatile uint32_t *)(USART1_BASE + 0x18))
 
 // USART_SR bits
-#define USART_SR_PE         (1U << 0)   // Parity error
-#define USART_SR_FE         (1U << 1)   // Framing error
-#define USART_SR_NF         (1U << 2)   // Noise detected
-#define USART_SR_ORE        (1U << 3)   // Overrun error
-#define USART_SR_IDLE       (1U << 4)   // Idle line detected
-#define USART_SR_RXNE       (1U << 5)   // Read data register not empty
-#define USART_SR_TC         (1U << 6)   // Transmission complete
-#define USART_SR_TXE        (1U << 7)   // Transmit data register empty
-#define USART_SR_LBD        (1U << 8)   // LIN break detection
-#define USART_SR_CTS        (1U << 9)   // CTS flag
+#define USART_SR_PE (1U << 0)   // Parity error
+#define USART_SR_FE (1U << 1)   // Framing error
+#define USART_SR_NF (1U << 2)   // Noise detected
+#define USART_SR_ORE (1U << 3)  // Overrun error
+#define USART_SR_IDLE (1U << 4) // Idle line detected
+#define USART_SR_RXNE (1U << 5) // Read data register not empty
+#define USART_SR_TC (1U << 6)   // Transmission complete
+#define USART_SR_TXE (1U << 7)  // Transmit data register empty
+#define USART_SR_LBD (1U << 8)  // LIN break detection
+#define USART_SR_CTS (1U << 9)  // CTS flag
 
 // USART_CR1 bits
-#define USART_CR1_SBK       (1U << 0)   // Send break
-#define USART_CR1_RWU       (1U << 1)   // Receiver wakeup
-#define USART_CR1_RE        (1U << 2)   // Receiver enable
-#define USART_CR1_TE        (1U << 3)   // Transmitter enable
-#define USART_CR1_IDLEIE    (1U << 4)   // IDLE interrupt enable
-#define USART_CR1_RXNEIE    (1U << 5)   // RXNE interrupt enable
-#define USART_CR1_TCIE      (1U << 6)   // TC interrupt enable
-#define USART_CR1_TXEIE     (1U << 7)   // TXE interrupt enable
-#define USART_CR1_PEIE      (1U << 8)   // PE interrupt enable
-#define USART_CR1_PS        (1U << 9)   // Parity selection (0=even, 1=odd)
-#define USART_CR1_PCE       (1U << 10)  // Parity control enable
-#define USART_CR1_WAKE      (1U << 11)  // Wakeup method
-#define USART_CR1_M         (1U << 12)  // Word length (0=8bit, 1=9bit)
-#define USART_CR1_UE        (1U << 13)  // USART enable
-#define USART_CR1_OVER8     (1U << 15)  // Oversampling mode (0=16, 1=8)
+#define USART_CR1_SBK (1U << 0)    // Send break
+#define USART_CR1_RWU (1U << 1)    // Receiver wakeup
+#define USART_CR1_RE (1U << 2)     // Receiver enable
+#define USART_CR1_TE (1U << 3)     // Transmitter enable
+#define USART_CR1_IDLEIE (1U << 4) // IDLE interrupt enable
+#define USART_CR1_RXNEIE (1U << 5) // RXNE interrupt enable
+#define USART_CR1_TCIE (1U << 6)   // TC interrupt enable
+#define USART_CR1_TXEIE (1U << 7)  // TXE interrupt enable
+#define USART_CR1_PEIE (1U << 8)   // PE interrupt enable
+#define USART_CR1_PS (1U << 9)     // Parity selection (0=even, 1=odd)
+#define USART_CR1_PCE (1U << 10)   // Parity control enable
+#define USART_CR1_WAKE (1U << 11)  // Wakeup method
+#define USART_CR1_M (1U << 12)     // Word length (0=8bit, 1=9bit)
+#define USART_CR1_UE (1U << 13)    // USART enable
+#define USART_CR1_OVER8 (1U << 15) // Oversampling mode (0=16, 1=8)
 
 // USART_CR2 bits
-#define USART_CR2_STOP_MASK (3U << 12)  // Stop bits
-#define USART_CR2_STOP_1    (0U << 12)  // 1 stop bit
-#define USART_CR2_STOP_0_5  (1U << 12)  // 0.5 stop bit
-#define USART_CR2_STOP_2    (2U << 12)  // 2 stop bits
-#define USART_CR2_STOP_1_5  (3U << 12)  // 1.5 stop bits
+#define USART_CR2_STOP_MASK (3U << 12) // Stop bits
+#define USART_CR2_STOP_1 (0U << 12)    // 1 stop bit
+#define USART_CR2_STOP_0_5 (1U << 12)  // 0.5 stop bit
+#define USART_CR2_STOP_2 (2U << 12)    // 2 stop bits
+#define USART_CR2_STOP_1_5 (3U << 12)  // 1.5 stop bits
 
 // ----------------------------------------------------------------------------
 // Static state
@@ -99,7 +99,7 @@ __attribute__((weak)) uint32_t system_get_tick(void) {
 static usart1_config_t s_config;
 
 // Buffer for printf
-#define PRINTF_BUFFER_SIZE  256
+#define PRINTF_BUFFER_SIZE 256
 static char s_printf_buf[PRINTF_BUFFER_SIZE];
 
 // ----------------------------------------------------------------------------
@@ -112,7 +112,7 @@ static void set_baud_rate(uint32_t baud) {
     // For oversampling by 16: BRR = fck / baud
     // Mantissa = integer part, Fraction = fractional part * 16
 
-    uint32_t pclk2 = PCLK2_FREQ;  // 84 MHz
+    uint32_t pclk2 = PCLK2_FREQ; // 84 MHz
 
     // Calculate BRR value
     // BRR = (pclk2 + baud/2) / baud  (rounded)
@@ -185,7 +185,8 @@ static char *utoa_simple(uint32_t value, char *buf, int base) {
 }
 
 // Simple vsnprintf implementation (subset of format specifiers)
-static int simple_vsnprintf(char *buf, size_t size, const char *fmt, va_list args) {
+static int simple_vsnprintf(char *buf, size_t size, const char *fmt,
+                            va_list args) {
     char *p = buf;
     char *end = buf + size - 1;
     char tmp[32];
@@ -196,107 +197,110 @@ static int simple_vsnprintf(char *buf, size_t size, const char *fmt, va_list arg
             continue;
         }
 
-        fmt++;  // Skip '%'
+        fmt++; // Skip '%'
 
         // Handle format specifiers
         switch (*fmt) {
-            case '%':
-                *p++ = '%';
-                break;
+        case '%':
+            *p++ = '%';
+            break;
 
-            case 'c': {
-                char c = (char)va_arg(args, int);
-                *p++ = c;
-                break;
+        case 'c': {
+            char c = (char)va_arg(args, int);
+            *p++ = c;
+            break;
+        }
+
+        case 's': {
+            const char *s = va_arg(args, const char *);
+            if (!s)
+                s = "(null)";
+            while (*s && p < end) {
+                *p++ = *s++;
+            }
+            break;
+        }
+
+        case 'd':
+        case 'i': {
+            int32_t val = va_arg(args, int32_t);
+            itoa_simple(val, tmp, 10);
+            char *s = tmp;
+            while (*s && p < end) {
+                *p++ = *s++;
+            }
+            break;
+        }
+
+        case 'u': {
+            uint32_t val = va_arg(args, uint32_t);
+            utoa_simple(val, tmp, 10);
+            char *s = tmp;
+            while (*s && p < end) {
+                *p++ = *s++;
+            }
+            break;
+        }
+
+        case 'x':
+        case 'X': {
+            uint32_t val = va_arg(args, uint32_t);
+            utoa_simple(val, tmp, 16);
+            char *s = tmp;
+            while (*s && p < end) {
+                *p++ = *s++;
+            }
+            break;
+        }
+
+        case 'p': {
+            uintptr_t val = (uintptr_t)va_arg(args, void *);
+            *p++ = '0';
+            if (p < end)
+                *p++ = 'x';
+            utoa_simple((uint32_t)val, tmp, 16);
+            char *s = tmp;
+            while (*s && p < end) {
+                *p++ = *s++;
+            }
+            break;
+        }
+
+        case 'f': {
+            // Simple float handling (limited precision)
+            double val = va_arg(args, double);
+            if (val < 0) {
+                *p++ = '-';
+                val = -val;
+            }
+            int32_t ipart = (int32_t)val;
+            float fpart = (float)(val - ipart);
+
+            itoa_simple(ipart, tmp, 10);
+            char *s = tmp;
+            while (*s && p < end) {
+                *p++ = *s++;
             }
 
-            case 's': {
-                const char *s = va_arg(args, const char *);
-                if (!s) s = "(null)";
-                while (*s && p < end) {
-                    *p++ = *s++;
+            if (p < end) {
+                *p++ = '.';
+                // 3 decimal places
+                for (int i = 0; i < 3 && p < end; i++) {
+                    fpart *= 10;
+                    int digit = (int)fpart;
+                    *p++ = '0' + digit;
+                    fpart -= digit;
                 }
-                break;
             }
+            break;
+        }
 
-            case 'd':
-            case 'i': {
-                int32_t val = va_arg(args, int32_t);
-                itoa_simple(val, tmp, 10);
-                char *s = tmp;
-                while (*s && p < end) {
-                    *p++ = *s++;
-                }
-                break;
-            }
-
-            case 'u': {
-                uint32_t val = va_arg(args, uint32_t);
-                utoa_simple(val, tmp, 10);
-                char *s = tmp;
-                while (*s && p < end) {
-                    *p++ = *s++;
-                }
-                break;
-            }
-
-            case 'x':
-            case 'X': {
-                uint32_t val = va_arg(args, uint32_t);
-                utoa_simple(val, tmp, 16);
-                char *s = tmp;
-                while (*s && p < end) {
-                    *p++ = *s++;
-                }
-                break;
-            }
-
-            case 'p': {
-                uintptr_t val = (uintptr_t)va_arg(args, void *);
-                *p++ = '0';
-                if (p < end) *p++ = 'x';
-                utoa_simple((uint32_t)val, tmp, 16);
-                char *s = tmp;
-                while (*s && p < end) {
-                    *p++ = *s++;
-                }
-                break;
-            }
-
-            case 'f': {
-                // Simple float handling (limited precision)
-                double val = va_arg(args, double);
-                if (val < 0) {
-                    *p++ = '-';
-                    val = -val;
-                }
-                int32_t ipart = (int32_t)val;
-                float fpart = (float)(val - ipart);
-
-                itoa_simple(ipart, tmp, 10);
-                char *s = tmp;
-                while (*s && p < end) {
-                    *p++ = *s++;
-                }
-
-                if (p < end) {
-                    *p++ = '.';
-                    // 3 decimal places
-                    for (int i = 0; i < 3 && p < end; i++) {
-                        fpart *= 10;
-                        int digit = (int)fpart;
-                        *p++ = '0' + digit;
-                        fpart -= digit;
-                    }
-                }
-                break;
-            }
-
-            default:
-                // Unknown format, just copy it
-                *p++ = '%';
-                if (p < end) *p++ = *fmt;
-                break;
+        default:
+            // Unknown format, just copy it
+            *p++ = '%';
+            if (p < end)
+                *p++ = *fmt;
+            break;
         }
 
         fmt++;
@@ -325,24 +329,26 @@ void usart1_init(const usart1_config_t *config) {
     RCC_APB2ENR |= RCC_APB2ENR_USART1EN;
 
     // Small delay for clock to stabilize
-    for (volatile int i = 0; i < 100; i++);
+    for (volatile int i = 0; i < 100; i++)
+        ;
 
-    // Configure PA9 (TX) as alternate function 7 (USART1), push-pull, high speed
-    GPIOA_MODER &= ~(3U << (9 * 2));    // Clear mode bits
-    GPIOA_MODER |= (2U << (9 * 2));     // Set alternate function mode
-    GPIOA_OTYPER &= ~(1U << 9);         // Push-pull
-    GPIOA_OSPEEDR |= (3U << (9 * 2));   // High speed
-    GPIOA_PUPDR &= ~(3U << (9 * 2));    // No pull-up/down
-    GPIOA_AFRH &= ~(0xFU << ((9 - 8) * 4));  // Clear AF bits for PA9
-    GPIOA_AFRH |= (7U << ((9 - 8) * 4));     // AF7 = USART1
+    // Configure PA9 (TX) as alternate function 7 (USART1), push-pull, high
+    // speed
+    GPIOA_MODER &= ~(3U << (9 * 2));        // Clear mode bits
+    GPIOA_MODER |= (2U << (9 * 2));         // Set alternate function mode
+    GPIOA_OTYPER &= ~(1U << 9);             // Push-pull
+    GPIOA_OSPEEDR |= (3U << (9 * 2));       // High speed
+    GPIOA_PUPDR &= ~(3U << (9 * 2));        // No pull-up/down
+    GPIOA_AFRH &= ~(0xFU << ((9 - 8) * 4)); // Clear AF bits for PA9
+    GPIOA_AFRH |= (7U << ((9 - 8) * 4));    // AF7 = USART1
 
     // Configure PA10 (RX) as alternate function 7 (USART1), pull-up
-    GPIOA_MODER &= ~(3U << (10 * 2));   // Clear mode bits
-    GPIOA_MODER |= (2U << (10 * 2));    // Set alternate function mode
-    GPIOA_PUPDR &= ~(3U << (10 * 2));   // Clear pull-up/down
-    GPIOA_PUPDR |= (1U << (10 * 2));    // Pull-up
-    GPIOA_AFRH &= ~(0xFU << ((10 - 8) * 4));  // Clear AF bits for PA10
-    GPIOA_AFRH |= (7U << ((10 - 8) * 4));     // AF7 = USART1
+    GPIOA_MODER &= ~(3U << (10 * 2));        // Clear mode bits
+    GPIOA_MODER |= (2U << (10 * 2));         // Set alternate function mode
+    GPIOA_PUPDR &= ~(3U << (10 * 2));        // Clear pull-up/down
+    GPIOA_PUPDR |= (1U << (10 * 2));         // Pull-up
+    GPIOA_AFRH &= ~(0xFU << ((10 - 8) * 4)); // Clear AF bits for PA10
+    GPIOA_AFRH |= (7U << ((10 - 8) * 4));    // AF7 = USART1
 
     // Disable USART before configuration
     USART1_CR1 = 0;
@@ -399,7 +405,8 @@ void usart1_set_baud(uint32_t baud_rate) {
 
 void usart1_putc(char c) {
     // Wait until TX buffer is empty
-    while (!(USART1_SR & USART_SR_TXE));
+    while (!(USART1_SR & USART_SR_TXE))
+        ;
 
     // Write data
     USART1_DR = (uint32_t)c;
@@ -437,7 +444,8 @@ bool usart1_tx_ready(void) {
 
 void usart1_flush(void) {
     // Wait for transmission complete
-    while (!(USART1_SR & USART_SR_TC));
+    while (!(USART1_SR & USART_SR_TC))
+        ;
 }
 
 // ----------------------------------------------------------------------------
@@ -446,7 +454,8 @@ void usart1_flush(void) {
 
 char usart1_getc(void) {
     // Wait until RX buffer has data
-    while (!(USART1_SR & USART_SR_RXNE));
+    while (!(USART1_SR & USART_SR_RXNE))
+        ;
 
     // Read data
     return (char)USART1_DR;

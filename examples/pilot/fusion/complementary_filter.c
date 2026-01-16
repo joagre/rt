@@ -11,8 +11,8 @@
 // ----------------------------------------------------------------------------
 
 #define GRAVITY 9.81f
-#define PI      3.14159265358979323846f
-#define TWO_PI  (2.0f * PI)
+#define PI 3.14159265358979323846f
+#define TWO_PI (2.0f * PI)
 
 // ----------------------------------------------------------------------------
 // Helper functions
@@ -87,9 +87,9 @@ void cf_update(cf_state_t *state, const sensor_data_t *sensors, float dt) {
     // -------------------------------------------------------------------------
     // Only valid when acceleration ~= gravity (not during aggressive maneuvers)
 
-    bool accel_valid = cf_accel_valid(sensors->accel,
-                                      state->config.accel_threshold_lo,
-                                      state->config.accel_threshold_hi);
+    bool accel_valid =
+        cf_accel_valid(sensors->accel, state->config.accel_threshold_lo,
+                       state->config.accel_threshold_hi);
 
     float accel_roll = 0.0f;
     float accel_pitch = 0.0f;
@@ -158,10 +158,14 @@ void cf_update(cf_state_t *state, const sensor_data_t *sensors, float dt) {
     state->initialized = true;
 }
 
-void cf_get_attitude(const cf_state_t *state, float *roll, float *pitch, float *yaw) {
-    if (roll) *roll = state->roll;
-    if (pitch) *pitch = state->pitch;
-    if (yaw) *yaw = state->yaw;
+void cf_get_attitude(const cf_state_t *state, float *roll, float *pitch,
+                     float *yaw) {
+    if (roll)
+        *roll = state->roll;
+    if (pitch)
+        *pitch = state->pitch;
+    if (yaw)
+        *yaw = state->yaw;
 }
 
 void cf_set_gyro_bias(cf_state_t *state, const float bias[3]) {
@@ -189,10 +193,11 @@ float cf_accel_pitch(const float accel[3]) {
     return atan2f(-accel[0], ay_az);
 }
 
-bool cf_accel_valid(const float accel[3], float threshold_lo, float threshold_hi) {
+bool cf_accel_valid(const float accel[3], float threshold_lo,
+                    float threshold_hi) {
     // Check if accelerometer magnitude is close to 1g
     // If not, the drone is accelerating and accel can't be used for attitude
-    float mag = vec3_magnitude(accel) / GRAVITY;  // Normalize to g
+    float mag = vec3_magnitude(accel) / GRAVITY; // Normalize to g
 
     return (mag >= threshold_lo && mag <= threshold_hi);
 }

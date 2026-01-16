@@ -10,24 +10,24 @@
 // GPIO Register Definitions
 // ----------------------------------------------------------------------------
 
-#define GPIOA_BASE          0x40020000U
-#define GPIOB_BASE          0x40020400U
-#define GPIOC_BASE          0x40020800U
-#define GPIOD_BASE          0x40020C00U
-#define GPIOE_BASE          0x40021000U
-#define GPIOH_BASE          0x40021C00U
+#define GPIOA_BASE 0x40020000U
+#define GPIOB_BASE 0x40020400U
+#define GPIOC_BASE 0x40020800U
+#define GPIOD_BASE 0x40020C00U
+#define GPIOE_BASE 0x40021000U
+#define GPIOH_BASE 0x40021C00U
 
 // GPIO register offsets
-#define GPIO_MODER          0x00    // Mode register
-#define GPIO_OTYPER         0x04    // Output type register
-#define GPIO_OSPEEDR        0x08    // Output speed register
-#define GPIO_PUPDR          0x0C    // Pull-up/pull-down register
-#define GPIO_IDR            0x10    // Input data register
-#define GPIO_ODR            0x14    // Output data register
-#define GPIO_BSRR           0x18    // Bit set/reset register
-#define GPIO_LCKR           0x1C    // Lock register
-#define GPIO_AFRL           0x20    // Alternate function low register (pins 0-7)
-#define GPIO_AFRH           0x24    // Alternate function high register (pins 8-15)
+#define GPIO_MODER 0x00   // Mode register
+#define GPIO_OTYPER 0x04  // Output type register
+#define GPIO_OSPEEDR 0x08 // Output speed register
+#define GPIO_PUPDR 0x0C   // Pull-up/pull-down register
+#define GPIO_IDR 0x10     // Input data register
+#define GPIO_ODR 0x14     // Output data register
+#define GPIO_BSRR 0x18    // Bit set/reset register
+#define GPIO_LCKR 0x1C    // Lock register
+#define GPIO_AFRL 0x20    // Alternate function low register (pins 0-7)
+#define GPIO_AFRH 0x24    // Alternate function high register (pins 8-15)
 
 // ----------------------------------------------------------------------------
 // Helper Functions
@@ -35,19 +35,33 @@
 
 static uint32_t get_gpio_base(char port) {
     switch (port) {
-        case 'A': case 'a': return GPIOA_BASE;
-        case 'B': case 'b': return GPIOB_BASE;
-        case 'C': case 'c': return GPIOC_BASE;
-        case 'D': case 'd': return GPIOD_BASE;
-        case 'E': case 'e': return GPIOE_BASE;
-        case 'H': case 'h': return GPIOH_BASE;
-        default: return 0;
+    case 'A':
+    case 'a':
+        return GPIOA_BASE;
+    case 'B':
+    case 'b':
+        return GPIOB_BASE;
+    case 'C':
+    case 'c':
+        return GPIOC_BASE;
+    case 'D':
+    case 'd':
+        return GPIOD_BASE;
+    case 'E':
+    case 'e':
+        return GPIOE_BASE;
+    case 'H':
+    case 'h':
+        return GPIOH_BASE;
+    default:
+        return 0;
     }
 }
 
 static volatile uint32_t *gpio_reg(char port, uint32_t offset) {
     uint32_t base = get_gpio_base(port);
-    if (base == 0) return 0;
+    if (base == 0)
+        return 0;
     return (volatile uint32_t *)(base + offset);
 }
 
@@ -57,7 +71,8 @@ static volatile uint32_t *gpio_reg(char port, uint32_t offset) {
 
 void gpio_set_mode(char port, uint8_t pin, gpio_mode_t mode) {
     volatile uint32_t *moder = gpio_reg(port, GPIO_MODER);
-    if (!moder) return;
+    if (!moder)
+        return;
 
     uint32_t mask = 3U << (pin * 2);
     uint32_t value = (uint32_t)mode << (pin * 2);
@@ -66,7 +81,8 @@ void gpio_set_mode(char port, uint8_t pin, gpio_mode_t mode) {
 
 void gpio_set_otype(char port, uint8_t pin, gpio_otype_t otype) {
     volatile uint32_t *otyper = gpio_reg(port, GPIO_OTYPER);
-    if (!otyper) return;
+    if (!otyper)
+        return;
 
     if (otype == GPIO_OTYPE_OPENDRAIN) {
         *otyper |= (1U << pin);
@@ -77,7 +93,8 @@ void gpio_set_otype(char port, uint8_t pin, gpio_otype_t otype) {
 
 void gpio_set_speed(char port, uint8_t pin, gpio_speed_t speed) {
     volatile uint32_t *ospeedr = gpio_reg(port, GPIO_OSPEEDR);
-    if (!ospeedr) return;
+    if (!ospeedr)
+        return;
 
     uint32_t mask = 3U << (pin * 2);
     uint32_t value = (uint32_t)speed << (pin * 2);
@@ -86,7 +103,8 @@ void gpio_set_speed(char port, uint8_t pin, gpio_speed_t speed) {
 
 void gpio_set_pupd(char port, uint8_t pin, gpio_pupd_t pupd) {
     volatile uint32_t *pupdr = gpio_reg(port, GPIO_PUPDR);
-    if (!pupdr) return;
+    if (!pupdr)
+        return;
 
     uint32_t mask = 3U << (pin * 2);
     uint32_t value = (uint32_t)pupd << (pin * 2);
@@ -105,7 +123,8 @@ void gpio_set_af(char port, uint8_t pin, uint8_t af) {
         shift = (pin - 8) * 4;
     }
 
-    if (!afr) return;
+    if (!afr)
+        return;
 
     uint32_t mask = 0xFU << shift;
     uint32_t value = (uint32_t)af << shift;
@@ -118,29 +137,31 @@ void gpio_set_af(char port, uint8_t pin, uint8_t af) {
 
 void gpio_write(char port, uint8_t pin, bool value) {
     volatile uint32_t *bsrr = gpio_reg(port, GPIO_BSRR);
-    if (!bsrr) return;
+    if (!bsrr)
+        return;
 
     if (value) {
-        *bsrr = (1U << pin);           // Set bit
+        *bsrr = (1U << pin); // Set bit
     } else {
-        *bsrr = (1U << (pin + 16));    // Reset bit
+        *bsrr = (1U << (pin + 16)); // Reset bit
     }
 }
 
 bool gpio_read(char port, uint8_t pin) {
     volatile uint32_t *idr = gpio_reg(port, GPIO_IDR);
-    if (!idr) return false;
+    if (!idr)
+        return false;
 
     return (*idr & (1U << pin)) != 0;
 }
 
 void gpio_toggle(char port, uint8_t pin) {
     volatile uint32_t *odr = gpio_reg(port, GPIO_ODR);
-    if (!odr) return;
+    if (!odr)
+        return;
 
     *odr ^= (1U << pin);
 }
-
 
 // ----------------------------------------------------------------------------
 // TIM4 GPIO Configuration (Motor PWM)
@@ -148,7 +169,7 @@ void gpio_toggle(char port, uint8_t pin) {
 
 void gpio_init_tim4_pwm(void) {
     // Enable GPIO clock
-    system_enable_gpio(TIM4_CH3_PORT);  // PB for channels 3,4
+    system_enable_gpio(TIM4_CH3_PORT); // PB for channels 3,4
 
     // Note: TIM4_CH1/CH2 on PB6/PB7 conflict with I2C1
     // Using PB8/PB9 for CH3/CH4, alternative pins for CH1/CH2
@@ -219,7 +240,6 @@ void gpio_init_usart1(void) {
     gpio_set_af(USART1_RX_PORT, USART1_RX_PIN, USART1_AF);
 }
 
-
 // ----------------------------------------------------------------------------
 // LED GPIO Configuration
 // ----------------------------------------------------------------------------
@@ -228,7 +248,7 @@ void gpio_init_led(void) {
     system_enable_gpio(LED_PORT);
 
     // LED (PC13) - Output, push-pull
-    gpio_write(LED_PORT, LED_PIN, false);  // Start off
+    gpio_write(LED_PORT, LED_PIN, false); // Start off
     gpio_set_mode(LED_PORT, LED_PIN, GPIO_MODE_OUTPUT);
     gpio_set_otype(LED_PORT, LED_PIN, GPIO_OTYPE_PUSHPULL);
     gpio_set_speed(LED_PORT, LED_PIN, GPIO_SPEED_LOW);
@@ -270,8 +290,8 @@ bool gpio_button_read(void) {
 
 void gpio_init_all(void) {
     // Note: Sensor GPIO (SPI2, chip selects) handled by ST BSP drivers
-    gpio_init_tim4_pwm();   // Motors
-    gpio_init_usart1();     // Debug serial
-    gpio_init_led();        // Status LED
-    gpio_init_button();     // User button
+    gpio_init_tim4_pwm(); // Motors
+    gpio_init_usart1();   // Debug serial
+    gpio_init_led();      // Status LED
+    gpio_init_button();   // User button
 }

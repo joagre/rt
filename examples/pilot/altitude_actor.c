@@ -26,7 +26,8 @@ static bus_id s_thrust_bus;
 static bus_id s_position_target_bus;
 static actor_id s_supervisor_actor;
 
-void altitude_actor_init(bus_id state_bus, bus_id thrust_bus, bus_id position_target_bus,
+void altitude_actor_init(bus_id state_bus, bus_id thrust_bus,
+                         bus_id position_target_bus,
                          actor_id supervisor_actor) {
     s_state_bus = state_bus;
     s_thrust_bus = thrust_bus;
@@ -35,11 +36,11 @@ void altitude_actor_init(bus_id state_bus, bus_id thrust_bus, bus_id position_ta
 }
 
 // Thrust ramp duration for gentle takeoff (microseconds)
-#define THRUST_RAMP_DURATION_US  (500000)  // 0.5 seconds
+#define THRUST_RAMP_DURATION_US (500000) // 0.5 seconds
 
 // Landing parameters
-#define LANDING_DESCENT_RATE    (-0.15f)  // m/s - gentle descent
-#define LANDING_VELOCITY_GAIN   0.5f      // thrust adjustment per m/s velocity error
+#define LANDING_DESCENT_RATE (-0.15f) // m/s - gentle descent
+#define LANDING_VELOCITY_GAIN 0.5f // thrust adjustment per m/s velocity error
 
 void altitude_actor(void *arg) {
     (void)arg;
@@ -50,7 +51,8 @@ void altitude_actor(void *arg) {
     assert(HIVE_SUCCEEDED(status));
 
     pid_state_t alt_pid;
-    pid_init_full(&alt_pid, HAL_ALT_PID_KP, HAL_ALT_PID_KI, HAL_ALT_PID_KD, HAL_ALT_PID_IMAX, HAL_ALT_PID_OMAX);
+    pid_init_full(&alt_pid, HAL_ALT_PID_KP, HAL_ALT_PID_KI, HAL_ALT_PID_KD,
+                  HAL_ALT_PID_IMAX, HAL_ALT_PID_OMAX);
 
     // State
     float target_altitude = 0.0f;
@@ -87,7 +89,8 @@ void altitude_actor(void *arg) {
         }
 
         // Read target altitude (non-blocking)
-        if (hive_bus_read(s_position_target_bus, &target, sizeof(target), &len).code == HIVE_OK) {
+        if (hive_bus_read(s_position_target_bus, &target, sizeof(target), &len)
+                .code == HIVE_OK) {
             target_altitude = target.z;
         }
 
@@ -113,12 +116,15 @@ void altitude_actor(void *arg) {
             if (touchdown && !landed) {
                 landed = true;
                 HIVE_LOG_INFO("[ALT] Touchdown - notifying supervisor");
-                hive_ipc_notify(s_supervisor_actor, NOTIFY_FLIGHT_LANDED, NULL, 0);
+                hive_ipc_notify(s_supervisor_actor, NOTIFY_FLIGHT_LANDED, NULL,
+                                0);
             }
         } else if (landing_mode) {
             // Landing mode: control descent rate, not altitude
-            // Target velocity = LANDING_DESCENT_RATE, adjust thrust to achieve it
-            float velocity_error = LANDING_DESCENT_RATE - state.vertical_velocity;
+            // Target velocity = LANDING_DESCENT_RATE, adjust thrust to achieve
+            // it
+            float velocity_error =
+                LANDING_DESCENT_RATE - state.vertical_velocity;
             thrust = HAL_BASE_THRUST + LANDING_VELOCITY_GAIN * velocity_error;
             thrust = CLAMPF(thrust, 0.0f, 1.0f);
         } else {
@@ -128,18 +134,22 @@ void altitude_actor(void *arg) {
             }
 
             // PID altitude control
-            float pos_correction = pid_update(&alt_pid, target_altitude, state.altitude, dt);
+            float pos_correction =
+                pid_update(&alt_pid, target_altitude, state.altitude, dt);
 
             // Velocity damping
-            float vel_damping = -HAL_VVEL_DAMPING_GAIN * state.vertical_velocity;
+            float vel_damping =
+                -HAL_VVEL_DAMPING_GAIN * state.vertical_velocity;
 
             // Thrust ramp for gentle takeoff
             uint64_t elapsed_us = hive_get_time() - ramp_start_time;
             float ramp = (elapsed_us < THRUST_RAMP_DURATION_US)
-                       ? (float)elapsed_us / THRUST_RAMP_DURATION_US
-                       : 1.0f;
+                             ? (float)elapsed_us / THRUST_RAMP_DURATION_US
+                             : 1.0f;
 
-            thrust = ramp * CLAMPF(HAL_BASE_THRUST + pos_correction + vel_damping, 0.0f, 1.0f);
+            thrust =
+                ramp * CLAMPF(HAL_BASE_THRUST + pos_correction + vel_damping,
+                              0.0f, 1.0f);
         }
 
         thrust_cmd_t cmd = {.thrust = thrust};
@@ -147,7 +157,8 @@ void altitude_actor(void *arg) {
 
         if (++count % DEBUG_PRINT_INTERVAL == 0) {
             HIVE_LOG_DEBUG("[ALT] tgt=%.2f alt=%.2f vvel=%.2f thrust=%.3f %s",
-                           target_altitude, state.altitude, state.vertical_velocity, thrust,
+                           target_altitude, state.altitude,
+                           state.vertical_velocity, thrust,
                            landing_mode ? "[LANDING]" : "");
         }
     }

@@ -19,29 +19,29 @@
 // These values are used for baud rate calculations and timing.
 
 // System clock frequency (HSI default, HAL may reconfigure)
-#define SYSCLK_FREQ         16000000U   // 16 MHz
+#define SYSCLK_FREQ 16000000U // 16 MHz
 
 // AHB clock (HCLK) - feeds Cortex-M4 core, memory, DMA
-#define HCLK_FREQ           16000000U   // 16 MHz
+#define HCLK_FREQ 16000000U // 16 MHz
 
 // APB1 clock (PCLK1) - low-speed peripherals (I2C, UART2, TIM2-5)
-#define PCLK1_FREQ          16000000U   // 16 MHz
+#define PCLK1_FREQ 16000000U // 16 MHz
 
 // APB2 clock (PCLK2) - high-speed peripherals (SPI1, UART1, TIM1)
-#define PCLK2_FREQ          16000000U   // 16 MHz
+#define PCLK2_FREQ 16000000U // 16 MHz
 
 // PLL configuration (for standalone use if not using ST HAL)
-#define PLL_M               16
-#define PLL_N               336
-#define PLL_P               4
-#define PLL_Q               7
+#define PLL_M 16
+#define PLL_N 336
+#define PLL_P 4
+#define PLL_Q 7
 
 // ----------------------------------------------------------------------------
 // Timing
 // ----------------------------------------------------------------------------
 
 // SysTick configuration (1ms tick)
-#define SYSTICK_FREQ        1000U       // 1kHz (1ms period)
+#define SYSTICK_FREQ 1000U // 1kHz (1ms period)
 
 // Get current tick count (milliseconds since boot)
 uint32_t system_get_tick(void);
@@ -77,7 +77,7 @@ bool system_init(void);
 // ----------------------------------------------------------------------------
 
 // Enable/disable peripheral clocks
-void system_enable_gpio(char port);     // 'A' to 'H'
+void system_enable_gpio(char port); // 'A' to 'H'
 void system_enable_spi1(void);
 void system_enable_spi2(void);
 void system_enable_i2c1(void);

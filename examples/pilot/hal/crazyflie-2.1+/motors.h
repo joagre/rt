@@ -29,37 +29,37 @@
 // Configuration
 // ----------------------------------------------------------------------------
 
-#define MOTORS_COUNT  4
+#define MOTORS_COUNT 4
 
 // PWM frequency options
 typedef enum {
-    MOTORS_PWM_328KHZ = 0,   // Standard for Crazyflie
-    MOTORS_PWM_50KHZ  = 1,   // Lower frequency option
+    MOTORS_PWM_328KHZ = 0, // Standard for Crazyflie
+    MOTORS_PWM_50KHZ = 1,  // Lower frequency option
 } motors_pwm_freq_t;
 
 // Configuration structure
 typedef struct {
     motors_pwm_freq_t frequency;
-    uint16_t min_pulse;      // Minimum PWM value (motor off)
-    uint16_t max_pulse;      // Maximum PWM value (full throttle)
+    uint16_t min_pulse; // Minimum PWM value (motor off)
+    uint16_t max_pulse; // Maximum PWM value (full throttle)
 } motors_config_t;
 
 // Default configuration
-#define MOTORS_CONFIG_DEFAULT { \
-    .frequency = MOTORS_PWM_328KHZ, \
-    .min_pulse = 0, \
-    .max_pulse = 255 \
-}
+#define MOTORS_CONFIG_DEFAULT \
+    { .frequency = MOTORS_PWM_328KHZ, .min_pulse = 0, .max_pulse = 255 }
 
 // ----------------------------------------------------------------------------
 // Motor Command Structure
 // ----------------------------------------------------------------------------
 
 typedef struct {
-    float motor[MOTORS_COUNT];  // Normalized values 0.0 to 1.0
+    float motor[MOTORS_COUNT]; // Normalized values 0.0 to 1.0
 } motors_cmd_t;
 
-#define MOTORS_CMD_ZERO {.motor = {0.0f, 0.0f, 0.0f, 0.0f}}
+#define MOTORS_CMD_ZERO                     \
+    {                                       \
+        .motor = { 0.0f, 0.0f, 0.0f, 0.0f } \
+    }
 
 // ----------------------------------------------------------------------------
 // Public API
