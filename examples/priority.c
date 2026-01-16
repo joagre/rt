@@ -43,7 +43,7 @@ static void critical_actor(void *arg) {
 
     for (int i = 0; i < 3; i++) {
         record_execution("CRITICAL", id);
-        hive_yield();  // Give scheduler a chance to pick next actor
+        hive_yield(); // Give scheduler a chance to pick next actor
     }
 
     printf("  CRITICAL actor %d done\n", id);
@@ -115,7 +115,8 @@ static void waiting_low_actor(void *arg) {
 // Demonstrate starvation scenario
 static void starving_demo(void) {
     printf("\n--- Starvation Demo ---\n");
-    printf("A high-priority actor that never yields starves lower priorities.\n\n");
+    printf("A high-priority actor that never yields starves lower "
+           "priorities.\n\n");
 
     // Spawn low priority first (but it won't run until high is done)
     actor_config low_cfg = HIVE_ACTOR_CONFIG_DEFAULT;
@@ -215,7 +216,8 @@ int main(void) {
     printf("1. Higher priority actors always run before lower priority\n");
     printf("2. Round-robin scheduling within same priority level\n");
     printf("3. Lower priority actors starve if higher priority never yields\n");
-    printf("4. Cooperative: actors must yield voluntarily (hive_yield, I/O, exit)\n");
+    printf("4. Cooperative: actors must yield voluntarily (hive_yield, I/O, "
+           "exit)\n");
 
     return 0;
 }

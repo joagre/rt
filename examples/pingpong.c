@@ -19,10 +19,12 @@ static void pong_actor(void *arg) {
     for (int i = 0; i < 5; i++) {
         // Wait for ping
         hive_message msg;
-        hive_status status = hive_ipc_recv(&msg, -1); // Block until message arrives
+        hive_status status =
+            hive_ipc_recv(&msg, -1); // Block until message arrives
 
         if (HIVE_FAILED(status)) {
-            printf("Pong: Failed to receive message: %s\n", HIVE_ERR_STR(status));
+            printf("Pong: Failed to receive message: %s\n",
+                   HIVE_ERR_STR(status));
             break;
         }
 
@@ -32,7 +34,8 @@ static void pong_actor(void *arg) {
         }
 
         ping_msg pm_copy = *(ping_msg *)msg.data;
-        printf("Pong: Received ping #%d from actor %u\n", pm_copy.count, msg.sender);
+        printf("Pong: Received ping #%d from actor %u\n", pm_copy.count,
+               msg.sender);
 
         // Send pong back
         pm_copy.count++;
@@ -57,11 +60,12 @@ static void ping_actor(void *arg) {
     printf("Ping actor started (ID: %u)\n", hive_self());
 
     // Send first ping
-    ping_msg pm = { .count = 0 };
+    ping_msg pm = {.count = 0};
     hive_status status = hive_ipc_notify(pong_id, 0, &pm, sizeof(ping_msg));
 
     if (HIVE_FAILED(status)) {
-        printf("Ping: Failed to send initial message: %s\n", HIVE_ERR_STR(status));
+        printf("Ping: Failed to send initial message: %s\n",
+               HIVE_ERR_STR(status));
         hive_exit();
     }
 
@@ -73,12 +77,14 @@ static void ping_actor(void *arg) {
         status = hive_ipc_recv(&msg, -1); // Block until message arrives
 
         if (HIVE_FAILED(status)) {
-            printf("Ping: Failed to receive message: %s\n", HIVE_ERR_STR(status));
+            printf("Ping: Failed to receive message: %s\n",
+                   HIVE_ERR_STR(status));
             break;
         }
 
         ping_msg recv_pm = *(ping_msg *)msg.data;
-        printf("Ping: Received pong #%d from actor %u\n", recv_pm.count, msg.sender);
+        printf("Ping: Received pong #%d from actor %u\n", recv_pm.count,
+               msg.sender);
 
         // Send ping back
         recv_pm.count++;
@@ -102,7 +108,8 @@ int main(void) {
     // Initialize runtime
     hive_status status = hive_init();
     if (HIVE_FAILED(status)) {
-        fprintf(stderr, "Failed to initialize runtime: %s\n", HIVE_ERR_STR(status));
+        fprintf(stderr, "Failed to initialize runtime: %s\n",
+                HIVE_ERR_STR(status));
         return 1;
     }
 
@@ -128,7 +135,8 @@ int main(void) {
     ping_cfg.priority = HIVE_PRIORITY_NORMAL;
 
     actor_id ping_id;
-    if (HIVE_FAILED(hive_spawn_ex(ping_actor, (void *)(uintptr_t)pong_id, &ping_cfg, &ping_id))) {
+    if (HIVE_FAILED(hive_spawn_ex(ping_actor, (void *)(uintptr_t)pong_id,
+                                  &ping_cfg, &ping_id))) {
         fprintf(stderr, "Failed to spawn ping actor\n");
         hive_cleanup();
         return 1;

@@ -351,7 +351,7 @@ void hive_timer_advance_time(uint64_t delta_us) {
             entry = next;
         }
     } while (fired_any); // Repeat if we fired any (handles multiple fires for
-                         // large delta)
+        // large delta)
 }
 
 // Get current time in microseconds

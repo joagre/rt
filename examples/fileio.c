@@ -14,7 +14,8 @@ static void writer_actor(void *arg) {
 
     // Open file for writing
     int fd;
-    hive_status status = hive_file_open(filename, HIVE_O_WRONLY | HIVE_O_CREAT | HIVE_O_TRUNC, 0644, &fd);
+    hive_status status = hive_file_open(
+        filename, HIVE_O_WRONLY | HIVE_O_CREAT | HIVE_O_TRUNC, 0644, &fd);
     if (HIVE_FAILED(status)) {
         printf("Writer: Failed to open file: %s\n", HIVE_ERR_STR(status));
         hive_exit();
@@ -100,7 +101,8 @@ int main(void) {
     // Initialize runtime
     hive_status status = hive_init();
     if (HIVE_FAILED(status)) {
-        fprintf(stderr, "Failed to initialize runtime: %s\n", HIVE_ERR_STR(status));
+        fprintf(stderr, "Failed to initialize runtime: %s\n",
+                HIVE_ERR_STR(status));
         return 1;
     }
 
@@ -112,7 +114,8 @@ int main(void) {
     writer_cfg.priority = HIVE_PRIORITY_NORMAL;
 
     actor_id writer_id;
-    if (HIVE_FAILED(hive_spawn_ex(writer_actor, NULL, &writer_cfg, &writer_id))) {
+    if (HIVE_FAILED(
+            hive_spawn_ex(writer_actor, NULL, &writer_cfg, &writer_id))) {
         fprintf(stderr, "Failed to spawn writer actor\n");
         hive_cleanup();
         return 1;
@@ -126,7 +129,8 @@ int main(void) {
     reader_cfg.priority = HIVE_PRIORITY_NORMAL;
 
     actor_id reader_id;
-    if (HIVE_FAILED(hive_spawn_ex(reader_actor, NULL, &reader_cfg, &reader_id))) {
+    if (HIVE_FAILED(
+            hive_spawn_ex(reader_actor, NULL, &reader_cfg, &reader_id))) {
         fprintf(stderr, "Failed to spawn reader actor\n");
         hive_cleanup();
         return 1;

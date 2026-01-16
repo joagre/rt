@@ -11,8 +11,8 @@ static bus_id g_sensor_bus = BUS_ID_INVALID;
 // Sensor data structure
 typedef struct {
     uint32_t timestamp;
-    float    temperature;
-    float    pressure;
+    float temperature;
+    float pressure;
 } sensor_data;
 
 // Publisher actor - publishes sensor data periodically
@@ -35,7 +35,8 @@ static void publisher_actor(void *arg) {
     for (int i = 0; i < 10; i++) {
         // Wait for timer tick using selective receive with timer_id
         hive_message msg;
-        status = hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
+        status = hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer,
+                                     &msg, -1);
         if (HIVE_FAILED(status)) {
             printf("Publisher: Failed to receive: %s\n", HIVE_ERR_STR(status));
             break;
@@ -88,7 +89,7 @@ static void subscriber_actor(void *arg) {
 
         // Blocking read
         status = hive_bus_read_wait(g_sensor_bus, &data, sizeof(data),
-                                  &actual_len, -1);
+                                    &actual_len, -1);
         if (HIVE_FAILED(status)) {
             printf("%s: Failed to read: %s\n", name, HIVE_ERR_STR(status));
             break;
@@ -115,22 +116,23 @@ int main(void) {
     // Initialize runtime
     hive_status status = hive_init();
     if (HIVE_FAILED(status)) {
-        fprintf(stderr, "Failed to initialize runtime: %s\n", HIVE_ERR_STR(status));
+        fprintf(stderr, "Failed to initialize runtime: %s\n",
+                HIVE_ERR_STR(status));
         return 1;
     }
 
     // Create bus with retention policy
     hive_bus_config bus_cfg = HIVE_BUS_CONFIG_DEFAULT;
-    bus_cfg.consume_after_reads = 0;        // Unlimited readers (data persists)
-    bus_cfg.max_age_ms = 0;         // No time-based expiry
+    bus_cfg.consume_after_reads = 0; // Unlimited readers (data persists)
+    bus_cfg.max_age_ms = 0;          // No time-based expiry
 #ifdef QEMU_TEST_STACK_SIZE
-    bus_cfg.max_entries = 4;        // Reduced for QEMU
+    bus_cfg.max_entries = 4; // Reduced for QEMU
     bus_cfg.max_entry_size = 64;
     bus_cfg.max_subscribers = 4;
 #else
-    bus_cfg.max_entries = 16;       // Ring buffer size
-    bus_cfg.max_entry_size = 256;   // Max payload size
-    bus_cfg.max_subscribers = 32;   // Maximum concurrent subscribers
+    bus_cfg.max_entries = 16;     // Ring buffer size
+    bus_cfg.max_entry_size = 256; // Max payload size
+    bus_cfg.max_subscribers = 32; // Maximum concurrent subscribers
 #endif
 
     status = hive_bus_create(&bus_cfg, &g_sensor_bus);
@@ -146,12 +148,13 @@ int main(void) {
     actor_config actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT;
     actor_cfg.name = "subscriber_a";
 #ifdef QEMU_TEST_STACK_SIZE
-    actor_cfg.stack_size = 2048;  // Reduced for QEMU
+    actor_cfg.stack_size = 2048; // Reduced for QEMU
 #else
-    actor_cfg.stack_size = 128 * 1024;  // Increase stack size
+    actor_cfg.stack_size = 128 * 1024; // Increase stack size
 #endif
     actor_id sub_a;
-    if (HIVE_FAILED(hive_spawn_ex(subscriber_actor, (void *)"Subscriber A", &actor_cfg, &sub_a))) {
+    if (HIVE_FAILED(hive_spawn_ex(subscriber_actor, (void *)"Subscriber A",
+                                  &actor_cfg, &sub_a))) {
         fprintf(stderr, "Failed to spawn subscriber A\n");
         hive_cleanup();
         return 1;
@@ -159,7 +162,8 @@ int main(void) {
 
     actor_cfg.name = "subscriber_b";
     actor_id sub_b;
-    if (HIVE_FAILED(hive_spawn_ex(subscriber_actor, (void *)"Subscriber B", &actor_cfg, &sub_b))) {
+    if (HIVE_FAILED(hive_spawn_ex(subscriber_actor, (void *)"Subscriber B",
+                                  &actor_cfg, &sub_b))) {
         fprintf(stderr, "Failed to spawn subscriber B\n");
         hive_cleanup();
         return 1;

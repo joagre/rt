@@ -21,7 +21,7 @@ void test_timeout_actor(void *arg) {
     printf("Test 1: Timeout when no message arrives\n");
     uint64_t start = get_time_ms();
     hive_message msg;
-    hive_status status = hive_ipc_recv(&msg, 100);  // 100ms timeout
+    hive_status status = hive_ipc_recv(&msg, 100); // 100ms timeout
     uint64_t elapsed = get_time_ms() - start;
 
     if (status.code == HIVE_ERR_TIMEOUT) {
@@ -36,12 +36,13 @@ void test_timeout_actor(void *arg) {
     hive_ipc_notify(self, 0, &data, sizeof(data));
 
     start = get_time_ms();
-    status = hive_ipc_recv(&msg, 100);  // 100ms timeout
+    status = hive_ipc_recv(&msg, 100); // 100ms timeout
     elapsed = get_time_ms() - start;
 
     if (HIVE_SUCCEEDED(status)) {
         int *received = (int *)msg.data;
-        printf("  ✓ Got message before timeout: %d (after %lu ms)\n", *received, elapsed);
+        printf("  ✓ Got message before timeout: %d (after %lu ms)\n", *received,
+               elapsed);
     } else {
         printf("  ✗ Expected message, got status=%d\n", status.code);
     }
@@ -53,7 +54,7 @@ void test_timeout_actor(void *arg) {
         printf("  Attempt %d: Backing off 50ms...\n", retry_count + 1);
 
         start = get_time_ms();
-        status = hive_ipc_recv(&msg, 50);  // Backoff 50ms
+        status = hive_ipc_recv(&msg, 50); // Backoff 50ms
         elapsed = get_time_ms() - start;
 
         if (status.code == HIVE_ERR_TIMEOUT) {

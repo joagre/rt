@@ -12,21 +12,16 @@
 #include <stddef.h>
 
 /* Semihosting operation numbers */
-#define SYS_WRITE0      0x04  /* Write null-terminated string to debug console */
-#define SYS_WRITEC      0x03  /* Write single character to debug console */
-#define SYS_EXIT        0x18  /* Exit the application */
+#define SYS_WRITE0 0x04 /* Write null-terminated string to debug console */
+#define SYS_WRITEC 0x03 /* Write single character to debug console */
+#define SYS_EXIT 0x18   /* Exit the application */
 
 /* ARM Semihosting call via BKPT instruction */
 static inline int32_t semihosting_call(uint32_t op, void *arg) {
     register uint32_t r0 __asm__("r0") = op;
     register void *r1 __asm__("r1") = arg;
 
-    __asm__ volatile (
-        "bkpt #0xAB"
-        : "+r" (r0)
-        : "r" (r1)
-        : "memory"
-    );
+    __asm__ volatile("bkpt #0xAB" : "+r"(r0) : "r"(r1) : "memory");
 
     return (int32_t)r0;
 }
@@ -47,15 +42,14 @@ void semihosting_exit(int status) {
     struct {
         uint32_t reason;
         uint32_t status;
-    } exit_params = {
-        .reason = 0x20026,  /* ADP_Stopped_ApplicationExit */
-        .status = (uint32_t)status
-    };
+    } exit_params = {.reason = 0x20026, /* ADP_Stopped_ApplicationExit */
+                     .status = (uint32_t)status};
 
     semihosting_call(SYS_EXIT, &exit_params);
 
     /* Should not return, but loop just in case */
-    while (1) {}
+    while (1) {
+    }
 }
 
 /* Simple number to string conversion */
@@ -124,7 +118,7 @@ int semihosting_printf(const char *fmt, ...) {
     while (*fmt) {
         if (*fmt == '%' && *(fmt + 1)) {
             fmt++;
-            char num_buf[24];  /* Increased for long values */
+            char num_buf[24]; /* Increased for long values */
             int is_long = 0;
 
             /* Check for 'l' modifier */
@@ -134,57 +128,60 @@ int semihosting_printf(const char *fmt, ...) {
             }
 
             switch (*fmt) {
-                case 'd':
-                case 'i': {
-                    int32_t val = is_long ? (int32_t)va_arg(args, long) : va_arg(args, int32_t);
-                    int_to_str(val, num_buf, 10);
-                    for (char *p = num_buf; *p && buf_idx < 126; p++) {
-                        buf[buf_idx++] = *p;
-                    }
-                    break;
+            case 'd':
+            case 'i': {
+                int32_t val = is_long ? (int32_t)va_arg(args, long)
+                                      : va_arg(args, int32_t);
+                int_to_str(val, num_buf, 10);
+                for (char *p = num_buf; *p && buf_idx < 126; p++) {
+                    buf[buf_idx++] = *p;
                 }
-                case 'u': {
-                    uint32_t val = is_long ? (uint32_t)va_arg(args, unsigned long) : va_arg(args, uint32_t);
-                    uint_to_str(val, num_buf, 10);
-                    for (char *p = num_buf; *p && buf_idx < 126; p++) {
-                        buf[buf_idx++] = *p;
-                    }
-                    break;
+                break;
+            }
+            case 'u': {
+                uint32_t val = is_long ? (uint32_t)va_arg(args, unsigned long)
+                                       : va_arg(args, uint32_t);
+                uint_to_str(val, num_buf, 10);
+                for (char *p = num_buf; *p && buf_idx < 126; p++) {
+                    buf[buf_idx++] = *p;
                 }
-                case 'x':
-                case 'X': {
-                    uint32_t val = is_long ? (uint32_t)va_arg(args, unsigned long) : va_arg(args, uint32_t);
-                    uint_to_str(val, num_buf, 16);
-                    for (char *p = num_buf; *p && buf_idx < 126; p++) {
-                        buf[buf_idx++] = *p;
-                    }
-                    break;
+                break;
+            }
+            case 'x':
+            case 'X': {
+                uint32_t val = is_long ? (uint32_t)va_arg(args, unsigned long)
+                                       : va_arg(args, uint32_t);
+                uint_to_str(val, num_buf, 16);
+                for (char *p = num_buf; *p && buf_idx < 126; p++) {
+                    buf[buf_idx++] = *p;
                 }
-                case 's': {
-                    const char *s = va_arg(args, const char *);
-                    if (s) {
-                        while (*s && buf_idx < 126) {
-                            buf[buf_idx++] = *s++;
-                        }
+                break;
+            }
+            case 's': {
+                const char *s = va_arg(args, const char *);
+                if (s) {
+                    while (*s && buf_idx < 126) {
+                        buf[buf_idx++] = *s++;
                     }
-                    break;
                 }
-                case 'c': {
-                    char c = (char)va_arg(args, int);
-                    if (buf_idx < 126) {
-                        buf[buf_idx++] = c;
-                    }
-                    break;
+                break;
+            }
+            case 'c': {
+                char c = (char)va_arg(args, int);
+                if (buf_idx < 126) {
+                    buf[buf_idx++] = c;
                 }
-                case '%': {
-                    if (buf_idx < 126) {
-                        buf[buf_idx++] = '%';
-                    }
-                    break;
+                break;
+            }
+            case '%': {
+                if (buf_idx < 126) {
+                    buf[buf_idx++] = '%';
                 }
-                default:
-                    /* Unknown format, skip */
-                    break;
+                break;
+            }
+            default:
+                /* Unknown format, skip */
+                break;
             }
             fmt++;
         } else {

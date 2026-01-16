@@ -112,13 +112,16 @@ static void bench_context_switch(void) {
     uint64_t elapsed = ctx_a->end_time - ctx_a->start_time;
     uint64_t total_switches = ITERATIONS * 2; // A->B and B->A per iteration
     uint64_t ns_per_switch = elapsed / total_switches;
-    double switches_per_sec = (double)total_switches / ((double)elapsed / BILLION);
+    double switches_per_sec =
+        (double)total_switches / ((double)elapsed / BILLION);
 
     printf("  Iterations:           %d round-trips\n", ITERATIONS);
     printf("  Total switches:       %lu\n", total_switches);
-    printf("  Total time:           %lu ns (%.3f ms)\n", elapsed, elapsed / 1000000.0);
+    printf("  Total time:           %lu ns (%.3f ms)\n", elapsed,
+           elapsed / 1000000.0);
     printf("  Latency per switch:   %lu ns\n", ns_per_switch);
-    printf("  Throughput:           %.2f M switches/sec\n", switches_per_sec / 1000000.0);
+    printf("  Throughput:           %.2f M switches/sec\n",
+           switches_per_sec / 1000000.0);
     printf("\n");
 
     free(ctx_a);
@@ -214,8 +217,8 @@ static void bench_ipc_copy(size_t msg_size, const char *label) {
     uint64_t ns_per_msg = elapsed / ITERATIONS;
     double msgs_per_sec = (double)ITERATIONS / ((double)elapsed / BILLION);
 
-    printf("  %-20s %6lu ns/msg  (%.2f M msgs/sec)\n",
-           label, ns_per_msg, msgs_per_sec / 1000000.0);
+    printf("  %-20s %6lu ns/msg  (%.2f M msgs/sec)\n", label, ns_per_msg,
+           msgs_per_sec / 1000000.0);
 
     free(ctx_send);
     free(ctx_recv);
@@ -225,8 +228,9 @@ static void bench_ipc(void) __attribute__((unused));
 static void bench_ipc(void) {
     printf("IPC Performance\n");
     printf("---------------\n");
-    printf("  (Max payload: %d bytes = HIVE_MAX_MESSAGE_SIZE - 4 byte header)\n\n",
-           HIVE_MAX_MESSAGE_SIZE - 4);
+    printf(
+        "  (Max payload: %d bytes = HIVE_MAX_MESSAGE_SIZE - 4 byte header)\n\n",
+        HIVE_MAX_MESSAGE_SIZE - 4);
 
     bench_ipc_copy(8, "8 bytes:");
     bench_ipc_copy(64, "64 bytes:");
@@ -245,10 +249,10 @@ static void bench_pool_allocation(void) {
     printf("---------------------------\n");
 
     // Use more iterations for this micro-benchmark
-    const int POOL_ITERATIONS = ITERATIONS * 100;  // 1,000,000 iterations
+    const int POOL_ITERATIONS = ITERATIONS * 100; // 1,000,000 iterations
 
-    // Create a test pool
-    #define POOL_SIZE 1024
+// Create a test pool
+#define POOL_SIZE 1024
     static uint8_t pool_buffer[POOL_SIZE * 64];
     static bool pool_used[POOL_SIZE];
     hive_pool pool_mgr;
@@ -271,18 +275,19 @@ static void bench_pool_allocation(void) {
     for (int i = 0; i < POOL_ITERATIONS; i++) {
         void *p = hive_pool_alloc(&pool_mgr);
         if (p) {
-            *(uint64_t *)p = i;  // Write to force actual allocation
-            pool_sum += *(uint64_t *)p;  // Read to prevent dead code elimination
+            *(uint64_t *)p = i;         // Write to force actual allocation
+            pool_sum += *(uint64_t *)p; // Read to prevent dead code elimination
             hive_pool_free(&pool_mgr, p);
         }
     }
     uint64_t elapsed = get_nanos() - start;
-    (void)pool_sum;  // Prevent sum from being optimized away
+    (void)pool_sum; // Prevent sum from being optimized away
 
     uint64_t ns_per_op = elapsed / POOL_ITERATIONS;
     double ops_per_sec = (double)POOL_ITERATIONS / ((double)elapsed / BILLION);
 
-    printf("  Pool alloc+free:      %lu ns/op  (%.2f M ops/sec)  [elapsed: %lu ns]\n",
+    printf("  Pool alloc+free:      %lu ns/op  (%.2f M ops/sec)  [elapsed: %lu "
+           "ns]\n",
            ns_per_op, ops_per_sec / 1000000.0, elapsed);
 
     // Compare to malloc/free
@@ -292,18 +297,20 @@ static void bench_pool_allocation(void) {
     for (int i = 0; i < POOL_ITERATIONS; i++) {
         void *p = malloc(64);
         if (p) {
-            *(uint64_t *)p = i;  // Write to force actual allocation
-            sum += *(uint64_t *)p;  // Read to prevent dead code elimination
+            *(uint64_t *)p = i;    // Write to force actual allocation
+            sum += *(uint64_t *)p; // Read to prevent dead code elimination
             free(p);
         }
     }
     elapsed = get_nanos() - start;
-    (void)sum;  // Prevent sum from being optimized away
+    (void)sum; // Prevent sum from being optimized away
 
     uint64_t malloc_ns_per_op = elapsed / POOL_ITERATIONS;
-    double malloc_ops_per_sec = (double)POOL_ITERATIONS / ((double)elapsed / BILLION);
+    double malloc_ops_per_sec =
+        (double)POOL_ITERATIONS / ((double)elapsed / BILLION);
 
-    printf("  malloc+free (64B):    %lu ns/op  (%.2f M ops/sec)  [elapsed: %lu ns]\n",
+    printf("  malloc+free (64B):    %lu ns/op  (%.2f M ops/sec)  [elapsed: %lu "
+           "ns]\n",
            malloc_ns_per_op, malloc_ops_per_sec / 1000000.0, elapsed);
     printf("  Speedup:              %.1fx faster than malloc\n",
            (double)malloc_ns_per_op / ns_per_op);
@@ -394,7 +401,8 @@ static void bus_subscriber(void *arg) {
         size_t len;
         hive_status status;
         // Wait for message to be available
-        while (HIVE_FAILED(status = hive_bus_read(ctx->bus, buffer, sizeof(buffer), &len))) {
+        while (HIVE_FAILED(
+            status = hive_bus_read(ctx->bus, buffer, sizeof(buffer), &len))) {
             hive_yield();
         }
     }
@@ -409,12 +417,11 @@ static void bench_bus(void) {
 
     // Create bus with enough capacity for benchmark messages
     hive_bus_config cfg = {
-        .max_entries = 64,  // Max allowed by HIVE_MAX_BUS_ENTRIES
-        .max_entry_size = 256,  // Max size of each message
+        .max_entries = 64,     // Max allowed by HIVE_MAX_BUS_ENTRIES
+        .max_entry_size = 256, // Max size of each message
         .max_subscribers = 8,
-        .consume_after_reads = 1,  // Remove entries after 1 reader reads them
-        .max_age_ms = 0
-    };
+        .consume_after_reads = 1, // Remove entries after 1 reader reads them
+        .max_age_ms = 0};
     bus_id bus;
     hive_bus_create(&cfg, &bus);
 
@@ -459,7 +466,8 @@ static void bench_bus(void) {
     double pubs_per_sec = (double)BUS_ITERATIONS / ((double)elapsed / BILLION);
 
     printf("  Publish latency:      %lu ns/msg\n", ns_per_pub);
-    printf("  Throughput:           %.2f M msgs/sec\n", pubs_per_sec / 1000000.0);
+    printf("  Throughput:           %.2f M msgs/sec\n",
+           pubs_per_sec / 1000000.0);
 
     free(ctx_pub);
     free(ctx_sub);
@@ -480,8 +488,10 @@ int main(void) {
     printf("\n");
     printf("Configuration:\n");
     printf("  HIVE_MAX_ACTORS:               %d\n", HIVE_MAX_ACTORS);
-    printf("  HIVE_MAILBOX_ENTRY_POOL_SIZE:  %d\n", HIVE_MAILBOX_ENTRY_POOL_SIZE);
-    printf("  HIVE_MESSAGE_DATA_POOL_SIZE:   %d\n", HIVE_MESSAGE_DATA_POOL_SIZE);
+    printf("  HIVE_MAILBOX_ENTRY_POOL_SIZE:  %d\n",
+           HIVE_MAILBOX_ENTRY_POOL_SIZE);
+    printf("  HIVE_MESSAGE_DATA_POOL_SIZE:   %d\n",
+           HIVE_MESSAGE_DATA_POOL_SIZE);
     printf("  HIVE_DEFAULT_STACK_SIZE:       %d\n", HIVE_DEFAULT_STACK_SIZE);
     printf("  Iterations:                  %d\n", ITERATIONS);
     printf("\n");

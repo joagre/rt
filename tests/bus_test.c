@@ -13,13 +13,11 @@
 
 /* Bus config for QEMU's reduced limits */
 #ifdef QEMU_TEST_STACK_SIZE
-#define TEST_BUS_CONFIG { \
-    .max_subscribers = 3, \
-    .consume_after_reads = 0, \
-    .max_age_ms = 0, \
-    .max_entries = 4, \
-    .max_entry_size = 128 \
-}
+#define TEST_BUS_CONFIG                                                  \
+    {                                                                    \
+        .max_subscribers = 3, .consume_after_reads = 0, .max_age_ms = 0, \
+        .max_entries = 4, .max_entry_size = 128                          \
+    }
 #else
 #define TEST_BUS_CONFIG HIVE_BUS_CONFIG_DEFAULT
 #endif
@@ -28,8 +26,16 @@
 static int tests_passed = 0;
 static int tests_failed = 0;
 
-#define TEST_PASS(name) do { printf("  PASS: %s\n", name); tests_passed++; } while(0)
-#define TEST_FAIL(name) do { printf("  FAIL: %s\n", name); tests_failed++; } while(0)
+#define TEST_PASS(name)               \
+    do {                              \
+        printf("  PASS: %s\n", name); \
+        tests_passed++;               \
+    } while (0)
+#define TEST_FAIL(name)               \
+    do {                              \
+        printf("  FAIL: %s\n", name); \
+        tests_failed++;               \
+    } while (0)
 
 // ============================================================================
 // Test 1: Basic publish/subscribe
@@ -106,7 +112,8 @@ static void subscriber_actor(void *arg) {
     // Wait for data with timeout
     char buf[64];
     size_t actual_len;
-    status = hive_bus_read_wait(g_shared_bus, buf, sizeof(buf), &actual_len, 500);
+    status =
+        hive_bus_read_wait(g_shared_bus, buf, sizeof(buf), &actual_len, 500);
 
     if (HIVE_SUCCEEDED(status)) {
         g_subscriber_received[id] = 1;
@@ -138,7 +145,7 @@ static void test2_multi_subscriber(void *arg) {
 
     // Give subscribers time to subscribe
     timer_id timer;
-    hive_timer_after(50000, &timer);  // 50ms
+    hive_timer_after(50000, &timer); // 50ms
     hive_message msg;
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
 
@@ -152,11 +159,12 @@ static void test2_multi_subscriber(void *arg) {
     }
 
     // Wait for subscribers to read
-    hive_timer_after(200000, &timer);  // 200ms
+    hive_timer_after(200000, &timer); // 200ms
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
 
     // Check results
-    int count = g_subscriber_received[0] + g_subscriber_received[1] + g_subscriber_received[2];
+    int count = g_subscriber_received[0] + g_subscriber_received[1] +
+                g_subscriber_received[2];
     if (count == 3) {
         TEST_PASS("all 3 subscribers received data");
     } else {
@@ -183,7 +191,8 @@ static void max_readers_subscriber(void *arg) {
     // Try to read
     char buf[64];
     size_t actual_len;
-    hive_status status = hive_bus_read_wait(g_max_readers_bus, buf, sizeof(buf), &actual_len, 500);
+    hive_status status = hive_bus_read_wait(g_max_readers_bus, buf, sizeof(buf),
+                                            &actual_len, 500);
 
     if (HIVE_SUCCEEDED(status)) {
         g_max_readers_success[id] = 1;
@@ -233,7 +242,8 @@ static void test3_max_readers(void *arg) {
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
 
     // Count how many succeeded
-    int success_count = g_max_readers_success[0] + g_max_readers_success[1] + g_max_readers_success[2];
+    int success_count = g_max_readers_success[0] + g_max_readers_success[1] +
+                        g_max_readers_success[2];
 
     // With max_readers=2, only 2 of 3 subscribers should succeed
     if (success_count == 2) {
@@ -351,7 +361,8 @@ static void test6_blocking_read_timeout(void *arg) {
     // Try blocking read with short timeout on empty bus
     char buf[64];
     size_t actual_len;
-    hive_status status = hive_bus_read_wait(bus, buf, sizeof(buf), &actual_len, 100);
+    hive_status status =
+        hive_bus_read_wait(bus, buf, sizeof(buf), &actual_len, 100);
 
     if (status.code == HIVE_ERR_TIMEOUT) {
         TEST_PASS("blocking read times out on empty bus");
@@ -448,7 +459,7 @@ static void test9_max_age_expiry(void *arg) {
 
     // Create bus with 100ms expiry
     hive_bus_config cfg = TEST_BUS_CONFIG;
-    cfg.max_age_ms = 100;  // Entries expire after 100ms
+    cfg.max_age_ms = 100; // Entries expire after 100ms
 
     bus_id bus;
     hive_status status = hive_bus_create(&cfg, &bus);
@@ -492,7 +503,7 @@ static void test9_max_age_expiry(void *arg) {
 
     // Wait for expiry (longer than max_age_ms)
     hive_message msg;
-    hive_ipc_recv(&msg, 150);  // Wait 150ms (entry should expire at 100ms)
+    hive_ipc_recv(&msg, 150); // Wait 150ms (entry should expire at 100ms)
 
     // Try to read - should get WOULDBLOCK (entry expired)
     status = hive_bus_read(bus, buf, sizeof(buf), &actual_len);
@@ -502,7 +513,8 @@ static void test9_max_age_expiry(void *arg) {
         printf("    Entry still readable after expiry (data: %s)\n", buf);
         TEST_FAIL("entry should have expired");
     } else {
-        printf("    Unexpected error: %s\n", status.msg ? status.msg : "unknown");
+        printf("    Unexpected error: %s\n",
+               status.msg ? status.msg : "unknown");
         TEST_FAIL("unexpected error reading expired entry");
     }
 
@@ -522,7 +534,7 @@ static void test10_entry_count(void *arg) {
 
     hive_bus_config cfg = TEST_BUS_CONFIG;
 #ifdef QEMU_TEST_STACK_SIZE
-    cfg.max_entries = 6;  // QEMU limit is 8, use smaller value
+    cfg.max_entries = 6; // QEMU limit is 8, use smaller value
 #else
     cfg.max_entries = 10;
 #endif
@@ -577,9 +589,9 @@ static void test10_entry_count(void *arg) {
 
     // Publish more to fill buffer
 #ifdef QEMU_TEST_STACK_SIZE
-    int fill_count = 6;  // Fill to max_entries=6
+    int fill_count = 6; // Fill to max_entries=6
 #else
-    int fill_count = 12;  // Fill to max_entries=10
+    int fill_count = 12; // Fill to max_entries=10
 #endif
     for (int i = 5; i < fill_count; i++) {
         char msg[16];
@@ -770,7 +782,8 @@ int main(void) {
     printf("\n=== Results ===\n");
     printf("Passed: %d\n", tests_passed);
     printf("Failed: %d\n", tests_failed);
-    printf("\n%s\n", tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
+    printf("\n%s\n",
+           tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
 
     return tests_failed > 0 ? 1 : 0;
 }

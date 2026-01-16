@@ -15,8 +15,16 @@
 static int tests_passed = 0;
 static int tests_failed = 0;
 
-#define TEST_PASS(name) do { printf("  ✓ PASS: %s\n", name); tests_passed++; } while(0)
-#define TEST_FAIL(name) do { printf("  ✗ FAIL: %s\n", name); tests_failed++; } while(0)
+#define TEST_PASS(name)                 \
+    do {                                \
+        printf("  ✓ PASS: %s\n", name); \
+        tests_passed++;                 \
+    } while (0)
+#define TEST_FAIL(name)                 \
+    do {                                \
+        printf("  ✗ FAIL: %s\n", name); \
+        tests_failed++;                 \
+    } while (0)
 
 // ============================================================================
 // Test 1: Basic monitor - get notification when target exits normally
@@ -49,7 +57,7 @@ static void test1_monitor_actor(void *arg) {
 
     // Wait for exit notification
     hive_message msg;
-    status = hive_ipc_recv(&msg, 1000);  // 1 second timeout
+    status = hive_ipc_recv(&msg, 1000); // 1 second timeout
     if (HIVE_FAILED(status)) {
         TEST_FAIL("receive exit notification (timeout)");
         hive_exit();
@@ -89,7 +97,7 @@ static void target_delayed_exit(void *arg) {
     int delay_ms = *(int *)arg;
 
     timer_id timer;
-    hive_timer_after(delay_ms * 1000, &timer);  // Convert ms to us
+    hive_timer_after(delay_ms * 1000, &timer); // Convert ms to us
 
     hive_message msg;
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
@@ -107,7 +115,8 @@ static void test3_multi_monitor_actor(void *arg) {
     uint32_t refs[3];
 
     for (int i = 0; i < 3; i++) {
-        if (HIVE_FAILED(hive_spawn(target_delayed_exit, &delays[i], &targets[i]))) {
+        if (HIVE_FAILED(
+                hive_spawn(target_delayed_exit, &delays[i], &targets[i]))) {
             TEST_FAIL("spawn target");
             hive_exit();
         }
@@ -125,7 +134,7 @@ static void test3_multi_monitor_actor(void *arg) {
 
     while (received < 3) {
         hive_message msg;
-        hive_status status = hive_ipc_recv(&msg, 2000);  // 2 second timeout
+        hive_status status = hive_ipc_recv(&msg, 2000); // 2 second timeout
         if (HIVE_FAILED(status)) {
             printf("  Only received %d/3 notifications\n", received);
             TEST_FAIL("receive all exit notifications");
@@ -133,7 +142,7 @@ static void test3_multi_monitor_actor(void *arg) {
         }
 
         if (!hive_is_exit_msg(&msg)) {
-            continue;  // Skip non-exit messages
+            continue; // Skip non-exit messages
         }
 
         hive_exit_msg exit_info;
@@ -160,7 +169,7 @@ static void target_slow_exit(void *arg) {
     (void)arg;
 
     timer_id timer;
-    hive_timer_after(500000, &timer);  // 500ms delay
+    hive_timer_after(500000, &timer); // 500ms delay
 
     hive_message msg;
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
@@ -196,7 +205,7 @@ static void test4_monitor_cancel_actor(void *arg) {
 
     // Wait a bit - should NOT receive exit notification
     hive_message msg;
-    status = hive_ipc_recv(&msg, 700);  // 700ms timeout (target exits at 500ms)
+    status = hive_ipc_recv(&msg, 700); // 700ms timeout (target exits at 500ms)
 
     if (status.code == HIVE_ERR_TIMEOUT) {
         TEST_PASS("monitor_cancel prevents exit notification");
@@ -225,7 +234,7 @@ static void target_waits_for_exit(void *arg) {
 
     // Wait for any message
     hive_message msg;
-    hive_status status = hive_ipc_recv(&msg, 500);  // 500ms timeout
+    hive_status status = hive_ipc_recv(&msg, 500); // 500ms timeout
 
     if (HIVE_SUCCEEDED(status) && hive_is_exit_msg(&msg)) {
         g_target_received_exit = true;
@@ -247,7 +256,8 @@ static void monitor_dies_early(void *arg) {
 
 static void test5_coordinator(void *arg) {
     (void)arg;
-    printf("\nTest 5: Monitor is unidirectional (target not notified when monitor dies)\n");
+    printf("\nTest 5: Monitor is unidirectional (target not notified when "
+           "monitor dies)\n");
 
     // Spawn target first
     actor_id target;
@@ -265,14 +275,15 @@ static void test5_coordinator(void *arg) {
 
     // Wait for both to finish
     timer_id timer;
-    hive_timer_after(700000, &timer);  // 700ms
+    hive_timer_after(700000, &timer); // 700ms
     hive_message msg;
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
 
     if (!g_target_received_exit) {
         TEST_PASS("target NOT notified when monitor dies (unidirectional)");
     } else {
-        TEST_FAIL("target received exit notification (should be unidirectional)");
+        TEST_FAIL(
+            "target received exit notification (should be unidirectional)");
     }
 
     hive_exit();
@@ -401,8 +412,9 @@ static void monitor_pool_target(void *arg) {
 
 static void test9_monitor_pool_exhaustion(void *arg) {
     (void)arg;
-    printf("\nTest 9: Monitor pool exhaustion (HIVE_MONITOR_ENTRY_POOL_SIZE=%d)\n",
-           HIVE_MONITOR_ENTRY_POOL_SIZE);
+    printf(
+        "\nTest 9: Monitor pool exhaustion (HIVE_MONITOR_ENTRY_POOL_SIZE=%d)\n",
+        HIVE_MONITOR_ENTRY_POOL_SIZE);
 
     actor_id targets[HIVE_MONITOR_ENTRY_POOL_SIZE + 10];
     uint32_t refs[HIVE_MONITOR_ENTRY_POOL_SIZE + 10];
@@ -416,14 +428,16 @@ static void test9_monitor_pool_exhaustion(void *arg) {
         cfg.stack_size = TEST_STACK_SIZE(8 * 1024);
 
         actor_id target;
-        if (HIVE_FAILED(hive_spawn_ex(monitor_pool_target, NULL, &cfg, &target))) {
+        if (HIVE_FAILED(
+                hive_spawn_ex(monitor_pool_target, NULL, &cfg, &target))) {
             break;
         }
         targets[spawned++] = target;
 
         hive_status status = hive_monitor(target, &refs[monitored]);
         if (HIVE_FAILED(status)) {
-            printf("    Monitor failed after %d monitors (pool exhausted)\n", monitored);
+            printf("    Monitor failed after %d monitors (pool exhausted)\n",
+                   monitored);
             break;
         }
         monitored++;
@@ -461,14 +475,10 @@ static void test9_monitor_pool_exhaustion(void *arg) {
 // ============================================================================
 
 static void (*test_funcs[])(void *) = {
-    test1_monitor_actor,
-    test3_multi_monitor_actor,
-    test4_monitor_cancel_actor,
-    test5_coordinator,
-    test6_monitor_invalid,
-    test7_monitor_cancel_invalid,
-    test8_double_monitor_cancel,
-    test9_monitor_pool_exhaustion,
+    test1_monitor_actor,         test3_multi_monitor_actor,
+    test4_monitor_cancel_actor,  test5_coordinator,
+    test6_monitor_invalid,       test7_monitor_cancel_invalid,
+    test8_double_monitor_cancel, test9_monitor_pool_exhaustion,
 };
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
@@ -491,7 +501,7 @@ static void run_all_tests(void *arg) {
 
         // Wait for test to finish
         hive_message msg;
-        hive_ipc_recv(&msg, 5000);  // 5 second timeout per test
+        hive_ipc_recv(&msg, 5000); // 5 second timeout per test
     }
 
     hive_exit();
@@ -523,7 +533,8 @@ int main(void) {
     printf("\n=== Results ===\n");
     printf("Passed: %d\n", tests_passed);
     printf("Failed: %d\n", tests_failed);
-    printf("\n%s\n", tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
+    printf("\n%s\n",
+           tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
 
     return tests_failed > 0 ? 1 : 0;
 }

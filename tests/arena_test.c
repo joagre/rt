@@ -29,7 +29,7 @@ int main(void) {
 
     actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
     cfg.stack_size = TEST_STACK_SIZE(32 * 1024);
-    cfg.malloc_stack = false;     // Use arena (default)
+    cfg.malloc_stack = false; // Use arena (default)
 
     int count = 0;
 
@@ -57,7 +57,7 @@ int main(void) {
 
     // Test that malloc_stack still works when arena is exhausted
     printf("\nTesting malloc fallback via explicit flag...\n");
-    cfg.malloc_stack = true;  // Explicitly use malloc
+    cfg.malloc_stack = true; // Explicitly use malloc
     if (HIVE_SUCCEEDED(hive_spawn_ex(simple_actor, NULL, &cfg, &id))) {
         printf("✓ malloc_stack=true still works (spawned actor %u)\n", id);
     } else {

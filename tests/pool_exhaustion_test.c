@@ -17,7 +17,7 @@ void slow_receiver_actor(void *arg) {
     // Just sleep - don't process messages
     // This causes sender's messages to accumulate in mailbox
     hive_message msg;
-    hive_ipc_recv(&msg, -1);  // Block forever (won't get any messages)
+    hive_ipc_recv(&msg, -1); // Block forever (won't get any messages)
 
     hive_exit();
 }
@@ -25,7 +25,8 @@ void slow_receiver_actor(void *arg) {
 void sender_actor(void *arg) {
     actor_id receiver = *(actor_id *)arg;
 
-    printf("\nSender: Attempting to exhaust IPC pool by sending to slow receiver...\n");
+    printf("\nSender: Attempting to exhaust IPC pool by sending to slow "
+           "receiver...\n");
     printf("Sender: Pool sizes: MAILBOX_ENTRY=%d, MESSAGE_DATA=%d\n",
            HIVE_MAILBOX_ENTRY_POOL_SIZE, HIVE_MESSAGE_DATA_POOL_SIZE);
 
@@ -40,11 +41,13 @@ void sender_actor(void *arg) {
 
         if (HIVE_FAILED(status)) {
             if (status.code == HIVE_ERR_NOMEM) {
-                printf("Sender: ✓ Pool exhausted after %d messages!\n", sent_count);
+                printf("Sender: ✓ Pool exhausted after %d messages!\n",
+                       sent_count);
                 printf("Sender: Got HIVE_ERR_NOMEM as expected\n");
                 break;
             } else {
-                printf("Sender: Unexpected error: %d (%s)\n", status.code, status.msg);
+                printf("Sender: Unexpected error: %d (%s)\n", status.code,
+                       status.msg);
                 hive_exit();
             }
         }
@@ -53,7 +56,8 @@ void sender_actor(void *arg) {
 
         // Safety limit
         if (sent_count > HIVE_MAILBOX_ENTRY_POOL_SIZE + 100) {
-            printf("Sender: ERROR - Sent %d messages without exhausting pool\n", sent_count);
+            printf("Sender: ERROR - Sent %d messages without exhausting pool\n",
+                   sent_count);
             hive_exit();
         }
     }
@@ -87,15 +91,19 @@ void sender_actor(void *arg) {
                 printf("Sender:   Backoff timeout (no messages received)\n");
                 retry_count++;
             } else if (HIVE_SUCCEEDED(status)) {
-                printf("Sender:   Got message during backoff from actor %u\n", msg.sender);
+                printf("Sender:   Got message during backoff from actor %u\n",
+                       msg.sender);
                 // In real code, would handle the message here
             }
         }
     }
 
     if (!send_succeeded) {
-        printf("Sender: ✗ Failed to send after %d retries (pool still exhausted)\n", retry_count);
-        printf("Sender: This is expected - pool won't free until receiver processes messages\n");
+        printf("Sender: ✗ Failed to send after %d retries (pool still "
+               "exhausted)\n",
+               retry_count);
+        printf("Sender: This is expected - pool won't free until receiver "
+               "processes messages\n");
     }
 
     printf("\nSender: Signaling receiver to start processing messages...\n");

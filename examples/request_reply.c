@@ -42,7 +42,7 @@ static void consumer_actor(void *arg) {
     for (int jobs_processed = 0; jobs_processed < 5; jobs_processed++) {
         // Wait for work request (HIVE_MSG_REQUEST)
         hive_message msg;
-        hive_status status = hive_ipc_recv(&msg, 5000);  // 5 second timeout
+        hive_status status = hive_ipc_recv(&msg, 5000); // 5 second timeout
 
         if (status.code == HIVE_ERR_TIMEOUT) {
             printf("Consumer: Timeout waiting for work, exiting\n");
@@ -55,7 +55,8 @@ static void consumer_actor(void *arg) {
         }
 
         if (msg.class != HIVE_MSG_REQUEST) {
-            printf("Consumer: Unexpected message class %d, skipping\n", msg.class);
+            printf("Consumer: Unexpected message class %d, skipping\n",
+                   msg.class);
             continue;
         }
 
@@ -75,7 +76,7 @@ static void consumer_actor(void *arg) {
         // Prepare result
         work_result result = {
             .job_id = req->job_id,
-            .result = req->data * 2  // Simple processing: double the input
+            .result = req->data * 2 // Simple processing: double the input
         };
 
         printf("Consumer: Finished job #%d, sending reply (result=%d)\n",
@@ -99,19 +100,20 @@ static void producer_actor(void *arg) {
     actor_id consumer_id = (actor_id)(uintptr_t)arg;
 
     printf("Producer: Started (ID: %u)\n", hive_self());
-    printf("Producer: Sending 5 jobs with hive_ipc_request (blocks until reply)\n\n");
+    printf("Producer: Sending 5 jobs with hive_ipc_request (blocks until "
+           "reply)\n\n");
 
     for (int i = 1; i <= 5; i++) {
-        work_request req = {
-            .job_id = i,
-            .data = i * 100
-        };
+        work_request req = {.job_id = i, .data = i * 100};
 
-        printf("Producer: Calling consumer with job #%d (will block until reply)...\n", i);
+        printf("Producer: Calling consumer with job #%d (will block until "
+               "reply)...\n",
+               i);
 
         // Call consumer - this BLOCKS until consumer sends hive_ipc_reply()
         hive_message reply;
-        hive_status status = hive_ipc_request(consumer_id, &req, sizeof(req), &reply, 10000);
+        hive_status status =
+            hive_ipc_request(consumer_id, &req, sizeof(req), &reply, 10000);
 
         if (HIVE_FAILED(status)) {
             if (status.code == HIVE_ERR_TIMEOUT) {
@@ -124,7 +126,8 @@ static void producer_actor(void *arg) {
 
         work_result *result = (work_result *)reply.data;
 
-        printf("Producer: Job #%d completed! Result=%d\n\n", result->job_id, result->result);
+        printf("Producer: Job #%d completed! Result=%d\n\n", result->job_id,
+               result->result);
     }
 
     printf("Producer: All jobs sent and completed, exiting\n");
@@ -139,7 +142,8 @@ static void demo_actor(void *arg) {
     printf("\n--- Message Passing Patterns Demo ---\n");
 
     // Pattern 1: Fire-and-forget with hive_ipc_notify()
-    printf("Demo: Fire-and-forget (hive_ipc_notify) - sender continues immediately\n");
+    printf("Demo: Fire-and-forget (hive_ipc_notify) - sender continues "
+           "immediately\n");
     int data = 42;
     hive_status status = hive_ipc_notify(hive_self(), 0, &data, sizeof(data));
     if (HIVE_SUCCEEDED(status)) {
@@ -156,13 +160,15 @@ int main(void) {
     printf("=== Request/Reply Example - Request/Response Pattern ===\n\n");
 
     printf("This example shows:\n");
-    printf("1. Producer sends jobs with hive_ipc_request() (blocks until reply)\n");
+    printf("1. Producer sends jobs with hive_ipc_request() (blocks until "
+           "reply)\n");
     printf("2. Consumer processes and replies with hive_ipc_reply()\n");
     printf("3. Producer only proceeds after receiving reply\n\n");
 
     hive_status status = hive_init();
     if (HIVE_FAILED(status)) {
-        fprintf(stderr, "Failed to initialize runtime: %s\n", HIVE_ERR_STR(status));
+        fprintf(stderr, "Failed to initialize runtime: %s\n",
+                HIVE_ERR_STR(status));
         return 1;
     }
 
@@ -184,13 +190,15 @@ int main(void) {
 
     // Spawn producer with consumer's ID
     actor_id producer;
-    if (HIVE_FAILED(hive_spawn(producer_actor, (void *)(uintptr_t)consumer, &producer))) {
+    if (HIVE_FAILED(hive_spawn(producer_actor, (void *)(uintptr_t)consumer,
+                               &producer))) {
         fprintf(stderr, "Failed to spawn producer\n");
         hive_cleanup();
         return 1;
     }
 
-    printf("Spawned actors: demo=%u, consumer=%u, producer=%u\n\n", demo, consumer, producer);
+    printf("Spawned actors: demo=%u, consumer=%u, producer=%u\n\n", demo,
+           consumer, producer);
 
     // Run scheduler
     hive_run();

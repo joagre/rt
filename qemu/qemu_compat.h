@@ -56,7 +56,8 @@ static inline int qemu_fflush(void *stream) {
  * On native Linux, it passes through unchanged.
  */
 #define QEMU_TEST_STACK_SIZE 2048
-#define TEST_STACK_SIZE(x) (((x) > QEMU_TEST_STACK_SIZE) ? QEMU_TEST_STACK_SIZE : (x))
+#define TEST_STACK_SIZE(x) \
+    (((x) > QEMU_TEST_STACK_SIZE) ? QEMU_TEST_STACK_SIZE : (x))
 
 /*
  * Replace clock_gettime with SysTick-based implementation.

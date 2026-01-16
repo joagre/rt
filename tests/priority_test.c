@@ -14,8 +14,16 @@
 static int tests_passed = 0;
 static int tests_failed = 0;
 
-#define TEST_PASS(name) do { printf("  ✓ PASS: %s\n", name); tests_passed++; } while(0)
-#define TEST_FAIL(name) do { printf("  ✗ FAIL: %s\n", name); tests_failed++; } while(0)
+#define TEST_PASS(name)                 \
+    do {                                \
+        printf("  ✓ PASS: %s\n", name); \
+        tests_passed++;                 \
+    } while (0)
+#define TEST_FAIL(name)                 \
+    do {                                \
+        printf("  ✗ FAIL: %s\n", name); \
+        tests_failed++;                 \
+    } while (0)
 
 // ============================================================================
 // Test 1: Higher priority actors run before lower priority ones
@@ -44,7 +52,7 @@ static void test1_coordinator(void *arg) {
     g_exec_count = 0;
 
     // Actor IDs encode priority: 0=CRITICAL, 1=HIGH, 2=NORMAL, 3=LOW
-    static int ids[4] = {3, 2, 1, 0};  // Spawn in reverse order (LOW first)
+    static int ids[4] = {3, 2, 1, 0}; // Spawn in reverse order (LOW first)
 
     // Spawn LOW priority first
     actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
@@ -70,7 +78,7 @@ static void test1_coordinator(void *arg) {
 
     // Give time for all to complete
     timer_id timer;
-    hive_timer_after(50000, &timer);  // 50ms
+    hive_timer_after(50000, &timer); // 50ms
     hive_message msg;
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
 
@@ -83,10 +91,14 @@ static void test1_coordinator(void *arg) {
     int critical_pos = -1, high_pos = -1, normal_pos = -1, low_pos = -1;
 
     for (int i = 0; i < g_exec_count; i++) {
-        if (g_exec_order[i] == 0) critical_pos = i;
-        if (g_exec_order[i] == 1) high_pos = i;
-        if (g_exec_order[i] == 2) normal_pos = i;
-        if (g_exec_order[i] == 3) low_pos = i;
+        if (g_exec_order[i] == 0)
+            critical_pos = i;
+        if (g_exec_order[i] == 1)
+            high_pos = i;
+        if (g_exec_order[i] == 2)
+            normal_pos = i;
+        if (g_exec_order[i] == 3)
+            low_pos = i;
     }
 
     printf("  Execution order: ");
@@ -157,7 +169,7 @@ static void test2_coordinator(void *arg) {
 
     // Wait for them to complete
     timer_id timer;
-    hive_timer_after(100000, &timer);  // 100ms
+    hive_timer_after(100000, &timer); // 100ms
     hive_message msg;
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
 
@@ -174,7 +186,7 @@ static void test2_coordinator(void *arg) {
 
     bool has_interleaving = false;
     for (int i = 1; i < g_rr_count; i++) {
-        if (g_rr_order[i] != g_rr_order[i-1]) {
+        if (g_rr_order[i] != g_rr_order[i - 1]) {
             has_interleaving = true;
             break;
         }
@@ -286,7 +298,8 @@ static void test4_coordinator(void *arg) {
     hive_message msg;
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
 
-    bool all_ran = g_prio_ran[0] && g_prio_ran[1] && g_prio_ran[2] && g_prio_ran[3];
+    bool all_ran =
+        g_prio_ran[0] && g_prio_ran[1] && g_prio_ran[2] && g_prio_ran[3];
 
     printf("  CRITICAL ran: %s\n", g_prio_ran[0] ? "yes" : "no");
     printf("  HIGH ran: %s\n", g_prio_ran[1] ? "yes" : "no");
@@ -328,7 +341,8 @@ static void test5_coordinator(void *arg) {
         TEST_PASS("HIVE_ACTOR_CONFIG_DEFAULT has NORMAL priority");
     } else {
         TEST_FAIL("default priority is not NORMAL");
-        printf("    default priority = %d (expected %d)\n", cfg.priority, HIVE_PRIORITY_NORMAL);
+        printf("    default priority = %d (expected %d)\n", cfg.priority,
+               HIVE_PRIORITY_NORMAL);
     }
 
     // Also spawn an actor with default config to verify
@@ -348,11 +362,8 @@ static void test5_coordinator(void *arg) {
 // ============================================================================
 
 static void (*test_funcs[])(void *) = {
-    test1_coordinator,
-    test2_coordinator,
-    test3_coordinator,
-    test4_coordinator,
-    test5_coordinator,
+    test1_coordinator, test2_coordinator, test3_coordinator,
+    test4_coordinator, test5_coordinator,
 };
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
@@ -407,7 +418,8 @@ int main(void) {
     printf("\n=== Results ===\n");
     printf("Passed: %d\n", tests_passed);
     printf("Failed: %d\n", tests_failed);
-    printf("\n%s\n", tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
+    printf("\n%s\n",
+           tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
 
     return tests_failed > 0 ? 1 : 0;
 }

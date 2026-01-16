@@ -16,9 +16,23 @@
 static int tests_passed = 0;
 static int tests_failed = 0;
 
-#define TEST_PASS(name) do { printf("  PASS: %s\n", name); fflush(stdout); tests_passed++; } while(0)
-#define TEST_FAIL(name) do { printf("  FAIL: %s\n", name); fflush(stdout); tests_failed++; } while(0)
-#define TEST_KNOWN_BUG(name) do { printf("  KNOWN BUG: %s\n", name); fflush(stdout); } while(0)
+#define TEST_PASS(name)               \
+    do {                              \
+        printf("  PASS: %s\n", name); \
+        fflush(stdout);               \
+        tests_passed++;               \
+    } while (0)
+#define TEST_FAIL(name)               \
+    do {                              \
+        printf("  FAIL: %s\n", name); \
+        fflush(stdout);               \
+        tests_failed++;               \
+    } while (0)
+#define TEST_KNOWN_BUG(name)               \
+    do {                                   \
+        printf("  KNOWN BUG: %s\n", name); \
+        fflush(stdout);                    \
+    } while (0)
 
 // Helper to get current time in milliseconds
 static uint64_t time_ms(void) {
@@ -38,7 +52,8 @@ static void test1_async_basic(void *arg) {
     actor_id self = hive_self();
     const char *msg_data = "Hello ASYNC";
 
-    hive_status status = hive_ipc_notify(self, 0, msg_data, strlen(msg_data) + 1);
+    hive_status status =
+        hive_ipc_notify(self, 0, msg_data, strlen(msg_data) + 1);
     if (HIVE_FAILED(status)) {
         TEST_FAIL("hive_ipc_notify ASYNC failed");
         hive_exit();
@@ -77,7 +92,8 @@ static void test2_async_invalid_receiver(void *arg) {
 
     int data = 42;
 
-    hive_status status = hive_ipc_notify(ACTOR_ID_INVALID, 0, &data, sizeof(data));
+    hive_status status =
+        hive_ipc_notify(ACTOR_ID_INVALID, 0, &data, sizeof(data));
     if (HIVE_FAILED(status)) {
         TEST_PASS("send to ACTOR_ID_INVALID fails");
     } else {
@@ -167,10 +183,11 @@ static void test4_multiple_senders(void *arg) {
 
     // Receive all messages
     int received_sum = 0;
-    for (int i = 0; i < 6; i++) {  // 5 messages + 1 timer
+    for (int i = 0; i < 6; i++) { // 5 messages + 1 timer
         hive_message msg;
         hive_status status = hive_ipc_recv(&msg, 500);
-        if (HIVE_FAILED(status)) break;
+        if (HIVE_FAILED(status))
+            break;
 
         if (!hive_msg_is_timer(&msg)) {
             received_sum += *(int *)msg.data;
@@ -238,7 +255,7 @@ static void request_reply_server_actor(void *arg) {
     // Verify it's a REQUEST message
     if (msg.class == HIVE_MSG_REQUEST) {
         // Send reply
-        int result = *(int *)msg.data * 2;  // Double the input
+        int result = *(int *)msg.data * 2; // Double the input
         hive_ipc_reply(&msg, &result, sizeof(result));
     }
 
@@ -259,11 +276,13 @@ static void test6_request_reply(void *arg) {
     int request = 21;
     hive_message reply;
     uint64_t start = time_ms();
-    hive_status status = hive_ipc_request(server, &request, sizeof(request), &reply, 1000);
+    hive_status status =
+        hive_ipc_request(server, &request, sizeof(request), &reply, 1000);
     uint64_t elapsed = time_ms() - start;
 
     if (HIVE_FAILED(status)) {
-        printf("    hive_ipc_request failed: %s\n", status.msg ? status.msg : "unknown");
+        printf("    hive_ipc_request failed: %s\n",
+               status.msg ? status.msg : "unknown");
         TEST_FAIL("hive_ipc_request failed");
         hive_exit();
     }
@@ -272,7 +291,8 @@ static void test6_request_reply(void *arg) {
     int result = *(int *)reply.data;
 
     if (result == 42) {
-        printf("    Request/reply completed in %lu ms\n", (unsigned long)elapsed);
+        printf("    Request/reply completed in %lu ms\n",
+               (unsigned long)elapsed);
         TEST_PASS("hive_ipc_request/reply works correctly");
     } else {
         printf("    Expected 42, got %d\n", result);
@@ -391,7 +411,7 @@ static void test9_timed_recv(void *arg) {
 
     hive_message msg;
     uint64_t start = time_ms();
-    hive_status status = hive_ipc_recv(&msg, 100);  // 100ms timeout
+    hive_status status = hive_ipc_recv(&msg, 100); // 100ms timeout
     uint64_t elapsed = time_ms() - start;
 
     if (status.code == HIVE_ERR_TIMEOUT) {
@@ -403,7 +423,8 @@ static void test9_timed_recv(void *arg) {
 
     // Should take approximately 100ms
     if (elapsed >= 80 && elapsed <= 200) {
-        printf("    Timeout after %lu ms (expected ~100ms)\n", (unsigned long)elapsed);
+        printf("    Timeout after %lu ms (expected ~100ms)\n",
+               (unsigned long)elapsed);
         TEST_PASS("timed recv waits for timeout duration");
     } else {
         printf("    Took %lu ms (expected ~100ms)\n", (unsigned long)elapsed);
@@ -442,7 +463,7 @@ static void test10_block_forever_recv(void *arg) {
 
     uint64_t start = time_ms();
     hive_message msg;
-    hive_status status = hive_ipc_recv(&msg, -1);  // Block forever
+    hive_status status = hive_ipc_recv(&msg, -1); // Block forever
     uint64_t elapsed = time_ms() - start;
 
     if (HIVE_SUCCEEDED(status)) {
@@ -453,7 +474,8 @@ static void test10_block_forever_recv(void *arg) {
 
     // Should have waited ~50ms for the delayed sender
     if (elapsed >= 30 && elapsed <= 200) {
-        printf("    Received after %lu ms (sender delayed 50ms)\n", (unsigned long)elapsed);
+        printf("    Received after %lu ms (sender delayed 50ms)\n",
+               (unsigned long)elapsed);
         TEST_PASS("blocked until message arrived");
     } else {
         printf("    Received after %lu ms\n", (unsigned long)elapsed);
@@ -477,7 +499,7 @@ static void test11_message_size_limits(void *arg) {
     size_t max_payload_size = HIVE_MAX_MESSAGE_SIZE - HIVE_MSG_HEADER_SIZE;
 
     // Send message at max payload size
-    char max_msg[HIVE_MAX_MESSAGE_SIZE];  // Oversize buffer for safety
+    char max_msg[HIVE_MAX_MESSAGE_SIZE]; // Oversize buffer for safety
     memset(max_msg, 'A', sizeof(max_msg));
 
     hive_status status = hive_ipc_notify(self, 0, max_msg, max_payload_size);
@@ -545,7 +567,8 @@ static void test12_selective_receive(void *arg) {
 
     // Use selective receive to filter by sender
     hive_message msg;
-    hive_status status = hive_ipc_recv_match(sender, HIVE_MSG_ANY, HIVE_TAG_ANY, &msg, 100);
+    hive_status status =
+        hive_ipc_recv_match(sender, HIVE_MSG_ANY, HIVE_TAG_ANY, &msg, 100);
 
     if (HIVE_SUCCEEDED(status)) {
         if (msg.sender == sender) {
@@ -556,12 +579,14 @@ static void test12_selective_receive(void *arg) {
             TEST_FAIL("wrong sender in filtered message");
         }
     } else {
-        printf("    recv_match failed: %s\n", status.msg ? status.msg : "unknown");
+        printf("    recv_match failed: %s\n",
+               status.msg ? status.msg : "unknown");
         TEST_FAIL("hive_ipc_recv_match failed");
     }
 
     // Drain remaining messages
-    while (HIVE_SUCCEEDED(hive_ipc_recv(&msg, 0))) {}
+    while (HIVE_SUCCEEDED(hive_ipc_recv(&msg, 0))) {
+    }
 
     hive_exit();
 }
@@ -636,7 +661,8 @@ static void test14_send_to_dead_actor(void *arg) {
 
 /* Number of messages to send in pool test - adjust for QEMU's smaller pool */
 #ifdef QEMU_TEST_STACK_SIZE
-#define POOL_TEST_MSG_COUNT 20  /* QEMU has pool size 32, leave room for overhead */
+#define POOL_TEST_MSG_COUNT \
+    20 /* QEMU has pool size 32, leave room for overhead */
 #else
 #define POOL_TEST_MSG_COUNT 100
 #endif
@@ -655,7 +681,8 @@ static void test15_message_pool_info(void *arg) {
         int data = i;
         hive_status status = hive_ipc_notify(self, 0, &data, sizeof(data));
         if (HIVE_FAILED(status)) {
-            printf("    Send failed at %d: %s\n", i, status.msg ? status.msg : "unknown");
+            printf("    Send failed at %d: %s\n", i,
+                   status.msg ? status.msg : "unknown");
             break;
         }
         sent++;
@@ -724,7 +751,7 @@ static void test17_spawn_death_cycle_leak(void *arg) {
     fflush(stdout);
 
     actor_id self = hive_self();
-    int cycles = 50;  // 50 spawn/death cycles
+    int cycles = 50; // 50 spawn/death cycles
     int messages_received = 0;
 
     for (int i = 0; i < cycles; i++) {
@@ -733,7 +760,8 @@ static void test17_spawn_death_cycle_leak(void *arg) {
         cfg.stack_size = TEST_STACK_SIZE(8 * 1024);
 
         actor_id child;
-        if (HIVE_FAILED(hive_spawn_ex(short_lived_actor, &self, &cfg, &child))) {
+        if (HIVE_FAILED(
+                hive_spawn_ex(short_lived_actor, &self, &cfg, &child))) {
             printf("    Spawn failed at cycle %d\n", i);
             break;
         }
@@ -833,7 +861,8 @@ int main(void) {
     printf("\n=== Results ===\n");
     printf("Passed: %d\n", tests_passed);
     printf("Failed: %d\n", tests_failed);
-    printf("\n%s\n", tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
+    printf("\n%s\n",
+           tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
 
     return tests_failed > 0 ? 1 : 0;
 }

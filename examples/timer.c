@@ -36,7 +36,7 @@ static void timer_actor(void *arg) {
 
     while (!done) {
         hive_message msg;
-        status = hive_ipc_recv(&msg, -1);  // Block until message
+        status = hive_ipc_recv(&msg, -1); // Block until message
         if (HIVE_FAILED(status)) {
             printf("Failed to receive message: %s\n", HIVE_ERR_STR(status));
             break;
@@ -57,7 +57,8 @@ static void timer_actor(void *arg) {
                     printf("Cancelling periodic timer...\n");
                     status = hive_timer_cancel(periodic);
                     if (HIVE_FAILED(status)) {
-                        printf("Failed to cancel timer: %s\n", HIVE_ERR_STR(status));
+                        printf("Failed to cancel timer: %s\n",
+                               HIVE_ERR_STR(status));
                     } else {
                         printf("Periodic timer cancelled\n");
                     }
@@ -80,7 +81,8 @@ int main(void) {
     // Initialize runtime
     hive_status status = hive_init();
     if (HIVE_FAILED(status)) {
-        fprintf(stderr, "Failed to initialize runtime: %s\n", HIVE_ERR_STR(status));
+        fprintf(stderr, "Failed to initialize runtime: %s\n",
+                HIVE_ERR_STR(status));
         return 1;
     }
 

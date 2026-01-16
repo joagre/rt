@@ -15,9 +15,23 @@
 static int tests_passed = 0;
 static int tests_failed = 0;
 
-#define TEST_PASS(name) do { printf("  PASS: %s\n", name); fflush(stdout); tests_passed++; } while(0)
-#define TEST_FAIL(name) do { printf("  FAIL: %s\n", name); fflush(stdout); tests_failed++; } while(0)
-#define TEST_KNOWN_BUG(name) do { printf("  KNOWN BUG: %s\n", name); fflush(stdout); } while(0)
+#define TEST_PASS(name)               \
+    do {                              \
+        printf("  PASS: %s\n", name); \
+        fflush(stdout);               \
+        tests_passed++;               \
+    } while (0)
+#define TEST_FAIL(name)               \
+    do {                              \
+        printf("  FAIL: %s\n", name); \
+        fflush(stdout);               \
+        tests_failed++;               \
+    } while (0)
+#define TEST_KNOWN_BUG(name)               \
+    do {                                   \
+        printf("  KNOWN BUG: %s\n", name); \
+        fflush(stdout);                    \
+    } while (0)
 
 // ============================================================================
 // Test 1: Basic spawn with default config
@@ -218,7 +232,8 @@ static void test5_actor_alive(void *arg) {
     if (alive_before && !alive_after) {
         TEST_PASS("hive_actor_alive returns correct status");
     } else {
-        printf("    alive_before=%d, alive_after=%d\n", alive_before, alive_after);
+        printf("    alive_before=%d, alive_after=%d\n", alive_before,
+               alive_after);
         TEST_FAIL("hive_actor_alive returned wrong status");
     }
 
@@ -232,7 +247,8 @@ static void test5_actor_alive(void *arg) {
     if (!hive_actor_alive(9999)) {
         TEST_PASS("hive_actor_alive returns false for non-existent actor");
     } else {
-        TEST_FAIL("hive_actor_alive should return false for non-existent actor");
+        TEST_FAIL(
+            "hive_actor_alive should return false for non-existent actor");
     }
 
     hive_exit();
@@ -247,7 +263,8 @@ static hive_priority_level g_captured_priority = HIVE_PRIORITY_NORMAL;
 static void priority_reporter_actor(void *arg) {
     (void)arg;
     // Can't directly access priority, but we can verify the actor runs
-    g_captured_priority = HIVE_PRIORITY_HIGH;  // Indicate we ran with expected priority
+    g_captured_priority =
+        HIVE_PRIORITY_HIGH; // Indicate we ran with expected priority
     hive_exit();
 }
 
@@ -461,7 +478,8 @@ static void test11_multiple_spawns(void *arg) {
     if (g_multi_spawn_count == MULTI_SPAWN_COUNT) {
         TEST_PASS("spawned and ran multiple actors");
     } else {
-        printf("    Only %d/%d actors ran\n", g_multi_spawn_count, MULTI_SPAWN_COUNT);
+        printf("    Only %d/%d actors ran\n", g_multi_spawn_count,
+               MULTI_SPAWN_COUNT);
         TEST_FAIL("not all actors ran");
     }
 
@@ -515,7 +533,8 @@ static void test12_actor_crash(void *arg) {
     if (exit_msg.reason == HIVE_EXIT_CRASH) {
         TEST_PASS("crash detected with HIVE_EXIT_CRASH");
     } else {
-        printf("    exit reason: %d (expected HIVE_EXIT_CRASH=%d)\n", exit_msg.reason, HIVE_EXIT_CRASH);
+        printf("    exit reason: %d (expected HIVE_EXIT_CRASH=%d)\n",
+               exit_msg.reason, HIVE_EXIT_CRASH);
         TEST_FAIL("wrong exit reason");
     }
 
@@ -530,13 +549,14 @@ static void wait_for_signal_actor(void *arg) {
     (void)arg;
     // Wait for signal from parent to exit
     hive_message msg;
-    hive_ipc_recv(&msg, 5000);  // Timeout after 5s in case parent dies
+    hive_ipc_recv(&msg, 5000); // Timeout after 5s in case parent dies
     hive_exit();
 }
 
 static void test13_actor_table_exhaustion(void *arg) {
     (void)arg;
-    printf("\nTest 13: Actor table exhaustion (HIVE_MAX_ACTORS=%d)\n", HIVE_MAX_ACTORS);
+    printf("\nTest 13: Actor table exhaustion (HIVE_MAX_ACTORS=%d)\n",
+           HIVE_MAX_ACTORS);
     fflush(stdout);
 
     // Use malloc stacks with small size to avoid arena exhaustion
@@ -552,7 +572,8 @@ static void test13_actor_table_exhaustion(void *arg) {
 
     for (int i = 0; i < HIVE_MAX_ACTORS; i++) {
         actor_id id;
-        if (HIVE_FAILED(hive_spawn_ex(wait_for_signal_actor, NULL, &cfg, &id))) {
+        if (HIVE_FAILED(
+                hive_spawn_ex(wait_for_signal_actor, NULL, &cfg, &id))) {
             // Exhaustion reached
             break;
         }
@@ -567,7 +588,8 @@ static void test13_actor_table_exhaustion(void *arg) {
     if (spawned >= HIVE_MAX_ACTORS - 4) {
         TEST_PASS("actor table exhaustion detected");
     } else {
-        printf("    Expected to spawn at least %d actors\n", HIVE_MAX_ACTORS - 4);
+        printf("    Expected to spawn at least %d actors\n",
+               HIVE_MAX_ACTORS - 4);
         TEST_FAIL("spawned fewer actors than expected");
     }
 
@@ -656,7 +678,8 @@ int main(void) {
     printf("\n=== Results ===\n");
     printf("Passed: %d\n", tests_passed);
     printf("Failed: %d\n", tests_failed);
-    printf("\n%s\n", tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
+    printf("\n%s\n",
+           tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
 
     return tests_failed > 0 ? 1 : 0;
 }

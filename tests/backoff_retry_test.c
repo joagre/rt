@@ -20,15 +20,16 @@ typedef struct {
 } test_args;
 
 // Message tags for selective receive
-#define TAG_DATA    0
-#define TAG_START   1
-#define TAG_DONE    2
+#define TAG_DATA 0
+#define TAG_START 1
+#define TAG_DONE 2
 
 // Receiver that processes messages
 void receiver_actor(void *arg) {
     (void)arg;
 
-    printf("Receiver: Started (ID: %u), mailbox count: %zu\n", hive_self(), hive_ipc_count());
+    printf("Receiver: Started (ID: %u), mailbox count: %zu\n", hive_self(),
+           hive_ipc_count());
     fflush(stdout);
 
     // Debug: Scan messages and show their tags
@@ -41,7 +42,7 @@ void receiver_actor(void *arg) {
     hive_message msg;
 
     while (scanned < 300) {
-        hive_status status = hive_ipc_recv(&msg, 0);  // Non-blocking
+        hive_status status = hive_ipc_recv(&msg, 0); // Non-blocking
         if (status.code == HIVE_ERR_WOULDBLOCK) {
             break;
         }
@@ -59,7 +60,8 @@ void receiver_actor(void *arg) {
 
             // Yield periodically
             if (scanned % 50 == 0) {
-                printf("Receiver: Processed %d messages, yielding...\n", scanned);
+                printf("Receiver: Processed %d messages, yielding...\n",
+                       scanned);
                 fflush(stdout);
                 hive_yield();
             }
@@ -76,7 +78,8 @@ void receiver_actor(void *arg) {
         printf("Receiver: Waiting for sender DONE signal...\n");
         fflush(stdout);
 
-        hive_status status = hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_ANY, TAG_DONE, &msg, 5000);
+        hive_status status = hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_ANY,
+                                                 TAG_DONE, &msg, 5000);
 
         if (HIVE_SUCCEEDED(status)) {
             printf("Receiver: Got DONE signal\n");
@@ -95,10 +98,12 @@ void sender_actor(void *arg) {
     test_args *args = (test_args *)arg;
     actor_id receiver = args->receiver;
 
-    printf("Sender: Started (ID: %u), receiver ID: %u\n", hive_self(), receiver);
+    printf("Sender: Started (ID: %u), receiver ID: %u\n", hive_self(),
+           receiver);
     fflush(stdout);
 
-    printf("\nSender: Filling pool with %d data messages (tag=%d)...\n", MESSAGES_TO_FILL_POOL, TAG_DATA);
+    printf("\nSender: Filling pool with %d data messages (tag=%d)...\n",
+           MESSAGES_TO_FILL_POOL, TAG_DATA);
     fflush(stdout);
 
     // Fill pool with data messages
@@ -107,10 +112,12 @@ void sender_actor(void *arg) {
 
     for (int i = 0; i < MESSAGES_TO_FILL_POOL; i++) {
         data++;
-        hive_status status = hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
+        hive_status status = hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY,
+                                                TAG_DATA, &data, sizeof(data));
         if (HIVE_FAILED(status)) {
             if (status.code == HIVE_ERR_NOMEM) {
-                printf("Sender: Pool exhausted after %d messages\n", sent_count);
+                printf("Sender: Pool exhausted after %d messages\n",
+                       sent_count);
                 break;
             }
         }
@@ -126,7 +133,8 @@ void sender_actor(void *arg) {
     int failed_count = 0;
     for (int i = 0; i < 50; i++) {
         data++;
-        hive_status status = hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
+        hive_status status = hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY,
+                                                TAG_DATA, &data, sizeof(data));
         if (status.code == HIVE_ERR_NOMEM) {
             failed_count++;
         } else if (HIVE_SUCCEEDED(status)) {
@@ -135,7 +143,8 @@ void sender_actor(void *arg) {
     }
 
     if (failed_count > 0) {
-        printf("Sender: ✓ HIVE_ERR_NOMEM on %d attempts (sent %d more)\n", failed_count, extra_sent);
+        printf("Sender: ✓ HIVE_ERR_NOMEM on %d attempts (sent %d more)\n",
+               failed_count, extra_sent);
     } else {
         printf("Sender: All 50 extra sends succeeded\n");
     }
@@ -143,9 +152,11 @@ void sender_actor(void *arg) {
     // Send START signal
     printf("\nSender: Sending START signal (tag=%d)...\n", TAG_START);
     fflush(stdout);
-    hive_status status = hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY, TAG_START, NULL, 0);
+    hive_status status =
+        hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY, TAG_START, NULL, 0);
     if (HIVE_FAILED(status)) {
-        printf("Sender: Failed to send START: %s\n", status.msg ? status.msg : "unknown");
+        printf("Sender: Failed to send START: %s\n",
+               status.msg ? status.msg : "unknown");
     } else {
         printf("Sender: START signal sent successfully\n");
     }
@@ -166,7 +177,8 @@ void sender_actor(void *arg) {
         hive_yield();
 
         data++;
-        status = hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY, TAG_DATA, &data, sizeof(data));
+        status = hive_ipc_notify_ex(receiver, HIVE_MSG_NOTIFY, TAG_DATA, &data,
+                                    sizeof(data));
 
         if (HIVE_SUCCEEDED(status)) {
             printf("Sender: ✓ Send succeeded on attempt %d!\n", attempt + 1);
@@ -177,12 +189,13 @@ void sender_actor(void *arg) {
         if (status.code == HIVE_ERR_NOMEM) {
             retry_count++;
             hive_message msg;
-            hive_ipc_recv(&msg, 5);  // Backoff 5ms
+            hive_ipc_recv(&msg, 5); // Backoff 5ms
             if (attempt % 10 == 0) {
                 printf("Sender: Attempt %d - pool exhausted\n", attempt + 1);
             }
         } else {
-            printf("Sender: Send failed: %s\n", status.msg ? status.msg : "unknown");
+            printf("Sender: Send failed: %s\n",
+                   status.msg ? status.msg : "unknown");
             break;
         }
     }
@@ -204,7 +217,8 @@ void sender_actor(void *arg) {
 
 int main(void) {
     printf("=== Backoff-Retry Test ===\n\n");
-    printf("Pool size: HIVE_MAILBOX_ENTRY_POOL_SIZE = %d\n", HIVE_MAILBOX_ENTRY_POOL_SIZE);
+    printf("Pool size: HIVE_MAILBOX_ENTRY_POOL_SIZE = %d\n",
+           HIVE_MAILBOX_ENTRY_POOL_SIZE);
     printf("Messages to send: %d\n\n", MESSAGES_TO_FILL_POOL);
     fflush(stdout);
 

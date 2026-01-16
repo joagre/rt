@@ -10,8 +10,16 @@
 static int tests_passed = 0;
 static int tests_failed = 0;
 
-#define TEST_PASS(name) do { printf("  PASS: %s\n", name); tests_passed++; } while(0)
-#define TEST_FAIL(name) do { printf("  FAIL: %s\n", name); tests_failed++; } while(0)
+#define TEST_PASS(name)               \
+    do {                              \
+        printf("  PASS: %s\n", name); \
+        tests_passed++;               \
+    } while (0)
+#define TEST_FAIL(name)               \
+    do {                              \
+        printf("  FAIL: %s\n", name); \
+        tests_failed++;               \
+    } while (0)
 
 // Test file path
 static const char *TEST_FILE = "/tmp/hive_file_test.tmp";
@@ -25,7 +33,8 @@ static void run_file_tests(void *arg) {
     printf("\nTest 1: Open file for writing (create)\n");
     int fd = -1;
     {
-        hive_status status = hive_file_open(TEST_FILE, HIVE_O_WRONLY | HIVE_O_CREAT | HIVE_O_TRUNC, 0644, &fd);
+        hive_status status = hive_file_open(
+            TEST_FILE, HIVE_O_WRONLY | HIVE_O_CREAT | HIVE_O_TRUNC, 0644, &fd);
         if (HIVE_FAILED(status)) {
             printf("    Error: %s\n", status.msg ? status.msg : "unknown");
             TEST_FAIL("hive_file_open for write");
@@ -178,7 +187,8 @@ static void run_file_tests(void *arg) {
     // ========================================================================
     printf("\nTest 9: Open non-existent file fails\n");
     {
-        hive_status status = hive_file_open("/tmp/nonexistent_rt_test_file_xyz.tmp", HIVE_O_RDONLY, 0, &fd);
+        hive_status status = hive_file_open(
+            "/tmp/nonexistent_rt_test_file_xyz.tmp", HIVE_O_RDONLY, 0, &fd);
         if (HIVE_FAILED(status)) {
             TEST_PASS("open non-existent file fails");
         } else {
@@ -236,7 +246,8 @@ static void run_file_tests(void *arg) {
     printf("\nTest 13: pread beyond EOF\n");
     {
         // Create a small test file
-        hive_status status = hive_file_open(TEST_FILE, HIVE_O_WRONLY | HIVE_O_CREAT | HIVE_O_TRUNC, 0644, &fd);
+        hive_status status = hive_file_open(
+            TEST_FILE, HIVE_O_WRONLY | HIVE_O_CREAT | HIVE_O_TRUNC, 0644, &fd);
         if (HIVE_SUCCEEDED(status)) {
             const char *data = "short";
             size_t written = 0;
@@ -330,7 +341,8 @@ static void run_file_tests(void *arg) {
     printf("\n=== Results ===\n");
     printf("Passed: %d\n", tests_passed);
     printf("Failed: %d\n", tests_failed);
-    printf("\n%s\n", tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
+    printf("\n%s\n",
+           tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
 
     hive_exit();
 }

@@ -14,7 +14,7 @@ static void worker_actor(void *arg) {
 
     // Simulate some work with random duration
     srand(time(NULL) + worker_id);
-    uint64_t work_time = 200000 + (rand() % 400000);  // 200-600ms
+    uint64_t work_time = 200000 + (rand() % 400000); // 200-600ms
 
     timer_id work_timer;
     hive_timer_after(work_time, &work_timer);
@@ -32,8 +32,8 @@ static void supervisor_actor(void *arg) {
 
     printf("Supervisor started (Actor ID: %u)\n", hive_self());
 
-    // Spawn 3 workers
-    #define NUM_WORKERS 3
+// Spawn 3 workers
+#define NUM_WORKERS 3
     uint32_t monitor_refs[NUM_WORKERS];
     int worker_ids[NUM_WORKERS] = {1, 2, 3};
 
@@ -44,7 +44,8 @@ static void supervisor_actor(void *arg) {
         worker_cfg.name = "worker";
 
         actor_id worker;
-        if (HIVE_FAILED(hive_spawn_ex(worker_actor, &worker_ids[i], &worker_cfg, &worker))) {
+        if (HIVE_FAILED(hive_spawn_ex(worker_actor, &worker_ids[i], &worker_cfg,
+                                      &worker))) {
             printf("Supervisor: Failed to spawn worker %d\n", i + 1);
             continue;
         }
@@ -52,7 +53,8 @@ static void supervisor_actor(void *arg) {
         // Monitor the worker
         hive_status status = hive_monitor(worker, &monitor_refs[i]);
         if (HIVE_FAILED(status)) {
-            printf("Supervisor: Failed to monitor worker %d: %s\n", i + 1, HIVE_ERR_STR(status));
+            printf("Supervisor: Failed to monitor worker %d: %s\n", i + 1,
+                   HIVE_ERR_STR(status));
         } else {
             printf("Supervisor: Monitoring worker %d (Actor ID: %u, ref: %u)\n",
                    i + 1, worker, monitor_refs[i]);
@@ -80,7 +82,8 @@ static void supervisor_actor(void *arg) {
 
             workers_completed++;
         } else {
-            printf("Supervisor: Received unexpected message from %u\n", msg.sender);
+            printf("Supervisor: Received unexpected message from %u\n",
+                   msg.sender);
         }
     }
 
@@ -94,7 +97,8 @@ int main(void) {
     // Initialize runtime
     hive_status status = hive_init();
     if (HIVE_FAILED(status)) {
-        fprintf(stderr, "Failed to initialize runtime: %s\n", HIVE_ERR_STR(status));
+        fprintf(stderr, "Failed to initialize runtime: %s\n",
+                HIVE_ERR_STR(status));
         return 1;
     }
 
@@ -102,13 +106,14 @@ int main(void) {
     actor_config sup_cfg = HIVE_ACTOR_CONFIG_DEFAULT;
     sup_cfg.name = "supervisor";
 #ifdef QEMU_TEST_STACK_SIZE
-    sup_cfg.stack_size = 2048;  // Reduced for QEMU
+    sup_cfg.stack_size = 2048; // Reduced for QEMU
 #else
-    sup_cfg.stack_size = 128 * 1024;  // 128KB stack
+    sup_cfg.stack_size = 128 * 1024; // 128KB stack
 #endif
 
     actor_id supervisor;
-    if (HIVE_FAILED(hive_spawn_ex(supervisor_actor, NULL, &sup_cfg, &supervisor))) {
+    if (HIVE_FAILED(
+            hive_spawn_ex(supervisor_actor, NULL, &sup_cfg, &supervisor))) {
         fprintf(stderr, "Failed to spawn supervisor\n");
         hive_cleanup();
         return 1;

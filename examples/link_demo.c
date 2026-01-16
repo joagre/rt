@@ -17,7 +17,7 @@ static void actor_a(void *arg) {
 
     // Wait a bit for B to spawn
     timer_id wait_timer;
-    hive_timer_after(100000, &wait_timer);  // 100ms
+    hive_timer_after(100000, &wait_timer); // 100ms
 
     hive_message msg;
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, wait_timer, &msg, -1);
@@ -41,7 +41,8 @@ static void actor_a(void *arg) {
 
         printf("Actor A: Received exit notification!\n");
         printf("Actor A:   Died actor: %u\n", exit_info->actor);
-        printf("Actor A:   Exit reason: %s\n", hive_exit_reason_str(exit_info->reason));
+        printf("Actor A:   Exit reason: %s\n",
+               hive_exit_reason_str(exit_info->reason));
     } else {
         printf("Actor A: Received unexpected message from %u\n", msg.sender);
     }
@@ -74,7 +75,8 @@ int main(void) {
     // Initialize runtime
     hive_status status = hive_init();
     if (HIVE_FAILED(status)) {
-        fprintf(stderr, "Failed to initialize runtime: %s\n", HIVE_ERR_STR(status));
+        fprintf(stderr, "Failed to initialize runtime: %s\n",
+                HIVE_ERR_STR(status));
         return 1;
     }
 
@@ -95,7 +97,8 @@ int main(void) {
         return 1;
     }
 
-    printf("Spawned Actor A (ID: %u) and Actor B (ID: %u)\n\n", g_actor_a, g_actor_b);
+    printf("Spawned Actor A (ID: %u) and Actor B (ID: %u)\n\n", g_actor_a,
+           g_actor_b);
 
     // Run scheduler
     hive_run();

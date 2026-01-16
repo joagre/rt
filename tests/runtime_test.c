@@ -14,8 +14,18 @@
 static int tests_passed = 0;
 static int tests_failed = 0;
 
-#define TEST_PASS(name) do { printf("  PASS: %s\n", name); fflush(stdout); tests_passed++; } while(0)
-#define TEST_FAIL(name) do { printf("  FAIL: %s\n", name); fflush(stdout); tests_failed++; } while(0)
+#define TEST_PASS(name)               \
+    do {                              \
+        printf("  PASS: %s\n", name); \
+        fflush(stdout);               \
+        tests_passed++;               \
+    } while (0)
+#define TEST_FAIL(name)               \
+    do {                              \
+        printf("  FAIL: %s\n", name); \
+        fflush(stdout);               \
+        tests_failed++;               \
+    } while (0)
 
 // ============================================================================
 // Test 1: hive_init returns success
@@ -39,7 +49,8 @@ static void test1_init_success(void) {
 static void test2_self_outside_actor(void *arg) {
     (void)arg;
     printf("\nTest 2: hive_self outside actor context\n");
-    printf("    NOTE: Cannot test from within actor - would need separate process\n");
+    printf("    NOTE: Cannot test from within actor - would need separate "
+           "process\n");
     printf("    Expected: Should return ACTOR_ID_INVALID or crash\n");
     fflush(stdout);
 
@@ -219,7 +230,8 @@ static void test5_many_actors(void *arg) {
         printf("    Spawned and ran %d actors\n", MANY_ACTORS);
         TEST_PASS("scheduler handles many actors");
     } else {
-        printf("    Spawned %d, ran %d/%d actors\n", spawned, g_many_actors_count, MANY_ACTORS);
+        printf("    Spawned %d, ran %d/%d actors\n", spawned,
+               g_many_actors_count, MANY_ACTORS);
         if (spawned < MANY_ACTORS) {
             TEST_FAIL("could not spawn all actors (actor table full?)");
         } else {
@@ -292,10 +304,11 @@ static void test7_stack_sizes(void *arg) {
 
     // Small stack
     actor_config small_cfg = HIVE_ACTOR_CONFIG_DEFAULT;
-    small_cfg.stack_size = TEST_STACK_SIZE(8 * 1024);  // 8KB
+    small_cfg.stack_size = TEST_STACK_SIZE(8 * 1024); // 8KB
 
     actor_id small;
-    if (HIVE_SUCCEEDED(hive_spawn_ex(small_stack_actor, NULL, &small_cfg, &small))) {
+    if (HIVE_SUCCEEDED(
+            hive_spawn_ex(small_stack_actor, NULL, &small_cfg, &small))) {
         hive_link(small);
         hive_message msg;
         hive_ipc_recv(&msg, 500);
@@ -311,10 +324,11 @@ static void test7_stack_sizes(void *arg) {
 
     // Large stack
     actor_config large_cfg = HIVE_ACTOR_CONFIG_DEFAULT;
-    large_cfg.stack_size = TEST_STACK_SIZE(32 * 1024);  // 32KB
+    large_cfg.stack_size = TEST_STACK_SIZE(32 * 1024); // 32KB
 
     actor_id large;
-    if (HIVE_SUCCEEDED(hive_spawn_ex(large_stack_actor, NULL, &large_cfg, &large))) {
+    if (HIVE_SUCCEEDED(
+            hive_spawn_ex(large_stack_actor, NULL, &large_cfg, &large))) {
         hive_link(large);
         hive_message msg;
         hive_ipc_recv(&msg, 500);
@@ -355,7 +369,8 @@ static void test8_priorities(void *arg) {
     }
 
     // Spawn actors in reverse priority order (LOW first, CRITICAL last)
-    static int levels[4] = {HIVE_PRIORITY_LOW, HIVE_PRIORITY_NORMAL, HIVE_PRIORITY_HIGH, HIVE_PRIORITY_CRITICAL};
+    static int levels[4] = {HIVE_PRIORITY_LOW, HIVE_PRIORITY_NORMAL,
+                            HIVE_PRIORITY_HIGH, HIVE_PRIORITY_CRITICAL};
     actor_id ids[4];
 
     for (int i = 0; i < 4; i++) {
@@ -380,7 +395,8 @@ static void test8_priorities(void *arg) {
            g_priority_order[HIVE_PRIORITY_LOW]);
     fflush(stdout);
 
-    if (g_priority_order[HIVE_PRIORITY_CRITICAL] < g_priority_order[HIVE_PRIORITY_LOW]) {
+    if (g_priority_order[HIVE_PRIORITY_CRITICAL] <
+        g_priority_order[HIVE_PRIORITY_LOW]) {
         TEST_PASS("higher priority actors run before lower priority");
     } else {
         TEST_FAIL("priority order not respected");
@@ -394,12 +410,8 @@ static void test8_priorities(void *arg) {
 // ============================================================================
 
 static void (*test_funcs[])(void *) = {
-    test2_self_outside_actor,
-    test3_yield,
-    test4_actor_alive,
-    test5_many_actors,
-    test6_shutdown,
-    test7_stack_sizes,
+    test2_self_outside_actor, test3_yield,    test4_actor_alive,
+    test5_many_actors,        test6_shutdown, test7_stack_sizes,
     test8_priorities,
 };
 
@@ -458,7 +470,8 @@ int main(void) {
     printf("\n=== Results ===\n");
     printf("Passed: %d\n", tests_passed);
     printf("Failed: %d\n", tests_failed);
-    printf("\n%s\n", tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
+    printf("\n%s\n",
+           tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
 
     return tests_failed > 0 ? 1 : 0;
 }

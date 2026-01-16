@@ -15,8 +15,16 @@
 static int tests_passed = 0;
 static int tests_failed = 0;
 
-#define TEST_PASS(name) do { printf("  PASS: %s\n", name); tests_passed++; } while(0)
-#define TEST_FAIL(name) do { printf("  FAIL: %s\n", name); tests_failed++; } while(0)
+#define TEST_PASS(name)               \
+    do {                              \
+        printf("  PASS: %s\n", name); \
+        tests_passed++;               \
+    } while (0)
+#define TEST_FAIL(name)               \
+    do {                              \
+        printf("  FAIL: %s\n", name); \
+        tests_failed++;               \
+    } while (0)
 
 // ============================================================================
 // Test 1: Basic link - both actors notified when one dies
@@ -53,7 +61,7 @@ static void actor_b_exits_immediately(void *arg) {
     (void)arg;
     // Give actor A time to link
     timer_id timer;
-    hive_timer_after(50000, &timer);  // 50ms
+    hive_timer_after(50000, &timer); // 50ms
     hive_message msg;
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
 
@@ -244,7 +252,7 @@ static void test4_link_invalid(void *arg) {
         TEST_FAIL("hive_link should reject ACTOR_ID_INVALID");
     }
 
-    status = hive_link(9999);  // Non-existent actor
+    status = hive_link(9999); // Non-existent actor
     if (HIVE_FAILED(status)) {
         TEST_PASS("hive_link rejects non-existent actor");
     } else {
@@ -302,7 +310,8 @@ static void test5_multiple_links(void *arg) {
     static actor_id targets[3];
 
     for (int i = 0; i < 3; i++) {
-        if (HIVE_FAILED(hive_spawn(multi_link_target, &delays[i], &targets[i]))) {
+        if (HIVE_FAILED(
+                hive_spawn(multi_link_target, &delays[i], &targets[i]))) {
             TEST_FAIL("spawn target");
             hive_exit();
         }
@@ -358,14 +367,14 @@ static void monitor_target_waits(void *arg) {
 static void linker_actor(void *arg) {
     actor_id target = *(actor_id *)arg;
     hive_link(target);
-    hive_exit();  // Die immediately
+    hive_exit(); // Die immediately
 }
 
 static void monitor_actor(void *arg) {
     actor_id target = *(actor_id *)arg;
     uint32_t ref;
     hive_monitor(target, &ref);
-    hive_exit();  // Die immediately
+    hive_exit(); // Die immediately
 }
 
 static void test6_link_vs_monitor(void *arg) {
@@ -402,7 +411,8 @@ static void test6_link_vs_monitor(void *arg) {
     }
 
     if (!g_monitor_target_got_notification) {
-        TEST_PASS("monitor target NOT notified when monitor dies (unidirectional)");
+        TEST_PASS(
+            "monitor target NOT notified when monitor dies (unidirectional)");
     } else {
         TEST_FAIL("monitor target should NOT be notified");
     }
@@ -438,14 +448,14 @@ static void normal_exit_actor(void *arg) {
     hive_timer_after(50000, &timer);
     hive_message msg;
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
-    hive_exit();  // Normal exit
+    hive_exit(); // Normal exit
 }
 
 static void test7_exit_reason(void *arg) {
     (void)arg;
     printf("\nTest 7: Exit reason in link notification\n");
 
-    g_received_reason = (hive_exit_reason)99;  // Invalid value
+    g_received_reason = (hive_exit_reason)99; // Invalid value
 
     actor_id target;
     hive_spawn(normal_exit_actor, NULL, &target);
@@ -460,7 +470,8 @@ static void test7_exit_reason(void *arg) {
     if (g_received_reason == HIVE_EXIT_NORMAL) {
         TEST_PASS("exit reason is HIVE_EXIT_NORMAL for normal exit");
     } else {
-        printf("    Got reason: %d, expected: %d\n", g_received_reason, HIVE_EXIT_NORMAL);
+        printf("    Got reason: %d, expected: %d\n", g_received_reason,
+               HIVE_EXIT_NORMAL);
         TEST_FAIL("wrong exit reason");
     }
 
@@ -635,7 +646,8 @@ static void test12_link_pool_exhaustion(void *arg) {
         cfg.stack_size = TEST_STACK_SIZE(8 * 1024);
 
         actor_id target;
-        if (HIVE_FAILED(hive_spawn_ex(link_pool_target_actor, NULL, &cfg, &target))) {
+        if (HIVE_FAILED(
+                hive_spawn_ex(link_pool_target_actor, NULL, &cfg, &target))) {
             break;
         }
         targets[spawned++] = target;
@@ -680,18 +692,12 @@ static void test12_link_pool_exhaustion(void *arg) {
 // ============================================================================
 
 static void (*test_funcs[])(void *) = {
-    test1_basic_link,
-    test2_bidirectional,
-    test3_unlink,
-    test4_link_invalid,
-    test5_multiple_links,
-    test6_link_vs_monitor,
-    test7_exit_reason,
-    test8_link_to_dead_actor,
-    test9_link_to_self,
-    test10_unlink_non_linked,
-    test11_unlink_invalid,
-    test12_link_pool_exhaustion,
+    test1_basic_link,      test2_bidirectional,
+    test3_unlink,          test4_link_invalid,
+    test5_multiple_links,  test6_link_vs_monitor,
+    test7_exit_reason,     test8_link_to_dead_actor,
+    test9_link_to_self,    test10_unlink_non_linked,
+    test11_unlink_invalid, test12_link_pool_exhaustion,
 };
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
@@ -744,7 +750,8 @@ int main(void) {
     printf("\n=== Results ===\n");
     printf("Passed: %d\n", tests_passed);
     printf("Failed: %d\n", tests_failed);
-    printf("\n%s\n", tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
+    printf("\n%s\n",
+           tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
 
     return tests_failed > 0 ? 1 : 0;
 }

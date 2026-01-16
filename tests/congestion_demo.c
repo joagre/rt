@@ -24,7 +24,7 @@ void worker_actor(void *arg) {
 
     while (true) {
         hive_message msg;
-        hive_status status = hive_ipc_recv(&msg, 500);  // 500ms timeout
+        hive_status status = hive_ipc_recv(&msg, 500); // 500ms timeout
 
         if (status.code == HIVE_ERR_TIMEOUT) {
             // No more work
@@ -56,28 +56,32 @@ void coordinator_actor(void *arg) {
         for (int w = 0; w < args->worker_count; w++) {
             int data = burst * NUM_WORKERS + w;
 
-            hive_status status = hive_ipc_notify(args->workers[w], 0, &data, sizeof(data));
+            hive_status status =
+                hive_ipc_notify(args->workers[w], 0, &data, sizeof(data));
 
             if (status.code == HIVE_ERR_NOMEM) {
                 retry_needed++;
 
                 if (retry_needed == 1) {
-                    printf("Coordinator: Pool exhausted! Using backoff-retry...\n");
+                    printf("Coordinator: Pool exhausted! Using "
+                           "backoff-retry...\n");
                 }
 
                 // Backoff-retry pattern
                 hive_message msg;
-                hive_ipc_recv(&msg, 5);  // Backoff 5ms
+                hive_ipc_recv(&msg, 5); // Backoff 5ms
 
                 // Retry
-                status = hive_ipc_notify(args->workers[w], 0, &data, sizeof(data));
+                status =
+                    hive_ipc_notify(args->workers[w], 0, &data, sizeof(data));
                 if (HIVE_SUCCEEDED(status)) {
                     retry_success++;
                     total_sent++;
                 } else {
                     // Even retry failed - aggressive backoff
                     hive_ipc_recv(&msg, 20);
-                    status = hive_ipc_notify(args->workers[w], 0, &data, sizeof(data));
+                    status = hive_ipc_notify(args->workers[w], 0, &data,
+                                             sizeof(data));
                     if (HIVE_SUCCEEDED(status)) {
                         retry_success++;
                         total_sent++;
@@ -101,7 +105,8 @@ void coordinator_actor(void *arg) {
 
     if (retry_needed > 0) {
         printf("\n✓ Backoff-retry handled temporary congestion\n");
-        printf("  Without retry, %d messages would have been lost\n", retry_needed);
+        printf("  Without retry, %d messages would have been lost\n",
+               retry_needed);
     }
 
     hive_exit();

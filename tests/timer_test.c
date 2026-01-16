@@ -14,8 +14,16 @@
 static int tests_passed = 0;
 static int tests_failed = 0;
 
-#define TEST_PASS(name) do { printf("  PASS: %s\n", name); tests_passed++; } while(0)
-#define TEST_FAIL(name) do { printf("  FAIL: %s\n", name); tests_failed++; } while(0)
+#define TEST_PASS(name)               \
+    do {                              \
+        printf("  PASS: %s\n", name); \
+        tests_passed++;               \
+    } while (0)
+#define TEST_FAIL(name)               \
+    do {                              \
+        printf("  FAIL: %s\n", name); \
+        tests_failed++;               \
+    } while (0)
 
 // Helper to get current time in milliseconds
 static uint64_t time_ms(void) {
@@ -33,7 +41,7 @@ static void run_timer_tests(void *arg) {
     printf("\nTest 1: One-shot timer (hive_timer_after)\n");
     {
         timer_id timer;
-        hive_status status = hive_timer_after(100000, &timer);  // 100ms
+        hive_status status = hive_timer_after(100000, &timer); // 100ms
         if (HIVE_FAILED(status)) {
             TEST_FAIL("hive_timer_after failed");
         } else if (timer == TIMER_ID_INVALID) {
@@ -41,7 +49,7 @@ static void run_timer_tests(void *arg) {
         } else {
             uint64_t start = time_ms();
             hive_message msg;
-            status = hive_ipc_recv(&msg, -1);  // Wait indefinitely
+            status = hive_ipc_recv(&msg, -1); // Wait indefinitely
             uint64_t elapsed = time_ms() - start;
 
             if (HIVE_FAILED(status)) {
@@ -49,10 +57,12 @@ static void run_timer_tests(void *arg) {
             } else if (!hive_msg_is_timer(&msg)) {
                 TEST_FAIL("message is not a timer tick");
             } else if (elapsed >= 80 && elapsed <= 200) {
-                printf("    Timer fired after %lu ms (expected ~100ms)\n", (unsigned long)elapsed);
+                printf("    Timer fired after %lu ms (expected ~100ms)\n",
+                       (unsigned long)elapsed);
                 TEST_PASS("one-shot timer fires at correct time");
             } else {
-                printf("    Timer fired after %lu ms (expected ~100ms)\n", (unsigned long)elapsed);
+                printf("    Timer fired after %lu ms (expected ~100ms)\n",
+                       (unsigned long)elapsed);
                 TEST_FAIL("timer fired at wrong time");
             }
         }
@@ -64,14 +74,14 @@ static void run_timer_tests(void *arg) {
     printf("\nTest 2: Timer cancellation\n");
     {
         timer_id timer;
-        hive_timer_after(100000, &timer);  // 100ms
+        hive_timer_after(100000, &timer); // 100ms
 
         hive_status status = hive_timer_cancel(timer);
         if (HIVE_FAILED(status)) {
             TEST_FAIL("hive_timer_cancel failed");
         } else {
             hive_message msg;
-            status = hive_ipc_recv(&msg, 200);  // 200ms timeout
+            status = hive_ipc_recv(&msg, 200); // 200ms timeout
 
             if (status.code == HIVE_ERR_TIMEOUT) {
                 TEST_PASS("cancelled timer does not fire");
@@ -101,7 +111,8 @@ static void run_timer_tests(void *arg) {
         } else if (msg.sender == hive_self()) {
             TEST_PASS("timer message sender is the owning actor");
         } else {
-            printf("    Sender: %u, expected: %u (self)\n", msg.sender, hive_self());
+            printf("    Sender: %u, expected: %u (self)\n", msg.sender,
+                   hive_self());
             TEST_FAIL("wrong sender ID");
         }
     }
@@ -164,7 +175,7 @@ static void run_timer_tests(void *arg) {
         timer_id timer;
         uint64_t start = time_ms();
 
-        hive_timer_after(10000, &timer);  // 10ms
+        hive_timer_after(10000, &timer); // 10ms
 
         hive_message msg;
         hive_status status = hive_ipc_recv(&msg, -1);
@@ -172,7 +183,8 @@ static void run_timer_tests(void *arg) {
         uint64_t elapsed = time_ms() - start;
 
         if (HIVE_SUCCEEDED(status) && hive_msg_is_timer(&msg)) {
-            printf("    Short timer fired after %lu ms\n", (unsigned long)elapsed);
+            printf("    Short timer fired after %lu ms\n",
+                   (unsigned long)elapsed);
             TEST_PASS("short delay timer works");
         } else {
             TEST_FAIL("short delay timer did not fire");
@@ -187,7 +199,7 @@ static void run_timer_tests(void *arg) {
     printf("\nTest 7: Periodic timer (hive_timer_every)\n");
     {
         timer_id timer;
-        hive_status status = hive_timer_every(50000, &timer);  // 50ms interval
+        hive_status status = hive_timer_every(50000, &timer); // 50ms interval
         if (HIVE_FAILED(status)) {
             TEST_FAIL("hive_timer_every failed to create timer");
         } else {
@@ -197,9 +209,10 @@ static void run_timer_tests(void *arg) {
             // Try to receive 5 ticks
             for (int i = 0; i < 5; i++) {
                 hive_message msg;
-                status = hive_ipc_recv(&msg, 200);  // 200ms timeout per tick
+                status = hive_ipc_recv(&msg, 200); // 200ms timeout per tick
                 if (HIVE_FAILED(status)) {
-                    printf("    Tick %d: recv failed (timeout or error)\n", i + 1);
+                    printf("    Tick %d: recv failed (timeout or error)\n",
+                           i + 1);
                     break;
                 }
                 if (hive_msg_is_timer(&msg)) {
@@ -211,10 +224,12 @@ static void run_timer_tests(void *arg) {
             hive_timer_cancel(timer);
 
             if (tick_count >= 5) {
-                printf("    Received %d ticks in %lu ms\n", tick_count, (unsigned long)elapsed);
+                printf("    Received %d ticks in %lu ms\n", tick_count,
+                       (unsigned long)elapsed);
                 TEST_PASS("periodic timer fires multiple times");
             } else {
-                printf("    Only received %d/5 ticks in %lu ms\n", tick_count, (unsigned long)elapsed);
+                printf("    Only received %d/5 ticks in %lu ms\n", tick_count,
+                       (unsigned long)elapsed);
                 TEST_FAIL("periodic timer did not fire enough times");
             }
         }
@@ -229,9 +244,9 @@ static void run_timer_tests(void *arg) {
     {
         timer_id timer1, timer2, timer3;
 
-        hive_status s1 = hive_timer_after(50000, &timer1);   // 50ms
-        hive_status s2 = hive_timer_after(100000, &timer2);  // 100ms
-        hive_status s3 = hive_timer_after(150000, &timer3);  // 150ms
+        hive_status s1 = hive_timer_after(50000, &timer1);  // 50ms
+        hive_status s2 = hive_timer_after(100000, &timer2); // 100ms
+        hive_status s3 = hive_timer_after(150000, &timer3); // 150ms
 
         if (HIVE_FAILED(s1) || HIVE_FAILED(s2) || HIVE_FAILED(s3)) {
             TEST_FAIL("failed to create multiple timers");
@@ -241,14 +256,15 @@ static void run_timer_tests(void *arg) {
 
             for (int i = 0; i < 3; i++) {
                 hive_message msg;
-                hive_status status = hive_ipc_recv(&msg, 300);  // 300ms timeout
+                hive_status status = hive_ipc_recv(&msg, 300); // 300ms timeout
                 if (HIVE_FAILED(status)) {
                     printf("    Timer %d: recv failed\n", i + 1);
                     continue;
                 }
                 if (hive_msg_is_timer(&msg)) {
                     uint64_t elapsed = time_ms() - start;
-                    printf("    Timer tick %d received at %lu ms\n", received + 1, (unsigned long)elapsed);
+                    printf("    Timer tick %d received at %lu ms\n",
+                           received + 1, (unsigned long)elapsed);
                     received++;
                 }
             }
@@ -268,7 +284,7 @@ static void run_timer_tests(void *arg) {
     printf("\nTest 9: Cancel periodic timer\n");
     {
         timer_id timer;
-        hive_status status = hive_timer_every(30000, &timer);  // 30ms interval
+        hive_status status = hive_timer_every(30000, &timer); // 30ms interval
         if (HIVE_FAILED(status)) {
             TEST_FAIL("hive_timer_every failed");
         } else {
@@ -276,7 +292,7 @@ static void run_timer_tests(void *arg) {
             int ticks = 0;
             for (int i = 0; i < 3; i++) {
                 hive_message msg;
-                status = hive_ipc_recv(&msg, 100);  // 100ms timeout
+                status = hive_ipc_recv(&msg, 100); // 100ms timeout
                 if (HIVE_SUCCEEDED(status) && hive_msg_is_timer(&msg)) {
                     ticks++;
                 }
@@ -289,10 +305,12 @@ static void run_timer_tests(void *arg) {
             } else {
                 // Wait and ensure no more ticks arrive
                 hive_message msg;
-                status = hive_ipc_recv(&msg, 100);  // 100ms
+                status = hive_ipc_recv(&msg, 100); // 100ms
 
                 if (status.code == HIVE_ERR_TIMEOUT) {
-                    printf("    Received %d ticks before cancel, then stopped\n", ticks);
+                    printf(
+                        "    Received %d ticks before cancel, then stopped\n",
+                        ticks);
                     TEST_PASS("periodic timer stops after cancel");
                 } else if (HIVE_SUCCEEDED(status) && hive_msg_is_timer(&msg)) {
                     TEST_FAIL("received tick after cancel");
@@ -314,9 +332,12 @@ static void run_timer_tests(void *arg) {
 
         // Create timers until pool exhaustion
         for (int i = 0; i < HIVE_TIMER_ENTRY_POOL_SIZE + 10; i++) {
-            hive_status status = hive_timer_after(10000000, &timers[i]);  // 10 second delay (won't fire)
+            hive_status status = hive_timer_after(
+                10000000, &timers[i]); // 10 second delay (won't fire)
             if (HIVE_FAILED(status)) {
-                printf("    Timer creation failed after %d timers (pool exhausted)\n", created);
+                printf("    Timer creation failed after %d timers (pool "
+                       "exhausted)\n",
+                       created);
                 break;
             }
             created++;
@@ -343,16 +364,18 @@ static void run_timer_tests(void *arg) {
         timer_id timer;
         uint64_t start = time_ms();
 
-        hive_status status = hive_timer_after(0, &timer);  // 0 delay - should fire immediately
+        hive_status status =
+            hive_timer_after(0, &timer); // 0 delay - should fire immediately
         if (HIVE_FAILED(status)) {
             TEST_FAIL("hive_timer_after(0) failed");
         } else {
             hive_message msg;
-            status = hive_ipc_recv(&msg, 100);  // 100ms timeout
+            status = hive_ipc_recv(&msg, 100); // 100ms timeout
             uint64_t elapsed = time_ms() - start;
 
             if (HIVE_SUCCEEDED(status) && hive_msg_is_timer(&msg)) {
-                printf("    Zero delay timer fired after %lu ms\n", (unsigned long)elapsed);
+                printf("    Zero delay timer fired after %lu ms\n",
+                       (unsigned long)elapsed);
                 TEST_PASS("zero delay timer fires immediately");
             } else {
                 TEST_FAIL("zero delay timer did not fire");
@@ -379,7 +402,7 @@ static void run_timer_tests(void *arg) {
             int ticks = 0;
             for (int i = 0; i < 5; i++) {
                 hive_message msg;
-                status = hive_ipc_recv(&msg, 10);  // 10ms timeout
+                status = hive_ipc_recv(&msg, 10); // 10ms timeout
                 if (HIVE_SUCCEEDED(status) && hive_msg_is_timer(&msg)) {
                     ticks++;
                 }
@@ -388,7 +411,8 @@ static void run_timer_tests(void *arg) {
             hive_timer_cancel(timer);
 
             if (ticks > 0) {
-                printf("    Zero-interval timer fired %d times in 50ms\n", ticks);
+                printf("    Zero-interval timer fired %d times in 50ms\n",
+                       ticks);
                 TEST_PASS("hive_timer_every(0) handled safely");
             } else {
                 TEST_FAIL("zero-interval timer created but never fired");
@@ -402,16 +426,18 @@ static void run_timer_tests(void *arg) {
     printf("\nTest 13: hive_sleep basic functionality\n");
     {
         uint64_t start = time_ms();
-        hive_status status = hive_sleep(100000);  // 100ms
+        hive_status status = hive_sleep(100000); // 100ms
         uint64_t elapsed = time_ms() - start;
 
         if (HIVE_FAILED(status)) {
             TEST_FAIL("hive_sleep failed");
         } else if (elapsed >= 80 && elapsed <= 200) {
-            printf("    hive_sleep(100ms) took %lu ms\n", (unsigned long)elapsed);
+            printf("    hive_sleep(100ms) took %lu ms\n",
+                   (unsigned long)elapsed);
             TEST_PASS("hive_sleep sleeps for correct duration");
         } else {
-            printf("    hive_sleep(100ms) took %lu ms (expected ~100ms)\n", (unsigned long)elapsed);
+            printf("    hive_sleep(100ms) took %lu ms (expected ~100ms)\n",
+                   (unsigned long)elapsed);
             TEST_FAIL("hive_sleep duration incorrect");
         }
     }
@@ -423,10 +449,12 @@ static void run_timer_tests(void *arg) {
     {
         uint64_t t1 = hive_get_time();
         // Small busy loop to let some time pass
-        for (volatile int i = 0; i < 10000; i++) { }
+        for (volatile int i = 0; i < 10000; i++) {
+        }
         uint64_t t2 = hive_get_time();
         // Another small delay
-        for (volatile int i = 0; i < 10000; i++) { }
+        for (volatile int i = 0; i < 10000; i++) {
+        }
         uint64_t t3 = hive_get_time();
 
         if (t2 >= t1 && t3 >= t2) {
@@ -446,16 +474,18 @@ static void run_timer_tests(void *arg) {
     printf("\nTest 15: hive_get_time measures elapsed time\n");
     {
         uint64_t start = hive_get_time();
-        hive_sleep(100000);  // Sleep 100ms
+        hive_sleep(100000); // Sleep 100ms
         uint64_t end = hive_get_time();
         uint64_t elapsed_us = end - start;
 
         // Should be approximately 100ms (100000us), allow 80-200ms range
         if (elapsed_us >= 80000 && elapsed_us <= 200000) {
-            printf("    Elapsed: %lu us (expected ~100000us)\n", (unsigned long)elapsed_us);
+            printf("    Elapsed: %lu us (expected ~100000us)\n",
+                   (unsigned long)elapsed_us);
             TEST_PASS("hive_get_time measures elapsed time correctly");
         } else {
-            printf("    Elapsed: %lu us (expected ~100000us)\n", (unsigned long)elapsed_us);
+            printf("    Elapsed: %lu us (expected ~100000us)\n",
+                   (unsigned long)elapsed_us);
             TEST_FAIL("hive_get_time elapsed time incorrect");
         }
     }
@@ -485,18 +515,19 @@ static void run_timer_tests(void *arg) {
         // Send a message to self before sleeping
         actor_id self = hive_self();
         int test_data = 12345;
-        hive_status status = hive_ipc_notify(self, 0, &test_data, sizeof(test_data));
+        hive_status status =
+            hive_ipc_notify(self, 0, &test_data, sizeof(test_data));
         if (HIVE_FAILED(status)) {
             TEST_FAIL("failed to send message to self");
         } else {
             // Sleep - the message should NOT be consumed
-            status = hive_sleep(50000);  // 50ms
+            status = hive_sleep(50000); // 50ms
             if (HIVE_FAILED(status)) {
                 TEST_FAIL("hive_sleep failed");
             } else {
                 // Now receive - the message should still be there
                 hive_message msg;
-                status = hive_ipc_recv(&msg, 0);  // Non-blocking
+                status = hive_ipc_recv(&msg, 0); // Non-blocking
 
                 if (HIVE_FAILED(status)) {
                     TEST_FAIL("message lost during sleep");
@@ -507,7 +538,8 @@ static void run_timer_tests(void *arg) {
                     if (*received == test_data) {
                         TEST_PASS("message preserved during sleep");
                     } else {
-                        printf("    Expected %d, got %d\n", test_data, *received);
+                        printf("    Expected %d, got %d\n", test_data,
+                               *received);
                         TEST_FAIL("message data corrupted");
                     }
                 }
@@ -518,7 +550,8 @@ static void run_timer_tests(void *arg) {
     printf("\n=== Results ===\n");
     printf("Passed: %d\n", tests_passed);
     printf("Failed: %d\n", tests_failed);
-    printf("\n%s\n", tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
+    printf("\n%s\n",
+           tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
 
     hive_exit();
 }
