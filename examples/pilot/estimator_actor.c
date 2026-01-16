@@ -46,8 +46,12 @@ void estimator_actor(void *arg) {
     cf_init(&filter, &config);
 
     // State for velocity estimation (differentiate GPS position)
-    float prev_x = 0.0f, prev_y = 0.0f, prev_altitude = 0.0f;
-    float x_velocity = 0.0f, y_velocity = 0.0f, vertical_velocity = 0.0f;
+    float prev_x = 0.0f;
+    float prev_y = 0.0f;
+    float prev_altitude = 0.0f;
+    float x_velocity = 0.0f;
+    float y_velocity = 0.0f;
+    float vertical_velocity = 0.0f;
     bool first_sample = true;
 
     // Barometer reference (set from first reading)
@@ -58,6 +62,7 @@ void estimator_actor(void *arg) {
 
     while (1) {
         sensor_data_t sensors;
+        state_estimate_t state;
         size_t len;
 
         // Block until sensor data available
@@ -70,8 +75,6 @@ void estimator_actor(void *arg) {
 
         // Run complementary filter for attitude estimation
         cf_update(&filter, &sensors, dt);
-
-        state_estimate_t state;
 
         // Get attitude from filter
         cf_get_attitude(&filter, &state.roll, &state.pitch, &state.yaw);
