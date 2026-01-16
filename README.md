@@ -32,8 +32,9 @@ man hive_link      # Linking and monitoring
 man hive_timer     # Timers
 man hive_bus       # Pub-sub bus
 man hive_net       # Network I/O
-man hive_file      # File I/O
-man hive_types     # Types and compile-time configuration
+man hive_file       # File I/O
+man hive_supervisor # Erlang-style supervision
+man hive_types      # Types and compile-time configuration
 
 # View without installing
 man man/man3/hive_ipc.3
@@ -49,6 +50,7 @@ man man/man3/hive_ipc.3
 - IPC with selective receive and request/reply
 - Message classes: NOTIFY (async), REQUEST/REPLY, TIMER, EXIT
 - Actor linking and monitoring (bidirectional links, unidirectional monitors)
+- Erlang-style supervision (restart strategies, intensity limiting, child specs)
 - Exit notifications with exit reasons (normal, crash, stack overflow, killed)
 - Timers (one-shot and periodic with timerfd/epoll)
 - Network I/O (non-blocking TCP via event loop)
@@ -67,7 +69,7 @@ man man/man3/hive_ipc.3
 | **Inspiration** | Erlang/OTP | UML/ROOM methodology |
 | **Message Handling** | Selective receive with pattern matching | Event dispatch to state handlers |
 | **Blocking** | Actors can block on receive with timeout | Run-to-completion (no blocking in handlers) |
-| **Supervision** | Links + monitors (death notifications) | Less emphasis on fault supervision |
+| **Supervision** | Erlang-style supervisors (restart strategies, intensity) | Less emphasis on fault supervision |
 | **Error Philosophy** | "Let it crash" + restart | Defensive, state machine guards |
 | **API Style** | Minimalist C functions | Object-oriented C macros |
 | **Learning Curve** | Lower (if familiar with actors/Erlang) | Steeper (requires statechart knowledge) |
@@ -140,7 +142,7 @@ All structures are statically allocated. Actor stacks use a static arena allocat
 # Actor linking example (bidirectional links)
 ./build/link_demo
 
-# Worker monitoring example
+# Erlang-style supervisor (auto-restart workers)
 ./build/supervisor
 
 # File I/O example
@@ -324,6 +326,65 @@ if (hive_is_exit_msg(&msg)) {
 }
 ```
 
+### Supervision (Erlang-style)
+
+```c
+#include "hive_supervisor.h"
+
+// Define child specifications
+static int worker_ids[2] = {1, 2};
+hive_child_spec children[] = {
+    {
+        .id = "worker-1",
+        .fn = worker_actor,
+        .arg = &worker_ids[0],
+        .arg_size = sizeof(int),
+        .restart = HIVE_CHILD_PERMANENT,  // Always restart
+        .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT,
+    },
+    {
+        .id = "worker-2",
+        .fn = worker_actor,
+        .arg = &worker_ids[1],
+        .arg_size = sizeof(int),
+        .restart = HIVE_CHILD_TRANSIENT,  // Restart only on crash
+        .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT,
+    },
+};
+
+// Configure supervisor
+hive_supervisor_config config = {
+    .strategy = HIVE_STRATEGY_ONE_FOR_ONE,  // Restart only failed child
+    .max_restarts = 5,                      // Max 5 restarts...
+    .restart_period_ms = 10000,             // ...within 10 seconds
+    .children = children,
+    .num_children = 2,
+    .on_shutdown = my_shutdown_callback,    // Optional callback
+    .shutdown_ctx = NULL,
+};
+
+// Start supervisor
+actor_id supervisor;
+hive_supervisor_start(&config, NULL, &supervisor);
+
+// Monitor supervisor for shutdown (optional)
+uint32_t mon_ref;
+hive_monitor(supervisor, &mon_ref);
+
+// Stop supervisor gracefully
+hive_supervisor_stop(supervisor);
+
+// Restart strategies:
+//   HIVE_STRATEGY_ONE_FOR_ONE  - Restart only the failed child
+//   HIVE_STRATEGY_ONE_FOR_ALL  - Restart all children if one fails
+//   HIVE_STRATEGY_REST_FOR_ONE - Restart failed child and all started after it
+
+// Child restart types:
+//   HIVE_CHILD_PERMANENT - Always restart (default)
+//   HIVE_CHILD_TRANSIENT - Restart only on crash (not normal exit)
+//   HIVE_CHILD_TEMPORARY - Never restart
+```
+
 ## API Overview
 
 ### Runtime Initialization
@@ -365,6 +426,16 @@ if (hive_is_exit_msg(&msg)) {
 - `hive_is_exit_msg(msg)` - Check if message is exit notification
 - `hive_decode_exit(msg, out)` - Decode exit message into `hive_exit_msg` struct
 - `hive_exit_reason_str(reason)` - Convert exit reason to string ("NORMAL", "CRASH", etc.)
+- `hive_kill(target)` - Kill an actor externally (for supervisor use)
+
+### Supervision
+
+- `hive_supervisor_start(config, actor_cfg, out)` - Start supervisor with child specs
+- `hive_supervisor_stop(supervisor)` - Stop supervisor gracefully (terminates all children)
+- `hive_supervisor_start_child(supervisor, spec)` - Add child dynamically
+- `hive_supervisor_stop_child(supervisor, id)` - Remove child by ID
+- `hive_restart_strategy_str(strategy)` - Convert strategy to string
+- `hive_child_restart_str(restart)` - Convert restart type to string
 
 ### Timers
 
@@ -502,7 +573,7 @@ valgrind --leak-check=full ./build/ipc_test
 
 ```
 
-The test suite includes 16 test programs covering actors, IPC, timers, bus, networking, file I/O, linking, monitoring, and edge cases like pool exhaustion.
+The test suite includes 17 test programs covering actors, IPC, timers, bus, networking, file I/O, linking, monitoring, supervision, and edge cases like pool exhaustion.
 
 ## Building
 
