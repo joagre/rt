@@ -6,7 +6,7 @@
 #define FLIGHT_PROFILES_H
 
 #include "config.h"
-#include <math.h>
+#include "math_utils.h"
 
 // Waypoint definition
 typedef struct {

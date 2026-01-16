@@ -10,6 +10,7 @@
 #include "notifications.h"
 #include "types.h"
 #include "config.h"
+#include "math_utils.h"
 #include "hal_config.h"
 #include "pid.h"
 #include "hive_runtime.h"
@@ -145,7 +146,7 @@ void altitude_actor(void *arg) {
         thrust_cmd_t cmd = {.thrust = thrust};
         hive_bus_publish(s_thrust_bus, &cmd, sizeof(cmd));
 
-        if (DEBUG_THROTTLE(count, DEBUG_PRINT_INTERVAL)) {
+        if (++count % DEBUG_PRINT_INTERVAL == 0) {
             HIVE_LOG_DEBUG("[ALT] tgt=%.2f alt=%.2f vvel=%.2f thrust=%.3f %s",
                            target_altitude, state.altitude, state.vertical_velocity, thrust,
                            landing_mode ? "[LANDING]" : "");

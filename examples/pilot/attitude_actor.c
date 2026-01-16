@@ -33,9 +33,12 @@ void attitude_actor(void *arg) {
     assert(HIVE_SUCCEEDED(status));
 
     pid_state_t roll_pid, pitch_pid, yaw_pid;
-    PID_INIT_RPY(roll_pid, pitch_pid, yaw_pid,
-                 HAL_ATTITUDE_PID_KP, HAL_ATTITUDE_PID_KI, HAL_ATTITUDE_PID_KD,
-                 HAL_ATTITUDE_PID_IMAX, HAL_ATTITUDE_PID_OMAX);
+    pid_init_full(&roll_pid,  HAL_ATTITUDE_PID_KP, HAL_ATTITUDE_PID_KI, HAL_ATTITUDE_PID_KD,
+                  HAL_ATTITUDE_PID_IMAX, HAL_ATTITUDE_PID_OMAX);
+    pid_init_full(&pitch_pid, HAL_ATTITUDE_PID_KP, HAL_ATTITUDE_PID_KI, HAL_ATTITUDE_PID_KD,
+                  HAL_ATTITUDE_PID_IMAX, HAL_ATTITUDE_PID_OMAX);
+    pid_init_full(&yaw_pid,   HAL_ATTITUDE_PID_KP, HAL_ATTITUDE_PID_KI, HAL_ATTITUDE_PID_KD,
+                  HAL_ATTITUDE_PID_IMAX, HAL_ATTITUDE_PID_OMAX);
 
     // Target attitudes (updated from attitude_setpoint_bus)
     attitude_setpoint_t attitude_sp = ATTITUDE_SETPOINT_ZERO;

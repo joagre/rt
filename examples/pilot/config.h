@@ -2,6 +2,8 @@
 //
 // Shared constants used across multiple actors.
 // Platform-specific tuning parameters are in hal_config.h.
+// Math utilities are in math_utils.h.
+// Debug utilities are in debug.h.
 
 #ifndef PILOT_CONFIG_H
 #define PILOT_CONFIG_H
@@ -23,39 +25,6 @@
     #define FLIGHT_PROFILE FLIGHT_PROFILE_FULL_3D
   #endif
 #endif
-
-// ----------------------------------------------------------------------------
-// Math utilities
-// ----------------------------------------------------------------------------
-
-#define CLAMPF(x, lo, hi) ((x) < (lo) ? (lo) : ((x) > (hi) ? (hi) : (x)))
-
-// Low-pass filter: LPF(state, new_sample, alpha)
-// alpha=0: instant response, alpha=1: no response
-#define LPF(state, sample, alpha) ((alpha) * (state) + (1.0f - (alpha)) * (sample))
-
-#define RAD_TO_DEG  57.2957795f  // 180/π
-#define DEG_TO_RAD  0.0174533f   // π/180
-#define M_PI_F      3.14159265f  // π as float
-
-// Normalize angle to [-π, π] range
-#define NORMALIZE_ANGLE(a) ({ \
-    float _a = (a); \
-    while (_a > M_PI_F) _a -= 2.0f * M_PI_F; \
-    while (_a < -M_PI_F) _a += 2.0f * M_PI_F; \
-    _a; \
-})
-
-// Initialize roll/pitch/yaw PIDs with same gains (common pattern)
-#define PID_INIT_RPY(roll, pitch, yaw, kp, ki, kd, imax, omax) do { \
-    pid_init_full(&(roll),  (kp), (ki), (kd), (imax), (omax)); \
-    pid_init_full(&(pitch), (kp), (ki), (kd), (imax), (omax)); \
-    pid_init_full(&(yaw),   (kp), (ki), (kd), (imax), (omax)); \
-} while (0)
-
-// Debug throttle: returns true every N calls
-// Usage: int count = 0; ... if (DEBUG_THROTTLE(count, interval)) { log(...); }
-#define DEBUG_THROTTLE(counter, interval) (++(counter) % (interval) == 0)
 
 // ----------------------------------------------------------------------------
 // Hardware configuration

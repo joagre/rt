@@ -27,7 +27,8 @@
 // Automatically disabled for FIRST_TEST profile (clean, predictable behavior).
 // Override with -DSENSOR_NOISE=0 or -DSENSOR_NOISE=1 if needed.
 
-#include "config.h"  // For FLIGHT_PROFILE
+#include "config.h"       // For FLIGHT_PROFILE
+#include "math_utils.h"   // For CLAMPF
 
 // Noise level: 0=off, 1=low (10%), 2=full (100%)
 // Default: full noise for all profiles (realistic simulation)

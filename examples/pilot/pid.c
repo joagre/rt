@@ -1,7 +1,7 @@
 // PID controller implementation
 
 #include "pid.h"
-#include "config.h"
+#include "math_utils.h"
 
 void pid_init(pid_state_t *pid, float kp, float ki, float kd) {
     pid_init_full(pid, kp, ki, kd, 0.5f, 1.0f);

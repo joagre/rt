@@ -6,6 +6,7 @@
 #include "estimator_actor.h"
 #include "types.h"
 #include "config.h"
+#include "math_utils.h"
 #include "fusion/complementary_filter.h"
 #include "hive_runtime.h"
 #include "hive_bus.h"
