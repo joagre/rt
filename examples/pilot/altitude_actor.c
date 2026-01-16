@@ -66,6 +66,7 @@ void altitude_actor(void *arg) {
     while (1) {
         state_estimate_t state;
         position_target_t target;
+        hive_message msg;
         size_t len;
 
         // Block until state available
@@ -77,7 +78,6 @@ void altitude_actor(void *arg) {
         prev_time = now;
 
         // Check for landing command (non-blocking)
-        hive_message msg;
         if (HIVE_SUCCEEDED(hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_NOTIFY,
                                                NOTIFY_LANDING, &msg, 0))) {
             if (!landing_mode) {
