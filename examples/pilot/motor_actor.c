@@ -30,15 +30,16 @@ void motor_actor(void *arg) {
     bool stopped = false;
 
     while (1) {
-        // Check for STOP notification (non-blocking, best-effort)
         hive_message msg;
+        torque_cmd_t torque;
+        size_t len;
+
+        // Check for STOP notification (non-blocking, best-effort)
         if (HIVE_SUCCEEDED(hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_NOTIFY,
                                                NOTIFY_FLIGHT_STOP, &msg, 0))) {
             stopped = true;
         }
 
-        torque_cmd_t torque;
-        size_t len;
         hive_bus_read_wait(s_torque_bus, &torque, sizeof(torque), &len, -1);
 
         if (stopped) {
