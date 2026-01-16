@@ -47,7 +47,8 @@
 //   All hardware access goes through the HAL (hal/hal.h).
 //   Supported platforms:
 //     - hal/webots-crazyflie/ - Webots simulation
-//     - hal/STEVAL-DRONE01/   - STM32 real hardware
+//     - hal/crazyflie-2.1+/   - Crazyflie 2.1+ hardware
+//     - hal/STEVAL-DRONE01/   - STEVAL-DRONE01 hardware
 // clang-format on
 
 #include "hal/hal.h"
