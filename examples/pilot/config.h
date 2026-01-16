@@ -53,26 +53,6 @@
     pid_init_full(&(yaw),   (kp), (ki), (kd), (imax), (omax)); \
 } while (0)
 
-// Read latest value from bus into destination variable.
-// Returns true if read succeeded, false otherwise.
-// Usage: if (BUS_READ(bus, &var)) { /* use var */ }
-#define BUS_READ(bus, dest_ptr) ({ \
-    size_t _len; \
-    hive_bus_read((bus), (dest_ptr), sizeof(*(dest_ptr)), &_len).code == HIVE_OK; \
-})
-
-// Blocking bus read - waits forever for data
-// Usage: BUS_READ_WAIT(bus, &var);
-#define BUS_READ_WAIT(bus, dest_ptr) do { \
-    size_t _len; \
-    hive_bus_read_wait((bus), (dest_ptr), sizeof(*(dest_ptr)), &_len, -1); \
-} while(0)
-
-// Subscribe to bus with assert (common pattern in actors)
-// Usage: BUS_SUBSCRIBE(s_state_bus);
-#define BUS_SUBSCRIBE(bus) \
-    assert(HIVE_SUCCEEDED(hive_bus_subscribe(bus)))
-
 // Debug throttle: returns true every N calls
 // Usage: int count = 0; ... if (DEBUG_THROTTLE(count, interval)) { log(...); }
 #define DEBUG_THROTTLE(counter, interval) (++(counter) % (interval) == 0)

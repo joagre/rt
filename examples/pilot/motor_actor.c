@@ -24,7 +24,8 @@ void motor_actor_init(bus_id torque_bus) {
 void motor_actor(void *arg) {
     (void)arg;
 
-    BUS_SUBSCRIBE(s_torque_bus);
+    hive_status status = hive_bus_subscribe(s_torque_bus);
+    assert(HIVE_SUCCEEDED(status));
 
     bool stopped = false;
 
@@ -37,7 +38,8 @@ void motor_actor(void *arg) {
         }
 
         torque_cmd_t torque;
-        BUS_READ_WAIT(s_torque_bus, &torque);
+        size_t len;
+        hive_bus_read_wait(s_torque_bus, &torque, sizeof(torque), &len, -1);
 
         if (stopped) {
             torque = (torque_cmd_t)TORQUE_CMD_ZERO;

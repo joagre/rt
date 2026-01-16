@@ -26,8 +26,11 @@ void attitude_actor_init(bus_id state_bus, bus_id attitude_setpoint_bus, bus_id 
 void attitude_actor(void *arg) {
     (void)arg;
 
-    BUS_SUBSCRIBE(s_state_bus);
-    BUS_SUBSCRIBE(s_attitude_setpoint_bus);
+    hive_status status;
+    status = hive_bus_subscribe(s_state_bus);
+    assert(HIVE_SUCCEEDED(status));
+    status = hive_bus_subscribe(s_attitude_setpoint_bus);
+    assert(HIVE_SUCCEEDED(status));
 
     pid_state_t roll_pid, pitch_pid, yaw_pid;
     PID_INIT_RPY(roll_pid, pitch_pid, yaw_pid,
@@ -45,7 +48,8 @@ void attitude_actor(void *arg) {
         attitude_setpoint_t new_attitude_sp;
 
         // Block until state available
-        BUS_READ_WAIT(s_state_bus, &state);
+        size_t len;
+        hive_bus_read_wait(s_state_bus, &state, sizeof(state), &len, -1);
 
         // Measure actual dt
         uint64_t now = hive_get_time();
@@ -53,7 +57,7 @@ void attitude_actor(void *arg) {
         prev_time = now;
 
         // Read attitude setpoints from position controller (non-blocking, use last known)
-        if (BUS_READ(s_attitude_setpoint_bus, &new_attitude_sp)) {
+        if (hive_bus_read(s_attitude_setpoint_bus, &new_attitude_sp, sizeof(new_attitude_sp), &len).code == HIVE_OK) {
             attitude_sp = new_attitude_sp;
         }
 

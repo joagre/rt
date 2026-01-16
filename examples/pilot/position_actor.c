@@ -30,8 +30,11 @@ void position_actor_init(bus_id state_bus, bus_id attitude_setpoint_bus, bus_id 
 void position_actor(void *arg) {
     (void)arg;
 
-    BUS_SUBSCRIBE(s_state_bus);
-    BUS_SUBSCRIBE(s_position_target_bus);
+    hive_status status;
+    status = hive_bus_subscribe(s_state_bus);
+    assert(HIVE_SUCCEEDED(status));
+    status = hive_bus_subscribe(s_position_target_bus);
+    assert(HIVE_SUCCEEDED(status));
 
     // Current target (updated from waypoint actor)
     position_target_t target = POSITION_TARGET_DEFAULT;
@@ -39,12 +42,13 @@ void position_actor(void *arg) {
     while (1) {
         state_estimate_t state;
         position_target_t new_target;
+        size_t len;
 
         // Block until state available
-        BUS_READ_WAIT(s_state_bus, &state);
+        hive_bus_read_wait(s_state_bus, &state, sizeof(state), &len, -1);
 
         // Read target from waypoint actor (non-blocking, use last known)
-        if (BUS_READ(s_position_target_bus, &new_target)) {
+        if (hive_bus_read(s_position_target_bus, &new_target, sizeof(new_target), &len).code == HIVE_OK) {
             target = new_target;
         }
 

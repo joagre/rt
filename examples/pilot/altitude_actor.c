@@ -43,8 +43,11 @@ void altitude_actor_init(bus_id state_bus, bus_id thrust_bus, bus_id position_ta
 void altitude_actor(void *arg) {
     (void)arg;
 
-    BUS_SUBSCRIBE(s_state_bus);
-    BUS_SUBSCRIBE(s_position_target_bus);
+    hive_status status;
+    status = hive_bus_subscribe(s_state_bus);
+    assert(HIVE_SUCCEEDED(status));
+    status = hive_bus_subscribe(s_position_target_bus);
+    assert(HIVE_SUCCEEDED(status));
 
     pid_state_t alt_pid;
     pid_init_full(&alt_pid, HAL_ALT_PID_KP, HAL_ALT_PID_KI, HAL_ALT_PID_KD, HAL_ALT_PID_IMAX, HAL_ALT_PID_OMAX);
@@ -65,7 +68,8 @@ void altitude_actor(void *arg) {
         position_target_t target;
 
         // Block until state available
-        BUS_READ_WAIT(s_state_bus, &state);
+        size_t len;
+        hive_bus_read_wait(s_state_bus, &state, sizeof(state), &len, -1);
 
         // Measure dt
         uint64_t now = hive_get_time();
@@ -83,7 +87,7 @@ void altitude_actor(void *arg) {
         }
 
         // Read target altitude (non-blocking)
-        if (BUS_READ(s_position_target_bus, &target)) {
+        if (hive_bus_read(s_position_target_bus, &target, sizeof(target), &len).code == HIVE_OK) {
             target_altitude = target.z;
         }
 

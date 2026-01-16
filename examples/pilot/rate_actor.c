@@ -29,9 +29,13 @@ void rate_actor_init(bus_id state_bus, bus_id thrust_bus,
 void rate_actor(void *arg) {
     (void)arg;
 
-    BUS_SUBSCRIBE(s_state_bus);
-    BUS_SUBSCRIBE(s_thrust_bus);
-    BUS_SUBSCRIBE(s_rate_setpoint_bus);
+    hive_status status;
+    status = hive_bus_subscribe(s_state_bus);
+    assert(HIVE_SUCCEEDED(status));
+    status = hive_bus_subscribe(s_thrust_bus);
+    assert(HIVE_SUCCEEDED(status));
+    status = hive_bus_subscribe(s_rate_setpoint_bus);
+    assert(HIVE_SUCCEEDED(status));
 
     pid_state_t roll_pid, pitch_pid, yaw_pid;
     // Note: Different output limits per axis (yaw needs more authority)
@@ -51,7 +55,8 @@ void rate_actor(void *arg) {
         rate_setpoint_t new_rate_sp;
 
         // Block until state available
-        BUS_READ_WAIT(s_state_bus, &state);
+        size_t len;
+        hive_bus_read_wait(s_state_bus, &state, sizeof(state), &len, -1);
 
         // Measure actual dt
         uint64_t now = hive_get_time();
@@ -59,11 +64,11 @@ void rate_actor(void *arg) {
         prev_time = now;
 
         // Read thrust and rate setpoints (non-blocking, use last known)
-        if (BUS_READ(s_thrust_bus, &thrust_cmd)) {
+        if (hive_bus_read(s_thrust_bus, &thrust_cmd, sizeof(thrust_cmd), &len).code == HIVE_OK) {
             thrust = thrust_cmd.thrust;
         }
 
-        if (BUS_READ(s_rate_setpoint_bus, &new_rate_sp)) {
+        if (hive_bus_read(s_rate_setpoint_bus, &new_rate_sp, sizeof(new_rate_sp), &len).code == HIVE_OK) {
             rate_sp = new_rate_sp;
         }
 

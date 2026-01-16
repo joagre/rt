@@ -35,7 +35,8 @@ void estimator_actor_init(bus_id sensor_bus, bus_id state_bus) {
 void estimator_actor(void *arg) {
     (void)arg;
 
-    BUS_SUBSCRIBE(s_sensor_bus);
+    hive_status status = hive_bus_subscribe(s_sensor_bus);
+    assert(HIVE_SUCCEEDED(status));
 
     // Initialize complementary filter
     cf_state_t filter;
@@ -58,7 +59,8 @@ void estimator_actor(void *arg) {
         sensor_data_t sensors;
 
         // Block until sensor data available
-        BUS_READ_WAIT(s_sensor_bus, &sensors);
+        size_t len;
+        hive_bus_read_wait(s_sensor_bus, &sensors, sizeof(sensors), &len, -1);
 
         // Measure actual dt
         uint64_t now = hive_get_time();
