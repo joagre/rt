@@ -7,7 +7,6 @@
 #include "hive_scheduler.h"
 #include "hive_runtime.h"
 #include "hive_log.h"
-#include <stdlib.h>
 #include <string.h>
 
 // Use shared SLIST_APPEND from hive_internal.h

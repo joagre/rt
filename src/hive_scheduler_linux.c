@@ -5,10 +5,8 @@
 #include "hive_link.h"
 #include "hive_log.h"
 #include "hive_internal.h"
-#include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <time.h>
 #include <sys/epoll.h>
 #include <unistd.h>
 

@@ -4,7 +4,6 @@
 #include "hive_log.h"
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <stdint.h>
 
 // Stack arena allocator for actor stacks

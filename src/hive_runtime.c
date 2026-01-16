@@ -5,7 +5,6 @@
 #include "hive_link.h"
 #include "hive_log.h"
 #include "hive_static_config.h"
-#include <stdio.h>
 #include <stdlib.h>
 
 hive_status hive_init(void) {

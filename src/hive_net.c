@@ -9,8 +9,6 @@
 #include "hive_ipc.h"
 #include "hive_pool.h"
 #include "hive_io_source.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>

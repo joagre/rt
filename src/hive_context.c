@@ -2,7 +2,6 @@
 #include "hive_internal.h"
 #include <stdint.h>
 #include <string.h>
-#include <stdio.h>
 
 // Forward declaration of assembly function
 extern void hive_context_switch_asm(hive_context *from, hive_context *to);

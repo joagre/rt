@@ -6,9 +6,7 @@
 #include "hive_scheduler.h"
 #include "hive_runtime.h"
 #include "hive_log.h"
-#include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <sys/time.h>
 
 // Compile-time check: readers_mask is uint32_t, so max 32 subscribers

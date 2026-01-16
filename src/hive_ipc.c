@@ -7,7 +7,6 @@
 #include "hive_timer.h"
 #include "hive_runtime.h"
 #include "hive_log.h"
-#include <stdlib.h>
 #include <string.h>
 
 // Static pools for IPC (mailbox entries and message data)

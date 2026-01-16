@@ -1,11 +1,7 @@
 #include "hive_file.h"
 #include "hive_internal.h"
 #include "hive_static_config.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
-#include <errno.h>
 #include <fcntl.h>
 
 // Map HIVE_O_* flags to POSIX O_* flags
