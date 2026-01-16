@@ -88,6 +88,29 @@ The runtime consists of:
     - Names auto-cleaned on actor exit
     - Use with supervisors: `whereis()` returns fresh actor ID after restart
 
+### Restart Contract Checklist
+
+**On child restart, always reset:**
+- Mailbox empty
+- Bus subscriptions gone, cursors reset (fresh subscribe required)
+- Timers cancelled
+- Links and monitors cleared
+- actor_id changes
+- Name registration removed (must re-register)
+- External handles invalid (must reacquire: fds, sockets, HAL handles)
+
+**Supervisor guarantees:**
+- Restart order is deterministic: child spec order
+- Restart strategy applied exactly as defined (no hidden backoff)
+- Intensity limit deterministic: when exceeded, supervisor shuts down
+- No heap in hot paths; child-arg copies bounded and static
+
+**Failure visibility:**
+- Every restart attempt observable (log)
+- Every give-up observable (log + shutdown callback)
+
+**Client rule:** MUST NOT cache `actor_id` across awaits/timeouts. Re-resolve via `hive_whereis()` on each interaction.
+
 ## Key Concepts
 
 ### Scheduling Model
