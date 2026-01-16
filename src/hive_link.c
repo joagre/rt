@@ -14,7 +14,7 @@
 // Forward declarations for internal functions
 void hive_link_cleanup_actor(actor_id id);
 static bool send_exit_notification(actor *recipient, actor_id dying_id,
-                                   hive_exit_reason reason);
+                                   hive_exit_reason reason, uint32_t mon_ref);
 
 // External function to get actor table
 extern actor_table *hive_actor_get_table(void);
@@ -248,10 +248,12 @@ const char *hive_exit_reason_str(hive_exit_reason reason) {
 }
 
 // Helper: Send exit notification to an actor
+// mon_ref: 0 for links, non-zero for monitors
 static bool send_exit_notification(actor *recipient, actor_id dying_id,
-                                   hive_exit_reason reason) {
+                                   hive_exit_reason reason, uint32_t mon_ref) {
     // Build exit message payload
-    hive_exit_msg exit_data = {.actor = dying_id, .reason = reason};
+    hive_exit_msg exit_data = {
+        .actor = dying_id, .reason = reason, .monitor_id = mon_ref};
 
     // Send using hive_ipc_notify_internal with HIVE_MSG_EXIT class
     // Sender is the dying actor so recipient knows who died
@@ -303,9 +305,9 @@ void hive_link_cleanup_actor(actor_id dying_actor_id) {
     while (link) {
         actor *linked_actor = hive_actor_get(link->target);
         if (linked_actor && linked_actor->state != ACTOR_STATE_DEAD) {
-            // Send exit notification to linked actor
+            // Send exit notification to linked actor (mon_ref=0 for links)
             if (send_exit_notification(linked_actor, dying_actor_id,
-                                       dying->exit_reason)) {
+                                       dying->exit_reason, 0)) {
                 HIVE_LOG_TRACE("Sent link exit notification to actor %u",
                                link->target);
             }
@@ -341,9 +343,9 @@ void hive_link_cleanup_actor(actor_id dying_actor_id) {
             monitor_entry *mon = a->monitors;
             while (mon) {
                 if (mon->target == dying_actor_id) {
-                    // Send exit notification using helper
+                    // Send exit notification with monitor reference
                     if (send_exit_notification(a, dying_actor_id,
-                                               dying->exit_reason)) {
+                                               dying->exit_reason, mon->ref)) {
                         HIVE_LOG_TRACE("Sent monitor exit notification to "
                                        "actor %u (ref=%u)",
                                        a->id, mon->ref);

@@ -88,20 +88,11 @@ static supervisor_state *find_supervisor_by_id(actor_id id) {
 // Time Utilities
 // =============================================================================
 
-#ifdef HIVE_PLATFORM_LINUX
-#include <sys/time.h>
+// hive_get_time() returns microseconds on all platforms
+extern uint64_t hive_get_time(void);
 static uint64_t get_time_us(void) {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (uint64_t)tv.tv_sec * 1000000 + tv.tv_usec;
+    return hive_get_time();
 }
-#else
-// STM32: use timer tick (assumed to be available)
-extern uint64_t hive_timer_now_us(void);
-static uint64_t get_time_us(void) {
-    return hive_timer_now_us();
-}
-#endif
 
 // =============================================================================
 // Restart Intensity Tracking

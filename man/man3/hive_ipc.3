@@ -127,20 +127,25 @@ Non-matching messages are skipped but remain in the mailbox. This operation is
 .BR O(n) where n is the mailbox depth.
 .SS Request/Reply Pattern
 .BR hive_ipc_request ()
-sends a request and blocks until a reply is received or timeout expires. It:
+sends a request and blocks until a reply is received, the target dies, or
+timeout expires. It:
 .IP 1. 3
-Generates a unique tag
+Sets up a temporary monitor on the target to detect death
 .IP 2. 3
+Generates a unique tag
+.IP 3. 3
 Sends message with class
 .B HIVE_MSG_REQUEST
-.IP 3. 3
-Blocks via
-.BR hive_ipc_recv_match ()
-waiting for
-.B HIVE_MSG_REPLY
-with matching tag
 .IP 4. 3
-Returns the reply message or error
+Waits for either
+.B HIVE_MSG_REPLY
+with matching tag (success) or
+.B HIVE_MSG_EXIT
+from the monitor (target died)
+.IP 5. 3
+Cleans up the monitor and returns the reply, error, or
+.B HIVE_ERR_CLOSED
+if target died
 .PP
 .BR hive_ipc_reply ()
 sends a reply to a received request. It extracts the sender and tag from
@@ -189,9 +194,12 @@ Invalid actor ID, NULL data with non-zero length, or not called from actor
 context.
 .TP
 .B HIVE_ERR_TIMEOUT
-No message received within timeout period. For
-.BR hive_ipc_request (),
-this includes the case where the target actor died.
+No message received within timeout period.
+.TP
+.B HIVE_ERR_CLOSED
+Target actor died during
+.BR hive_ipc_request ().
+The request was sent but the target exited before sending a reply.
 .TP
 .B HIVE_ERR_WOULDBLOCK
 Mailbox empty and timeout was

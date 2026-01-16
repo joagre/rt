@@ -7,6 +7,7 @@
 typedef struct {
     actor_id actor;          // ID of the actor that died
     hive_exit_reason reason; // Why the actor exited
+    uint32_t monitor_id;     // 0 = from link, non-zero = from monitor
 } hive_exit_msg;
 
 // Bidirectional linking - both actors notified when either dies

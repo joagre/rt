@@ -688,8 +688,9 @@ typedef enum {
 } hive_exit_reason;
 
 typedef struct {
-    actor_id       actor;   // who died
-    hive_exit_reason reason;
+    actor_id         actor;      // who died
+    hive_exit_reason reason;     // why they died
+    uint32_t         monitor_id; // 0 = link, non-zero = from monitor
 } hive_exit_msg;
 
 // Check if message is exit notification
@@ -702,6 +703,10 @@ hive_status hive_decode_exit(const hive_message *msg, hive_exit_msg *out);
 const char *hive_exit_reason_str(hive_exit_reason reason);
 ```
 
+**The monitor_id field** distinguishes exit notifications from links vs monitors:
+- `monitor_id == 0`: notification came from a bidirectional link
+- `monitor_id != 0`: notification came from a monitor; value matches the ID returned by `hive_monitor()`
+
 **Handling exit messages:**
 
 Exit messages should be decoded using `hive_decode_exit()`:
@@ -713,7 +718,13 @@ hive_ipc_recv(&msg, -1);
 if (hive_is_exit_msg(&msg)) {
     hive_exit_msg exit_info;
     hive_decode_exit(&msg, &exit_info);
-    printf("Actor %u died: %s\n", exit_info.actor, hive_exit_reason_str(exit_info.reason));
+    if (exit_info.monitor_id == 0) {
+        printf("Linked actor %u died: %s\n", exit_info.actor,
+               hive_exit_reason_str(exit_info.reason));
+    } else {
+        printf("Monitored actor %u died (id=%u): %s\n", exit_info.actor,
+               exit_info.monitor_id, hive_exit_reason_str(exit_info.reason));
+    }
 }
 ```
 
@@ -917,10 +928,11 @@ hive_status hive_ipc_reply(const hive_message *request, const void *data, size_t
 **Request/reply implementation:**
 ```c
 // hive_ipc_request internally does:
-// 1. Generate unique tag
-// 2. Send message with class=REQUEST
-// 3. Block on hive_ipc_recv_match() for REPLY with matching tag
-// 4. Return reply or timeout error
+// 1. Set up temporary monitor on target (to detect death)
+// 2. Generate unique tag
+// 3. Send message with class=REQUEST
+// 4. Wait for REPLY with matching tag OR EXIT from monitor
+// 5. Clean up monitor and return reply, HIVE_ERR_CLOSED, or timeout error
 
 // hive_ipc_reply internally does:
 // 1. Decode sender and tag from request
@@ -928,26 +940,26 @@ hive_status hive_ipc_reply(const hive_message *request, const void *data, size_t
 ```
 
 **Error conditions for `hive_ipc_request()`:**
-- `HIVE_ERR_TIMEOUT`: No reply received within timeout (including when target died)
+- `HIVE_ERR_CLOSED`: Target actor died before sending a reply (detected via internal monitor)
+- `HIVE_ERR_TIMEOUT`: No reply received within timeout period
 - `HIVE_ERR_NOMEM`: Pool exhausted when sending request
 - `HIVE_ERR_INVALID`: Invalid target actor ID or NULL request with non-zero length
 
-**Target death handling:** If the caller has linked to or is monitoring the target actor, and the target dies before replying, an EXIT message arrives in the caller's mailbox. Since `hive_ipc_request()` internally uses `hive_ipc_recv_match()` waiting for a REPLY, the EXIT message does not match and remains queued. The function returns `HIVE_ERR_TIMEOUT` when the timeout expires. The caller should check for pending EXIT messages to determine if the timeout was due to target death:
+**Target death detection:** `hive_ipc_request()` internally monitors the target actor for the duration of the request. If the target dies before replying, the function returns `HIVE_ERR_CLOSED` immediately without waiting for timeout:
 
 ```c
 hive_message reply;
 hive_status status = hive_ipc_request(target, &req, sizeof(req), &reply, 5000);
-if (status.code == HIVE_ERR_TIMEOUT) {
-    // Check if target died
-    hive_message msg;
-    if (hive_ipc_recv(&msg, 0).code == HIVE_OK && msg.class == HIVE_MSG_EXIT) {
-        hive_exit_msg *exit_info = (hive_exit_msg *)msg.data;
-        if (exit_info->actor == target) {
-            // Target died - handle accordingly
-        }
-    }
+if (status.code == HIVE_ERR_CLOSED) {
+    // Target died during request - no ambiguity with timeout
+    printf("Target actor died\n");
+} else if (status.code == HIVE_ERR_TIMEOUT) {
+    // Target is alive but didn't reply in time
+    printf("Request timed out\n");
 }
 ```
+
+This eliminates the "timeout but actually dead" ambiguity from previous versions.
 
 ### API Contract: hive_ipc_notify()
 

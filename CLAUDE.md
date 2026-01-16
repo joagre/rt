@@ -167,13 +167,15 @@ Exit messages are received when linked/monitored actors die:
 if (hive_is_exit_msg(&msg)) {
     hive_exit_msg exit_info;
     hive_decode_exit(&msg, &exit_info);
-    printf("Actor %u died: %s\n", exit_info.actor, hive_exit_reason_str(exit_info.reason));
+    printf("Actor %u died: %s (monitor_id=%u)\n", exit_info.actor,
+           hive_exit_reason_str(exit_info.reason), exit_info.monitor_id);
 }
 ```
 - `hive_is_exit_msg(msg)` checks if message is an exit notification
 - `hive_decode_exit(msg, out)` decodes exit message into `hive_exit_msg` struct
 - `hive_exit_reason_str(reason)` returns "NORMAL", "CRASH", "STACK_OVERFLOW", or "KILLED"
 - Exit reasons: `HIVE_EXIT_NORMAL`, `HIVE_EXIT_CRASH`, `HIVE_EXIT_CRASH_STACK`, `HIVE_EXIT_KILLED`
+- `exit_info.monitor_id`: 0 = from link, non-zero = from monitor (matches `hive_monitor()` return value)
 
 ### IPC Message Format
 All messages have a 4-byte header prepended to payload:
@@ -186,10 +188,10 @@ All messages have a 4-byte header prepended to payload:
 - **`hive_ipc_notify_ex(to, class, tag, data, len)`**: Send with explicit class and tag
 - **`hive_ipc_recv(msg, timeout)`**: Receive any message
 - **`hive_ipc_recv_match(from, class, tag, msg, timeout)`**: Selective receive with filtering
-- **`hive_ipc_request(to, req, len, reply, timeout)`**: Blocking request/reply (send REQUEST, wait for REPLY)
+- **`hive_ipc_request(to, req, len, reply, timeout)`**: Blocking request/reply (monitors target, waits for REPLY or death)
 - **`hive_ipc_reply(request, data, len)`**: Reply to a REQUEST message
 
-**`hive_ipc_request()` errors**: Returns `HIVE_ERR_TIMEOUT` if no reply (including when target died), `HIVE_ERR_NOMEM` if pool exhausted, `HIVE_ERR_INVALID` for bad arguments. If linked/monitoring target, check for EXIT message after timeout to distinguish death from timeout.
+**`hive_ipc_request()` errors**: Returns `HIVE_ERR_CLOSED` if target died during request (detected immediately via internal monitor), `HIVE_ERR_TIMEOUT` if no reply within timeout, `HIVE_ERR_NOMEM` if pool exhausted, `HIVE_ERR_INVALID` for bad arguments.
 
 ### Message Structure
 The `hive_message` struct provides direct access to all fields:

@@ -37,7 +37,9 @@ ARM_CPPFLAGS := -I../include -I. \
                 -DHIVE_MAX_BUS_ENTRIES=8 \
                 -DHIVE_MAX_MESSAGE_SIZE=128 \
                 -DHIVE_DEFAULT_STACK_SIZE=2048 \
-                '-DHIVE_STACK_ARENA_SIZE=(16*1024)'
+                '-DHIVE_STACK_ARENA_SIZE=(16*1024)' \
+                -DHIVE_MAX_SUPERVISORS=2 \
+                -DHIVE_MAX_SUPERVISOR_CHILDREN=4
 
 ARM_LDFLAGS := -Tlm3s6965.ld \
                -mcpu=cortex-m3 -mthumb \
@@ -47,7 +49,7 @@ ARM_LDFLAGS := -Tlm3s6965.ld \
 # Runtime source files
 QEMU_CORE_SRCS := hive_actor.c hive_bus.c hive_context.c hive_ipc.c \
                   hive_link.c hive_log.c hive_pool.c hive_runtime.c \
-                  hive_scheduler_stm32.c hive_timer_stm32.c
+                  hive_supervisor.c hive_scheduler_stm32.c hive_timer_stm32.c
 
 QEMU_SRCS := $(addprefix $(SRC_DIR)/,$(QEMU_CORE_SRCS))
 QEMU_ASM := $(SRC_DIR)/hive_context_arm_cm.S
