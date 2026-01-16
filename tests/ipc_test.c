@@ -788,6 +788,66 @@ static void test17_spawn_death_cycle_leak(void *arg) {
 }
 
 // ============================================================================
+// Test 18: Request to dying actor returns HIVE_ERR_CLOSED
+// ============================================================================
+
+static void dying_without_reply_actor(void *arg) {
+    (void)arg;
+    // Wait briefly to receive request, then die without replying
+    hive_message msg;
+    hive_ipc_recv(&msg, 500);
+    // Die without calling hive_ipc_reply()
+    hive_exit();
+}
+
+static void test18_request_to_dying_actor(void *arg) {
+    (void)arg;
+    printf("\nTest 18: Request to dying actor returns HIVE_ERR_CLOSED\n");
+    fflush(stdout);
+
+    actor_id target;
+    hive_spawn(dying_without_reply_actor, NULL, &target);
+
+    // Give target time to start
+    hive_yield();
+
+    // Make a request - target will receive it and die without replying
+    int request = 42;
+    hive_message reply;
+    uint64_t start = time_ms();
+    hive_status status =
+        hive_ipc_request(target, &request, sizeof(request), &reply, 5000);
+    uint64_t elapsed = time_ms() - start;
+
+    if (status.code == HIVE_ERR_CLOSED) {
+        printf("    hive_ipc_request returned HIVE_ERR_CLOSED after %lu ms\n",
+               (unsigned long)elapsed);
+        TEST_PASS("request to dying actor returns HIVE_ERR_CLOSED");
+    } else if (status.code == HIVE_ERR_TIMEOUT) {
+        printf("    Got HIVE_ERR_TIMEOUT after %lu ms (expected "
+               "HIVE_ERR_CLOSED)\n",
+               (unsigned long)elapsed);
+        TEST_FAIL("should return HIVE_ERR_CLOSED, not HIVE_ERR_TIMEOUT");
+    } else if (HIVE_SUCCEEDED(status)) {
+        TEST_FAIL("request should not succeed when target dies");
+    } else {
+        printf("    Got unexpected error %d: %s\n", status.code,
+               status.msg ? status.msg : "unknown");
+        TEST_FAIL("unexpected error code");
+    }
+
+    // Should detect death quickly, not wait for full timeout
+    if (elapsed < 2000) {
+        TEST_PASS("detected target death quickly (< 2s)");
+    } else {
+        printf("    Took %lu ms to detect death\n", (unsigned long)elapsed);
+        TEST_FAIL("took too long to detect target death");
+    }
+
+    hive_exit();
+}
+
+// ============================================================================
 // Test runner
 // ============================================================================
 
@@ -809,6 +869,7 @@ static void (*test_funcs[])(void *) = {
     test15_message_pool_info,
     test16_null_data_send,
     test17_spawn_death_cycle_leak,
+    test18_request_to_dying_actor,
 };
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
