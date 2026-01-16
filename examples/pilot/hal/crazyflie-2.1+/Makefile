@@ -27,6 +27,7 @@ CFLAGS += -ffunction-sections -fdata-sections
 CFLAGS += -fno-common
 CFLAGS += -Os
 CFLAGS += -g3
+CFLAGS += -MMD -MP
 
 # Processor defines
 CFLAGS += -DSTM32F405xx
@@ -60,6 +61,9 @@ ASM_SOURCES = \
 OBJECTS = $(addprefix $(BUILD_DIR)/, $(C_SOURCES:.c=.o))
 OBJECTS += $(addprefix $(BUILD_DIR)/, $(ASM_SOURCES:.s=.o))
 
+# Dependency files
+DEPS = $(addprefix $(BUILD_DIR)/, $(C_SOURCES:.c=.d))
+
 # Default target
 all: $(TARGET)
 	@echo ""
@@ -91,11 +95,5 @@ clean:
 # Phony targets
 .PHONY: all clean
 
-# Dependencies
-$(BUILD_DIR)/hal_crazyflie.o: hal_crazyflie.c platform_crazyflie.h ../hal.h ../../types.h
-$(BUILD_DIR)/platform_crazyflie.o: platform_crazyflie.c platform_crazyflie.h bmi088.h bmp388.h motors.h pmw3901.h vl53l1x.h
-$(BUILD_DIR)/motors.o: motors.c motors.h
-$(BUILD_DIR)/bmi088.o: bmi088.c bmi088.h
-$(BUILD_DIR)/bmp388.o: bmp388.c bmp388.h
-$(BUILD_DIR)/pmw3901.o: pmw3901.c pmw3901.h
-$(BUILD_DIR)/vl53l1x.o: vl53l1x.c vl53l1x.h
+# Auto-generated dependencies
+-include $(DEPS)
