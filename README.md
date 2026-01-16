@@ -528,8 +528,8 @@ clang-format --dry-run --Werror src/hive_actor.c
 A pre-commit hook checks formatting before each commit:
 
 ```bash
-# Install (symlink to tracked script)
-ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
+# Install (one-time setup after clone)
+git config core.hooksPath scripts
 
 # Bypass if needed
 git commit --no-verify
