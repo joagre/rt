@@ -56,6 +56,26 @@ man man/man3/hive_ipc.3
 - Logging (compile-time filtering, dual output: console + binary file)
 - Bus (pub-sub with retention policies)
 
+## Hive vs QP/C
+
+[QP/C](https://github.com/QuantumLeaps/qpc) is the most comparable embedded actor framework. Both target ARM Cortex-M with static memory allocation.
+
+| Aspect | Hive | QP/C |
+|--------|------|------|
+| **Core Model** | Erlang-style actors with mailboxes | Active Objects + Hierarchical State Machines |
+| **State Management** | Implicit (actor code) | Explicit UML statecharts |
+| **Inspiration** | Erlang/OTP | UML/ROOM methodology |
+| **Message Handling** | Selective receive with pattern matching | Event dispatch to state handlers |
+| **Blocking** | Actors can block on receive with timeout | Run-to-completion (no blocking in handlers) |
+| **Supervision** | Links + monitors (death notifications) | Less emphasis on fault supervision |
+| **Error Philosophy** | "Let it crash" + restart | Defensive, state machine guards |
+| **API Style** | Minimalist C functions | Object-oriented C macros |
+| **Learning Curve** | Lower (if familiar with actors/Erlang) | Steeper (requires statechart knowledge) |
+
+**Choose Hive if:** You prefer message-passing with blocking receive, want Erlang-style supervision, or find state machines overkill for your use case.
+
+**Choose QP/C if:** You need formal state machine modeling, want UML tooling integration, or require safety certification with established track record.
+
 ## Cooperative Scheduling
 
 Actors run until they **yield** - there is no preemption. Operations that yield:
