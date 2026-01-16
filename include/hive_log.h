@@ -1,7 +1,6 @@
 #ifndef HIVE_LOG_H
 #define HIVE_LOG_H
 
-#include <stdio.h>
 #include <stdint.h>
 #include "hive_types.h"
 

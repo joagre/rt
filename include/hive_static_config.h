@@ -1,8 +1,6 @@
 #ifndef HIVE_STATIC_CONFIG_H
 #define HIVE_STATIC_CONFIG_H
 
-#include <stddef.h>
-
 // =============================================================================
 // Compile-Time Configuration for Static Memory Allocation
 // =============================================================================
