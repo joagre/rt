@@ -160,14 +160,15 @@ same timeout semantics apply as for
 Example usage:
 .PP
 .nf
+enum { FILTER_SYNC_TIMER, FILTER_LANDED };
 hive_recv_filter filters[] = {
-    {HIVE_SENDER_ANY, HIVE_MSG_TIMER, sync_timer},
-    {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, NOTIFY_LANDED},
+    [FILTER_SYNC_TIMER] = {HIVE_SENDER_ANY, HIVE_MSG_TIMER, sync_timer},
+    [FILTER_LANDED] = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, NOTIFY_LANDED},
 };
 hive_message msg;
 size_t matched;
 hive_ipc_recv_matches(filters, 2, &msg, -1, &matched);
-if (matched == 0) { /* sync timer */ }
+if (matched == FILTER_SYNC_TIMER) { /* sync timer */ }
 else { /* landed notification */ }
 .fi
 .SS Request/Reply Pattern

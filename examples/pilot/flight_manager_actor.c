@@ -100,9 +100,10 @@ void flight_manager_actor(void *arg) {
     hive_timer_after(FLIGHT_DURATION_US, &flight_timer);
 
     // Event loop: handle sync timer and flight timer
+    enum { FILTER_SYNC_TIMER, FILTER_FLIGHT_TIMER };
     hive_recv_filter flight_filters[] = {
-        {HIVE_SENDER_ANY, HIVE_MSG_TIMER, sync_timer},
-        {HIVE_SENDER_ANY, HIVE_MSG_TIMER, flight_timer},
+        [FILTER_SYNC_TIMER] = {HIVE_SENDER_ANY, HIVE_MSG_TIMER, sync_timer},
+        [FILTER_FLIGHT_TIMER] = {HIVE_SENDER_ANY, HIVE_MSG_TIMER, flight_timer},
     };
 
     bool flight_timer_fired = false;
@@ -111,8 +112,7 @@ void flight_manager_actor(void *arg) {
         size_t matched;
         hive_ipc_recv_matches(flight_filters, 2, &msg, -1, &matched);
 
-        if (matched == 0) {
-            // Periodic log sync
+        if (matched == FILTER_SYNC_TIMER) {
             hive_log_file_sync();
         } else {
             flight_timer_fired = true;
@@ -128,9 +128,11 @@ void flight_manager_actor(void *arg) {
     hive_ipc_notify(altitude, NOTIFY_LANDING, NULL, 0);
 
     // Wait for LANDED notification (keep syncing logs while waiting)
+    enum { FILTER_SYNC, FILTER_LANDED };
     hive_recv_filter landing_filters[] = {
-        {HIVE_SENDER_ANY, HIVE_MSG_TIMER, sync_timer},
-        {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, NOTIFY_FLIGHT_LANDED},
+        [FILTER_SYNC] = {HIVE_SENDER_ANY, HIVE_MSG_TIMER, sync_timer},
+        [FILTER_LANDED] = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY,
+                           NOTIFY_FLIGHT_LANDED},
     };
 
     bool landed = false;
@@ -139,7 +141,7 @@ void flight_manager_actor(void *arg) {
         size_t matched;
         hive_ipc_recv_matches(landing_filters, 2, &msg, -1, &matched);
 
-        if (matched == 0) {
+        if (matched == FILTER_SYNC) {
             hive_log_file_sync();
         } else {
             landed = true;
