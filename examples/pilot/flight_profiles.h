@@ -15,8 +15,8 @@ typedef struct {
 } waypoint_t;
 
 #if FLIGHT_PROFILE == FLIGHT_PROFILE_FIRST_TEST
-// First flight test: hover at low altitude until supervisor initiates landing
-// Safe profile for initial hardware validation (tethered recommended)
+// First flight test: hover at low altitude until flight manager initiates
+// landing. Safe profile for initial hardware validation (tethered recommended)
 static const waypoint_t waypoints[] = {
     {0.0f, 0.0f, 0.5f, 0.0f}, // Hover at 0.5m
 };

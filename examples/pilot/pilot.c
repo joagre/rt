@@ -46,7 +46,7 @@
 #include "attitude_actor.h"
 #include "rate_actor.h"
 #include "motor_actor.h"
-#include "supervisor_actor.h"
+#include "flight_manager_actor.h"
 
 #include <assert.h>
 
@@ -116,9 +116,9 @@ int main(void) {
     motor_actor_init(s_torque_bus);
 
     // Spawn order matters for IPC dependencies:
-    // - Supervisor needs waypoint, altitude, and motor IDs (for START, LANDING,
-    // STOP)
-    // - Altitude needs supervisor ID (for landing complete notification)
+    // - Flight manager needs waypoint, altitude, and motor IDs (for START,
+    // LANDING, STOP)
+    // - Altitude needs flight manager ID (for landing complete notification)
     //
     // All actors use CRITICAL priority. Execution order within a tick follows
     // spawn order (round-robin), which must match the data flow:
@@ -130,28 +130,28 @@ int main(void) {
     // priority actors run first, which would break the pipeline (motor would
     // run before controllers).
     actor_id sensor, estimator, altitude, waypoint, position, attitude, rate,
-        motor, supervisor;
+        motor, flight_manager;
     SPAWN_ACTOR(sensor_actor, "sensor", HIVE_PRIORITY_CRITICAL, sensor);
     SPAWN_ACTOR(estimator_actor, "estimator", HIVE_PRIORITY_CRITICAL,
                 estimator);
 
-    // Spawn supervisor early (waypoint and altitude IDs filled in after)
-    supervisor_actor_init(0, 0, motor);
-    SPAWN_ACTOR(supervisor_actor, "supervisor", HIVE_PRIORITY_CRITICAL,
-                supervisor);
+    // Spawn flight manager early (waypoint and altitude IDs filled in after)
+    flight_manager_actor_init(0, 0, motor);
+    SPAWN_ACTOR(flight_manager_actor, "flight_mgr", HIVE_PRIORITY_CRITICAL,
+                flight_manager);
 
     // Spawn waypoint before altitude/position (publishes position target they
     // read)
     waypoint_actor_init(s_state_bus, s_position_target_bus);
     SPAWN_ACTOR(waypoint_actor, "waypoint", HIVE_PRIORITY_CRITICAL, waypoint);
 
-    // Spawn altitude with supervisor ID
+    // Spawn altitude with flight manager ID
     altitude_actor_init(s_state_bus, s_thrust_bus, s_position_target_bus,
-                        supervisor);
+                        flight_manager);
     SPAWN_ACTOR(altitude_actor, "altitude", HIVE_PRIORITY_CRITICAL, altitude);
 
-    // Update supervisor with waypoint and altitude IDs
-    supervisor_actor_init(waypoint, altitude, motor);
+    // Update flight manager with waypoint and altitude IDs
+    flight_manager_actor_init(waypoint, altitude, motor);
 
     SPAWN_ACTOR(position_actor, "position", HIVE_PRIORITY_CRITICAL, position);
     SPAWN_ACTOR(attitude_actor, "attitude", HIVE_PRIORITY_CRITICAL, attitude);
@@ -166,7 +166,7 @@ int main(void) {
     (void)attitude;
     (void)rate;
     (void)motor;
-    (void)supervisor;
+    (void)flight_manager;
 
     HIVE_LOG_INFO("9 actors spawned");
 

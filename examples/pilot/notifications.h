@@ -9,15 +9,15 @@
 #include <stdint.h>
 
 // ----------------------------------------------------------------------------
-// Supervisor notifications
+// Flight manager notifications
 // ----------------------------------------------------------------------------
 
 typedef enum {
-    NOTIFY_FLIGHT_START = 0x01, // Supervisor -> waypoint: begin flight sequence
-    NOTIFY_FLIGHT_STOP = 0x02,  // Supervisor -> motor: stop all motors
+    NOTIFY_FLIGHT_START = 0x01, // Flight manager -> waypoint: begin flight
+    NOTIFY_FLIGHT_STOP = 0x02,  // Flight manager -> motor: stop all motors
     NOTIFY_LANDING =
-        0x03, // Supervisor -> altitude: initiate controlled landing
-    NOTIFY_FLIGHT_LANDED = 0x04, // Altitude -> supervisor: landing complete
+        0x03, // Flight manager -> altitude: initiate controlled landing
+    NOTIFY_FLIGHT_LANDED = 0x04, // Altitude -> flight manager: landing complete
 } pilot_notification_t;
 
 #endif // PILOT_NOTIFICATIONS_H

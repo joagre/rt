@@ -17,7 +17,7 @@ A quadcopter autopilot example using the actor runtime. Supports Webots simulati
 - Step 5: Estimator actor (sensor fusion, vertical velocity)
 - Step 6: Position actor (horizontal position hold + heading hold)
 - Step 7: Waypoint actor (waypoint navigation)
-- Step 8: Supervisor actor (startup coordination, safety cutoff)
+- Step 8: Flight manager actor (startup coordination, safety cutoff)
 - Mixer moved to HAL (platform-specific, X-configuration)
 
 ## Goals
@@ -63,7 +63,7 @@ Actors must be spawned in dependency order for correct initialization:
 1. **Sensor → Estimator** - Estimator subscribes to sensor bus
 2. **Controllers** - Subscribe to state bus (created by estimator)
 3. **Motor** - Subscribes to torque bus (created by rate actor)
-4. **Supervisor** - Needs actor IDs for IPC notifications
+4. **Flight manager** - Needs actor IDs for IPC notifications
 
 **Important:** Bus subscriptions see nothing until first publish *after* subscription.
 A subscriber spawned before the first publish will get valid data on first read.
@@ -128,8 +128,8 @@ The following safety features are enabled for real hardware (not in Webots simul
 | Altitude cutoff | altitude_actor.c | Motors off if altitude >2m |
 | Landed detection | altitude_actor.c | Motors off when target <5cm and altitude <15cm |
 | Thrust ramp | altitude_actor.c | Gradual thrust increase over 0.5 seconds on takeoff |
-| Startup delay | supervisor_actor.c | Flight blocked for 60 seconds after boot |
-| Hard cutoff | supervisor_actor.c | Motors forced off 12 seconds after flight starts |
+| Startup delay | flight_manager_actor.c | Flight blocked for 60 seconds after boot |
+| Hard cutoff | flight_manager_actor.c | Motors forced off 12 seconds after flight starts |
 
 ### Future Safety Features
 
@@ -155,7 +155,7 @@ For a production system, each actor should:
 1. Validate inputs before processing
 2. Handle bus read/write failures
 3. Implement timeouts for expected data
-4. Report health status to a supervisor actor
+4. Report health status to a flight manager actor
 5. Respond to emergency stop commands
 
 ### Production Instrumentation Requirements
@@ -251,7 +251,7 @@ Code is split into focused modules:
 | `attitude_actor.c/h` | Attitude PIDs → rate setpoints |
 | `rate_actor.c/h` | Rate PIDs → torque commands |
 | `motor_actor.c/h` | Output: torque → HAL → motors |
-| `supervisor_actor.c/h` | Startup delay, flight window cutoff |
+| `flight_manager_actor.c/h` | Startup delay, flight window cutoff |
 | `pid.c/h` | Reusable PID controller |
 | `types.h` | Portable data types |
 | `config.h` | Configuration constants (timing, thresholds) |
@@ -417,7 +417,7 @@ All actor code is platform-independent. Actors use:
 | `attitude_actor.c/h` | Bus API only |
 | `rate_actor.c/h` | Bus API only |
 | `motor_actor.c/h` | HAL (hal_write_torque) + IPC + bus API |
-| `supervisor_actor.c/h` | IPC only (no bus) |
+| `flight_manager_actor.c/h` | IPC only (no bus) |
 | `pid.c/h` | Pure C, no runtime deps |
 | `types.h` | Data structures |
 | `config.h` | Tuning parameters |
@@ -437,7 +437,7 @@ examples/pilot/
     attitude_actor.c/h   # Attitude PIDs → rate setpoints
     rate_actor.c/h       # Rate PIDs → torque commands
     motor_actor.c/h      # Output: torque → HAL → motors
-    supervisor_actor.c/h # Startup delay, flight window cutoff
+    flight_manager_actor.c/h # Startup delay, flight window cutoff
     pid.c/h              # Reusable PID controller
     types.h              # Portable data types
     config.h             # Configuration constants
@@ -526,7 +526,7 @@ graph LR
 |-------|-------|--------|----------|----------------|
 | **Sensor** | Hardware | Sensor Bus | CRITICAL | Read raw sensors, publish |
 | **Estimator** | Sensor Bus | State Bus | CRITICAL | Complementary filter fusion, state estimate |
-| **Supervisor** | (none) | START/STOP notifications | CRITICAL | Startup delay, flight window cutoff |
+| **Flight Manager** | (none) | START/STOP notifications | CRITICAL | Startup delay, flight window cutoff |
 | **Waypoint** | State Bus + START notification | Position Target Bus | CRITICAL | Waypoint navigation (3D on Webots, altitude-only on STM32) |
 | **Altitude** | State + Position Target Bus | Thrust Bus | CRITICAL | Altitude PID (250Hz) |
 | **Position** | Position Target + State Bus | Attitude Setpoint Bus | CRITICAL | Position PD (250Hz) |
@@ -690,7 +690,7 @@ State Bus ──► Waypoint Actor ──► Position Target Bus
 - World-to-body frame transformation handles arbitrary headings
 - Easy to extend with mission planning
 
-### Step 8: Supervisor Actor ✓
+### Step 8: Flight Manager Actor ✓
 
 Add centralized startup coordination and safety cutoff.
 
@@ -702,7 +702,7 @@ Waypoint actor starts immediately
 
 **After:**
 ```
-Supervisor Actor ──► START notification ──► Waypoint Actor
+Flight Manager Actor ──► START notification ──► Waypoint Actor
                                               │
                                               ↓ (flight begins)
                  ──► STOP notification ──► Motor Actor
@@ -720,7 +720,7 @@ Supervisor Actor ──► START notification ──► Waypoint Actor
 **Benefits:**
 - Centralized safety timing (not scattered across actors)
 - Clear flight authorization flow
-- Waypoint actor blocks until supervisor authorizes flight
+- Waypoint actor blocks until flight manager authorizes flight
 - Easy to add pre-flight checks in one place
 
 ### Step 9 (Future): RC Input / Mode Switching

@@ -2,7 +2,7 @@
 //
 // Subscribes to torque bus, writes to hardware via HAL.
 // The HAL handles mixing (converting torque to individual motor commands).
-// Checks for STOP notification from supervisor (best-effort - only checked
+// Checks for STOP notification from flight manager (best-effort - only checked
 // when torque commands arrive, won't interrupt blocking bus read).
 
 #include "motor_actor.h"

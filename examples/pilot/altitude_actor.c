@@ -4,7 +4,7 @@
 // Landing mode: Fixed descent rate until touchdown
 //
 // Landing is triggered by NOTIFY_LANDING message. When complete,
-// sends NOTIFY_FLIGHT_LANDED to supervisor.
+// sends NOTIFY_FLIGHT_LANDED to flight manager.
 
 #include "altitude_actor.h"
 #include "notifications.h"
@@ -24,15 +24,15 @@
 static bus_id s_state_bus;
 static bus_id s_thrust_bus;
 static bus_id s_position_target_bus;
-static actor_id s_supervisor_actor;
+static actor_id s_flight_manager;
 
 void altitude_actor_init(bus_id state_bus, bus_id thrust_bus,
                          bus_id position_target_bus,
-                         actor_id supervisor_actor) {
+                         actor_id flight_manager_actor) {
     s_state_bus = state_bus;
     s_thrust_bus = thrust_bus;
     s_position_target_bus = position_target_bus;
-    s_supervisor_actor = supervisor_actor;
+    s_flight_manager = flight_manager_actor;
 }
 
 // Thrust ramp duration for gentle takeoff (microseconds)
@@ -112,11 +112,11 @@ void altitude_actor(void *arg) {
             pid_reset(&alt_pid);
             ramp_start_time = 0;
 
-            // Notify supervisor once when landed
+            // Notify flight manager once when landed
             if (touchdown && !landed) {
                 landed = true;
-                HIVE_LOG_INFO("[ALT] Touchdown - notifying supervisor");
-                hive_ipc_notify(s_supervisor_actor, NOTIFY_FLIGHT_LANDED, NULL,
+                HIVE_LOG_INFO("[ALT] Touchdown - notifying flight manager");
+                hive_ipc_notify(s_flight_manager, NOTIFY_FLIGHT_LANDED, NULL,
                                 0);
             }
         } else if (landing_mode) {

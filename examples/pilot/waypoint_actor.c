@@ -47,11 +47,11 @@ void waypoint_actor(void *arg) {
     hive_status status = hive_bus_subscribe(s_state_bus);
     assert(HIVE_SUCCEEDED(status));
 
-    // Wait for START signal from supervisor before beginning flight
+    // Wait for START signal from flight manager before beginning flight
     HIVE_LOG_INFO("[WPT] Flight profile: %s (%d waypoints, %.0fs hover)",
                   FLIGHT_PROFILE_NAME, (int)NUM_WAYPOINTS,
                   WAYPOINT_HOVER_TIME_US / 1000000.0f);
-    HIVE_LOG_INFO("[WPT] Waiting for supervisor START signal");
+    HIVE_LOG_INFO("[WPT] Waiting for flight manager START signal");
     hive_message msg;
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, NOTIFY_FLIGHT_START,
                         &msg, -1);

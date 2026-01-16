@@ -19,7 +19,7 @@ Demonstrates waypoint navigation with a quadcopter using 9 actors:
 6. **Attitude actor** runs attitude PIDs, publishes rate setpoints
 7. **Rate actor** runs rate PIDs, publishes torque commands
 8. **Motor actor** reads torque bus, writes to hardware via HAL (checks for STOP signal)
-9. **Supervisor actor** handles startup delay (60s), sends START/STOP notifications
+9. **Flight manager actor** handles startup delay (60s), sends START/STOP notifications
 
 **Webots:** Flies a square pattern with altitude changes at each waypoint (full 3D navigation with GPS).
 
@@ -30,7 +30,7 @@ Without Flow deck, hovers and changes altitude only. 60-second startup delay bef
 60-second startup delay before flight.
 
 **Safety features (all platforms):** Emergency cutoff on excessive tilt (>45°), excessive
-altitude (>2m), or touchdown. Flight duration limited by supervisor (10s/40s/60s per profile).
+altitude (>2m), or touchdown. Flight duration limited by flight manager (10s/40s/60s per profile).
 
 ## Prerequisites
 
@@ -79,7 +79,7 @@ See `hal/<platform>/README.md` for hardware details, pin mapping, and flight pro
 | `attitude_actor.c/h` | Attitude PIDs → rate setpoints |
 | `rate_actor.c/h` | Rate PIDs → torque commands |
 | `motor_actor.c/h` | Output: torque → HAL → motors |
-| `supervisor_actor.c/h` | Startup delay, flight window cutoff |
+| `flight_manager_actor.c/h` | Startup delay, flight window cutoff |
 | `pid.c/h` | Reusable PID controller |
 | `fusion/complementary_filter.c/h` | Portable attitude estimation (accel+gyro fusion) |
 | `types.h` | Shared data types (sensor_data_t, state_estimate_t, etc.) |
@@ -167,7 +167,7 @@ order to ensure each actor sees fresh data from upstream actors in the same step
 | 6     | attitude  | CRITICAL | Needs attitude setpoints, produces rate setpoints |
 | 7     | rate      | CRITICAL | Needs state + thrust + rate setpoints |
 | 8     | motor     | CRITICAL | Needs torque + STOP signal, writes hardware last |
-| 9     | supervisor| CRITICAL | Sends START to waypoint, STOP to motor after flight window |
+| 9     | flight_mgr| CRITICAL | Sends START to waypoint, STOP to motor after flight window |
 
 ## Control System
 

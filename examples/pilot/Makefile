@@ -69,7 +69,7 @@ TARGET = pilot
 # Pilot application code
 ACTOR_SRCS = sensor_actor.c estimator_actor.c altitude_actor.c waypoint_actor.c \
              position_actor.c attitude_actor.c rate_actor.c motor_actor.c \
-             supervisor_actor.c
+             flight_manager_actor.c
 HAL_SRCS = hal/webots-crazyflie/hal_webots.c
 FUSION_SRCS = fusion/complementary_filter.c
 PILOT_SRCS = pilot.c pid.c $(ACTOR_SRCS) $(HAL_SRCS) $(FUSION_SRCS)
