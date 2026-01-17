@@ -1,5 +1,5 @@
 .\" Man page for timer functions
-.TH HIVE_TIMER 3 "January 2025" "Hive 1.0" "Actor Runtime Manual"
+.TH HIVE_TIMER 3 "January 2026" "Hive 1.0" "Actor Runtime Manual"
 .SH NAME
 hive_timer_after, hive_timer_every, hive_timer_cancel, hive_sleep, hive_get_time \- actor timers
 .SH SYNOPSIS
@@ -58,7 +58,7 @@ with CLOCK_MONOTONIC (via vDSO for minimal overhead).
 On STM32, this returns tick_count multiplied by HIVE_TIMER_TICK_US
 (default 1ms resolution).
 .PP
-In simulation mode (when using hive_timer_advance_time()), this returns
+In simulation mode (when using hive_advance_time()), this returns
 the simulated time.
 .SS Timer Messages
 Timer messages have:
