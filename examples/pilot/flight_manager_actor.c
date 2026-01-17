@@ -19,6 +19,7 @@
 #include "config.h"
 #include "hive_runtime.h"
 #include "hive_ipc.h"
+#include "hive_select.h"
 #include "hive_timer.h"
 #include "hive_log.h"
 #include "hive_static_config.h"
@@ -99,20 +100,22 @@ void flight_manager_actor(void *arg) {
     timer_id flight_timer;
     hive_timer_after(FLIGHT_DURATION_US, &flight_timer);
 
-    // Event loop: handle sync timer and flight timer
-    enum { FILTER_SYNC_TIMER, FILTER_FLIGHT_TIMER };
-    hive_recv_filter flight_filters[] = {
-        [FILTER_SYNC_TIMER] = {HIVE_SENDER_ANY, HIVE_MSG_TIMER, sync_timer},
-        [FILTER_FLIGHT_TIMER] = {HIVE_SENDER_ANY, HIVE_MSG_TIMER, flight_timer},
+    // Event loop: handle sync timer and flight timer using hive_select()
+    enum { SEL_SYNC_TIMER, SEL_FLIGHT_TIMER };
+    hive_select_source flight_sources[] = {
+        [SEL_SYNC_TIMER] = {HIVE_SEL_IPC, .ipc = {HIVE_SENDER_ANY,
+                                                  HIVE_MSG_TIMER, sync_timer}},
+        [SEL_FLIGHT_TIMER] = {HIVE_SEL_IPC,
+                              .ipc = {HIVE_SENDER_ANY, HIVE_MSG_TIMER,
+                                      flight_timer}},
     };
 
     bool flight_timer_fired = false;
     while (!flight_timer_fired) {
-        hive_message msg;
-        size_t matched;
-        hive_ipc_recv_matches(flight_filters, 2, &msg, -1, &matched);
+        hive_select_result result;
+        hive_select(flight_sources, 2, &result, -1);
 
-        if (matched == FILTER_SYNC_TIMER) {
+        if (result.index == SEL_SYNC_TIMER) {
             hive_log_file_sync();
         } else {
             flight_timer_fired = true;
@@ -128,20 +131,20 @@ void flight_manager_actor(void *arg) {
     hive_ipc_notify(altitude, NOTIFY_LANDING, NULL, 0);
 
     // Wait for LANDED notification (keep syncing logs while waiting)
-    enum { FILTER_SYNC, FILTER_LANDED };
-    hive_recv_filter landing_filters[] = {
-        [FILTER_SYNC] = {HIVE_SENDER_ANY, HIVE_MSG_TIMER, sync_timer},
-        [FILTER_LANDED] = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY,
-                           NOTIFY_FLIGHT_LANDED},
+    enum { SEL_SYNC, SEL_LANDED };
+    hive_select_source landing_sources[] = {
+        [SEL_SYNC] = {HIVE_SEL_IPC,
+                      .ipc = {HIVE_SENDER_ANY, HIVE_MSG_TIMER, sync_timer}},
+        [SEL_LANDED] = {HIVE_SEL_IPC, .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY,
+                                              NOTIFY_FLIGHT_LANDED}},
     };
 
     bool landed = false;
     while (!landed) {
-        hive_message msg;
-        size_t matched;
-        hive_ipc_recv_matches(landing_filters, 2, &msg, -1, &matched);
+        hive_select_result result;
+        hive_select(landing_sources, 2, &result, -1);
 
-        if (matched == FILTER_SYNC) {
+        if (result.index == SEL_SYNC) {
             hive_log_file_sync();
         } else {
             landed = true;

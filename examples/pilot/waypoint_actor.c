@@ -15,11 +15,13 @@
 #include "hive_runtime.h"
 #include "hive_bus.h"
 #include "hive_ipc.h"
+#include "hive_select.h"
 #include "hive_timer.h"
 #include "hive_log.h"
 #include <assert.h>
 #include <stdbool.h>
 #include <math.h>
+#include <string.h>
 
 static bus_id s_state_bus;
 static bus_id s_position_target_bus;
@@ -68,6 +70,9 @@ void waypoint_actor(void *arg) {
     timer_id hover_timer = TIMER_ID_INVALID;
     bool hovering = false;
 
+    // Set up hive_select() sources (dynamically adjust count based on hovering)
+    enum { SEL_STATE, SEL_HOVER_TIMER };
+
     while (1) {
         const waypoint_t *wp = &waypoints[waypoint_index];
 
@@ -76,29 +81,37 @@ void waypoint_actor(void *arg) {
             .x = wp->x, .y = wp->y, .z = wp->z, .yaw = wp->yaw};
         hive_bus_publish(s_position_target_bus, &target, sizeof(target));
 
-        // Wait for state update
-        state_estimate_t state;
-        size_t len;
-        hive_bus_read_wait(s_state_bus, &state, sizeof(state), &len, -1);
+        // Wait for state update OR hover timer (unified event waiting)
+        hive_select_source sources[] = {
+            [SEL_STATE] = {HIVE_SEL_BUS, .bus = s_state_bus},
+            [SEL_HOVER_TIMER] = {HIVE_SEL_IPC,
+                                 .ipc = {HIVE_SENDER_ANY, HIVE_MSG_TIMER,
+                                         hover_timer}},
+        };
 
-        // Check for hover timer expiry
-        if (hovering) {
-            hive_message timer_msg;
-            if (HIVE_SUCCEEDED(hive_ipc_recv_match(HIVE_SENDER_ANY,
-                                                   HIVE_MSG_TIMER, hover_timer,
-                                                   &timer_msg, 0))) {
-                // Timer fired - advance to next waypoint (loops back to 0)
-                hovering = false;
-                hover_timer = TIMER_ID_INVALID;
-                waypoint_index = (waypoint_index + 1) % (int)NUM_WAYPOINTS;
-                HIVE_LOG_INFO("[WPT] Advancing to waypoint %d: (%.1f, %.1f, "
-                              "%.1f) yaw=%.0f deg",
-                              waypoint_index, waypoints[waypoint_index].x,
-                              waypoints[waypoint_index].y,
-                              waypoints[waypoint_index].z,
-                              waypoints[waypoint_index].yaw * RAD_TO_DEG);
-            }
+        hive_select_result result;
+        // Only include hover timer source when hovering
+        size_t num_sources = hovering ? 2 : 1;
+        hive_select(sources, num_sources, &result, -1);
+
+        if (result.index == SEL_HOVER_TIMER) {
+            // Hover timer fired - advance to next waypoint (loops back to 0)
+            hovering = false;
+            hover_timer = TIMER_ID_INVALID;
+            waypoint_index = (waypoint_index + 1) % (int)NUM_WAYPOINTS;
+            HIVE_LOG_INFO("[WPT] Advancing to waypoint %d: (%.1f, %.1f, "
+                          "%.1f) yaw=%.0f deg",
+                          waypoint_index, waypoints[waypoint_index].x,
+                          waypoints[waypoint_index].y,
+                          waypoints[waypoint_index].z,
+                          waypoints[waypoint_index].yaw * RAD_TO_DEG);
+            continue; // Loop back to publish new target
         }
+
+        // SEL_STATE: Copy state data from select result
+        state_estimate_t state;
+        assert(result.bus.len == sizeof(state));
+        memcpy(&state, result.bus.data, sizeof(state));
 
         // Check arrival and start hover timer
         if (!hovering && check_arrival(wp, &state)) {

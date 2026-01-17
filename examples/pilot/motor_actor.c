@@ -2,8 +2,8 @@
 //
 // Subscribes to torque bus, writes to hardware via HAL.
 // The HAL handles mixing (converting torque to individual motor commands).
-// Checks for STOP notification from flight manager (best-effort - only checked
-// when torque commands arrive, won't interrupt blocking bus read).
+// Uses hive_select() to wait on torque bus OR STOP notification simultaneously,
+// ensuring immediate response to STOP commands (critical for safety).
 //
 // Uses name registry:
 // - Registers self as "motor"
@@ -16,7 +16,9 @@
 #include "hive_runtime.h"
 #include "hive_bus.h"
 #include "hive_ipc.h"
+#include "hive_select.h"
 #include <assert.h>
+#include <string.h>
 
 static bus_id s_torque_bus;
 
@@ -36,18 +38,32 @@ void motor_actor(void *arg) {
 
     bool stopped = false;
 
-    while (1) {
-        hive_message msg;
-        torque_cmd_t torque;
-        size_t len;
+    // Set up hive_select() sources: torque bus + STOP notification
+    enum { SEL_TORQUE, SEL_STOP };
+    hive_select_source sources[] = {
+        [SEL_TORQUE] = {HIVE_SEL_BUS, .bus = s_torque_bus},
+        [SEL_STOP] = {HIVE_SEL_IPC, .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY,
+                                            NOTIFY_FLIGHT_STOP}},
+    };
 
-        // Check for STOP notification (non-blocking, best-effort)
-        if (HIVE_SUCCEEDED(hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_NOTIFY,
-                                               NOTIFY_FLIGHT_STOP, &msg, 0))) {
+    while (1) {
+        torque_cmd_t torque;
+
+        // Wait for torque command OR STOP notification (unified event waiting)
+        hive_select_result result;
+        hive_select(sources, 2, &result, -1);
+
+        if (result.index == SEL_STOP) {
+            // STOP received - respond immediately
             stopped = true;
+            torque = (torque_cmd_t)TORQUE_CMD_ZERO;
+            hal_write_torque(&torque);
+            continue; // Loop back to wait for next event
         }
 
-        hive_bus_read_wait(s_torque_bus, &torque, sizeof(torque), &len, -1);
+        // SEL_TORQUE: Copy torque data from select result
+        assert(result.bus.len == sizeof(torque));
+        memcpy(&torque, result.bus.data, sizeof(torque));
 
         if (stopped) {
             torque = (torque_cmd_t)TORQUE_CMD_ZERO;

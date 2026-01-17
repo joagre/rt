@@ -77,6 +77,7 @@ HIVE_CORE_SRCS = \
 	hive_log.c \
 	hive_pool.c \
 	hive_runtime.c \
+	hive_select.c \
 	hive_scheduler_stm32.c \
 	hive_timer_stm32.c \
 	hive_file_stm32.c

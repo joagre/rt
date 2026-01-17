@@ -20,10 +20,12 @@
 #include "hive_runtime.h"
 #include "hive_bus.h"
 #include "hive_ipc.h"
+#include "hive_select.h"
 #include "hive_timer.h"
 #include "hive_log.h"
 #include <assert.h>
 #include <math.h>
+#include <string.h>
 
 static bus_id s_state_bus;
 static bus_id s_thrust_bus;
@@ -70,28 +72,40 @@ void altitude_actor(void *arg) {
 
     uint64_t prev_time = hive_get_time();
 
+    // Set up hive_select() sources: state bus + landing command
+    enum { SEL_STATE, SEL_LANDING };
+    hive_select_source sources[] = {
+        [SEL_STATE] = {HIVE_SEL_BUS, .bus = s_state_bus},
+        [SEL_LANDING] = {HIVE_SEL_IPC, .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY,
+                                               NOTIFY_LANDING}},
+    };
+
     while (1) {
         state_estimate_t state;
         position_target_t target;
-        hive_message msg;
         size_t len;
 
-        // Block until state available
-        hive_bus_read_wait(s_state_bus, &state, sizeof(state), &len, -1);
+        // Wait for state update OR landing command (unified event waiting)
+        hive_select_result result;
+        hive_select(sources, 2, &result, -1);
+
+        if (result.index == SEL_LANDING) {
+            // Landing command received - respond immediately
+            if (!landing_mode) {
+                HIVE_LOG_INFO("[ALT] Landing initiated");
+                landing_mode = true;
+            }
+            continue; // Loop back to wait for next event
+        }
+
+        // SEL_STATE: Copy state data from select result
+        assert(result.bus.len == sizeof(state));
+        memcpy(&state, result.bus.data, sizeof(state));
 
         // Measure dt
         uint64_t now = hive_get_time();
         float dt = (now - prev_time) / 1000000.0f;
         prev_time = now;
-
-        // Check for landing command (non-blocking)
-        if (HIVE_SUCCEEDED(hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_NOTIFY,
-                                               NOTIFY_LANDING, &msg, 0))) {
-            if (!landing_mode) {
-                HIVE_LOG_INFO("[ALT] Landing initiated");
-                landing_mode = true;
-            }
-        }
 
         // Read target altitude (non-blocking)
         if (hive_bus_read(s_position_target_bus, &target, sizeof(target), &len)
