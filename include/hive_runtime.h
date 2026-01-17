@@ -2,6 +2,7 @@
 #define HIVE_RUNTIME_H
 
 #include "hive_types.h"
+#include "hive_select.h"
 
 // Initialize runtime (call once from main)
 hive_status hive_init(void);

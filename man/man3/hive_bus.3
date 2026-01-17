@@ -290,7 +290,14 @@ hive_bus_create(&cfg, &work_queue);
 
 /* Multiple workers subscribe; each job processed exactly once */
 .fi
+.SS Implementation Note
+The blocking function
+.BR hive_bus_read_wait ()
+is implemented as a thin wrapper around
+.BR hive_select (3),
+the unified event waiting primitive.
 .SH SEE ALSO
 .BR hive_ipc (3),
 .BR hive_spawn (3),
-.BR hive_types (3)
+.BR hive_types (3),
+.BR hive_select (3)

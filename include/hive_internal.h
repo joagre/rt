@@ -185,4 +185,33 @@ hive_status hive_ipc_notify_internal(actor_id to, actor_id sender,
                                      hive_msg_class class, uint32_t tag,
                                      const void *data, size_t len);
 
+// -----------------------------------------------------------------------------
+// hive_select internal helpers (implemented in hive_ipc.c and hive_bus.c)
+// -----------------------------------------------------------------------------
+
+// Scan mailbox for message matching any of the filters (non-blocking)
+// Returns the matching entry and sets *matched_index to which filter matched
+// Does NOT consume the message - caller must call hive_ipc_consume_entry()
+// Used by: hive_select
+mailbox_entry *hive_ipc_scan_mailbox(const hive_recv_filter *filters,
+                                     size_t num_filters, size_t *matched_index);
+
+// Consume (unlink) a mailbox entry and decode into hive_message
+// Entry is stored as active_msg for later cleanup
+// Used by: hive_select
+void hive_ipc_consume_entry(mailbox_entry *entry, hive_message *msg);
+
+// Check if bus has unread data for current actor (non-blocking, no consume)
+// Returns true if data is available
+// Used by: hive_select
+bool hive_bus_has_data(bus_id bus);
+
+// Set blocked flag for current actor on specified bus
+// Used by: hive_select
+void hive_bus_set_blocked(bus_id bus, bool blocked);
+
+// Check if current actor is subscribed to bus
+// Used by: hive_select for validation
+bool hive_bus_is_subscribed(bus_id bus);
+
 #endif // HIVE_INTERNAL_H

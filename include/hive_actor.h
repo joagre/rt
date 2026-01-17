@@ -64,6 +64,10 @@ typedef struct {
     const hive_recv_filter *recv_filters; // NULL = no filter active
     size_t recv_filter_count;             // Number of filters in array
 
+    // For hive_select: multi-source wait (IPC + bus)
+    const hive_select_source *select_sources; // NULL = not in select
+    size_t select_source_count;               // Number of sources in array
+
     // For I/O completion results
     hive_status io_status;
     int io_result_fd;       // For file_open

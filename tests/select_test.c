@@ -1,0 +1,689 @@
+#include "hive_runtime.h"
+#include "hive_ipc.h"
+#include "hive_select.h"
+#include "hive_bus.h"
+#include "hive_timer.h"
+#include "hive_link.h"
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+
+/* TEST_STACK_SIZE caps stack for QEMU builds; passes through on native */
+#ifndef TEST_STACK_SIZE
+#define TEST_STACK_SIZE(x) (x)
+#endif
+
+// Test results
+static int tests_passed = 0;
+static int tests_failed = 0;
+
+#define TEST_PASS(name)               \
+    do {                              \
+        printf("  PASS: %s\n", name); \
+        fflush(stdout);               \
+        tests_passed++;               \
+    } while (0)
+#define TEST_FAIL(name)               \
+    do {                              \
+        printf("  FAIL: %s\n", name); \
+        fflush(stdout);               \
+        tests_failed++;               \
+    } while (0)
+
+// Helper to get current time in milliseconds
+static uint64_t time_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
+}
+
+// ============================================================================
+// Test 1: Single IPC source (wildcard) - equivalent to hive_ipc_recv()
+// ============================================================================
+
+static void test1_ipc_wildcard(void *arg) {
+    (void)arg;
+    printf("\nTest 1: Single IPC source (wildcard)\n");
+
+    actor_id self = hive_self();
+
+    // Send a message to self
+    int data = 42;
+    hive_ipc_notify(self, 123, &data, sizeof(data));
+
+    // Use hive_select with wildcard IPC filter
+    hive_select_source source = {
+        .type = HIVE_SEL_IPC,
+        .ipc = {HIVE_SENDER_ANY, HIVE_MSG_ANY, HIVE_TAG_ANY}};
+    hive_select_result result;
+    hive_status status = hive_select(&source, 1, &result, 100);
+
+    if (HIVE_SUCCEEDED(status)) {
+        TEST_PASS("hive_select with wildcard IPC succeeds");
+    } else {
+        TEST_FAIL("hive_select with wildcard IPC failed");
+    }
+
+    if (result.type == HIVE_SEL_IPC && result.index == 0) {
+        TEST_PASS("result type and index correct");
+    } else {
+        TEST_FAIL("result type or index incorrect");
+    }
+
+    if (*(int *)result.ipc.data == 42 && result.ipc.tag == 123) {
+        TEST_PASS("received correct data and tag");
+    } else {
+        TEST_FAIL("data or tag mismatch");
+    }
+
+    hive_exit();
+}
+
+// ============================================================================
+// Test 2: Single IPC source (filtered) - equivalent to hive_ipc_recv_match()
+// ============================================================================
+
+#define TAG_A 100
+#define TAG_B 200
+
+static void test2_ipc_filtered(void *arg) {
+    (void)arg;
+    printf("\nTest 2: Single IPC source (filtered)\n");
+
+    actor_id self = hive_self();
+
+    // Send messages with different tags
+    int a = 1, b = 2;
+    hive_ipc_notify(self, TAG_A, &a, sizeof(a));
+    hive_ipc_notify(self, TAG_B, &b, sizeof(b));
+
+    // Select only messages with TAG_B
+    hive_select_source source = {
+        .type = HIVE_SEL_IPC, .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, TAG_B}};
+    hive_select_result result;
+    hive_status status = hive_select(&source, 1, &result, 100);
+
+    if (HIVE_SUCCEEDED(status) && result.ipc.tag == TAG_B) {
+        TEST_PASS("filtered select returns TAG_B message");
+    } else {
+        TEST_FAIL("expected TAG_B message");
+    }
+
+    if (*(int *)result.ipc.data == 2) {
+        TEST_PASS("received correct data for TAG_B");
+    } else {
+        TEST_FAIL("data mismatch");
+    }
+
+    // Now get TAG_A which should still be in mailbox
+    source.ipc.tag = TAG_A;
+    status = hive_select(&source, 1, &result, 100);
+
+    if (HIVE_SUCCEEDED(status) && result.ipc.tag == TAG_A) {
+        TEST_PASS("TAG_A still available after filtered select");
+    } else {
+        TEST_FAIL("TAG_A should still be in mailbox");
+    }
+
+    hive_exit();
+}
+
+// ============================================================================
+// Test 3: Single bus source - equivalent to hive_bus_read_wait()
+// ============================================================================
+
+static bus_id g_test_bus = BUS_ID_INVALID;
+
+static void test3_publisher(void *arg) {
+    (void)arg;
+    // Wait a bit then publish
+    timer_id timer;
+    hive_timer_after(50000, &timer);
+    hive_message msg;
+    hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
+
+    int data = 99;
+    hive_bus_publish(g_test_bus, &data, sizeof(data));
+    hive_exit();
+}
+
+static void test3_bus_source(void *arg) {
+    (void)arg;
+    printf("\nTest 3: Single bus source\n");
+
+    // Create and subscribe to bus
+    hive_bus_config cfg = HIVE_BUS_CONFIG_DEFAULT;
+    hive_status status = hive_bus_create(&cfg, &g_test_bus);
+    if (HIVE_FAILED(status)) {
+        TEST_FAIL("failed to create bus");
+        hive_exit();
+    }
+
+    status = hive_bus_subscribe(g_test_bus);
+    if (HIVE_FAILED(status)) {
+        TEST_FAIL("failed to subscribe to bus");
+        hive_bus_destroy(g_test_bus);
+        hive_exit();
+    }
+
+    // Spawn publisher
+    actor_id publisher;
+    hive_spawn(test3_publisher, NULL, &publisher);
+
+    // Wait for bus data using hive_select
+    hive_select_source source = {.type = HIVE_SEL_BUS, .bus = g_test_bus};
+    hive_select_result result;
+    uint64_t start = time_ms();
+    status = hive_select(&source, 1, &result, 500);
+    uint64_t elapsed = time_ms() - start;
+
+    if (HIVE_SUCCEEDED(status)) {
+        TEST_PASS("hive_select with bus source succeeds");
+    } else {
+        printf("    status: %s\n", HIVE_ERR_STR(status));
+        TEST_FAIL("hive_select with bus source failed");
+    }
+
+    if (result.type == HIVE_SEL_BUS && result.index == 0) {
+        TEST_PASS("result type and index correct");
+    } else {
+        TEST_FAIL("result type or index incorrect");
+    }
+
+    if (result.bus.len == sizeof(int) && *(int *)result.bus.data == 99) {
+        TEST_PASS("received correct bus data");
+    } else {
+        TEST_FAIL("bus data mismatch");
+    }
+
+    if (elapsed >= 40 && elapsed <= 200) {
+        printf("    received after %lu ms (expected ~50ms)\n",
+               (unsigned long)elapsed);
+        TEST_PASS("timing correct");
+    } else {
+        printf("    received after %lu ms\n", (unsigned long)elapsed);
+        TEST_FAIL("timing incorrect");
+    }
+
+    // Cleanup
+    hive_bus_unsubscribe(g_test_bus);
+    hive_bus_destroy(g_test_bus);
+    g_test_bus = BUS_ID_INVALID;
+
+    hive_exit();
+}
+
+// ============================================================================
+// Test 4: Multi-source IPC + IPC (first matches)
+// ============================================================================
+
+static void test4_ipc_multi_first(void *arg) {
+    (void)arg;
+    printf("\nTest 4: Multi-source IPC + IPC (first matches)\n");
+
+    actor_id self = hive_self();
+
+    // Send message matching first filter
+    int data = 111;
+    hive_ipc_notify(self, TAG_A, &data, sizeof(data));
+
+    // Wait for either TAG_A or TAG_B
+    hive_select_source sources[] = {
+        {.type = HIVE_SEL_IPC,
+         .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, TAG_A}},
+        {.type = HIVE_SEL_IPC,
+         .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, TAG_B}},
+    };
+    hive_select_result result;
+    hive_status status = hive_select(sources, 2, &result, 100);
+
+    if (HIVE_SUCCEEDED(status) && result.index == 0) {
+        TEST_PASS("multi-source IPC matched first filter");
+    } else {
+        printf("    index=%zu\n", result.index);
+        TEST_FAIL("expected first filter to match");
+    }
+
+    if (result.ipc.tag == TAG_A) {
+        TEST_PASS("received TAG_A message");
+    } else {
+        TEST_FAIL("wrong tag");
+    }
+
+    hive_exit();
+}
+
+// ============================================================================
+// Test 5: Multi-source IPC + IPC (second matches)
+// ============================================================================
+
+static void test5_ipc_multi_second(void *arg) {
+    (void)arg;
+    printf("\nTest 5: Multi-source IPC + IPC (second matches)\n");
+
+    actor_id self = hive_self();
+
+    // Send message matching second filter
+    int data = 222;
+    hive_ipc_notify(self, TAG_B, &data, sizeof(data));
+
+    // Wait for either TAG_A or TAG_B
+    hive_select_source sources[] = {
+        {.type = HIVE_SEL_IPC,
+         .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, TAG_A}},
+        {.type = HIVE_SEL_IPC,
+         .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, TAG_B}},
+    };
+    hive_select_result result;
+    hive_status status = hive_select(sources, 2, &result, 100);
+
+    if (HIVE_SUCCEEDED(status) && result.index == 1) {
+        TEST_PASS("multi-source IPC matched second filter");
+    } else {
+        printf("    index=%zu\n", result.index);
+        TEST_FAIL("expected second filter to match");
+    }
+
+    if (result.ipc.tag == TAG_B) {
+        TEST_PASS("received TAG_B message");
+    } else {
+        TEST_FAIL("wrong tag");
+    }
+
+    hive_exit();
+}
+
+// ============================================================================
+// Test 6: Multi-source bus + bus
+// ============================================================================
+
+static bus_id g_bus1 = BUS_ID_INVALID;
+static bus_id g_bus2 = BUS_ID_INVALID;
+
+static void test6_bus_publisher(void *arg) {
+    int which_bus = *(int *)arg;
+    // Wait a bit then publish to specified bus
+    timer_id timer;
+    hive_timer_after(50000, &timer);
+    hive_message msg;
+    hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
+
+    int data = which_bus == 1 ? 111 : 222;
+    hive_bus_publish(which_bus == 1 ? g_bus1 : g_bus2, &data, sizeof(data));
+    hive_exit();
+}
+
+static void test6_bus_multi(void *arg) {
+    (void)arg;
+    printf("\nTest 6: Multi-source bus + bus\n");
+
+    // Create two buses
+    hive_bus_config cfg = HIVE_BUS_CONFIG_DEFAULT;
+    hive_bus_create(&cfg, &g_bus1);
+    hive_bus_create(&cfg, &g_bus2);
+    hive_bus_subscribe(g_bus1);
+    hive_bus_subscribe(g_bus2);
+
+    // Spawn publisher for bus 2
+    static int which = 2;
+    actor_id publisher;
+    hive_spawn(test6_bus_publisher, &which, &publisher);
+
+    // Wait for data from either bus
+    hive_select_source sources[] = {
+        {.type = HIVE_SEL_BUS, .bus = g_bus1},
+        {.type = HIVE_SEL_BUS, .bus = g_bus2},
+    };
+    hive_select_result result;
+    hive_status status = hive_select(sources, 2, &result, 500);
+
+    if (HIVE_SUCCEEDED(status) && result.index == 1) {
+        TEST_PASS("received from second bus");
+    } else {
+        printf("    status=%d, index=%zu\n", status.code, result.index);
+        TEST_FAIL("expected second bus");
+    }
+
+    if (*(int *)result.bus.data == 222) {
+        TEST_PASS("correct data from bus 2");
+    } else {
+        TEST_FAIL("wrong data");
+    }
+
+    // Cleanup
+    hive_bus_unsubscribe(g_bus1);
+    hive_bus_unsubscribe(g_bus2);
+    hive_bus_destroy(g_bus1);
+    hive_bus_destroy(g_bus2);
+    g_bus1 = g_bus2 = BUS_ID_INVALID;
+
+    hive_exit();
+}
+
+// ============================================================================
+// Test 7: Multi-source IPC + bus (mixed)
+// ============================================================================
+
+static void test7_mixed_sender(void *arg) {
+    actor_id target = *(actor_id *)arg;
+    // Wait a bit then send IPC message
+    timer_id timer;
+    hive_timer_after(50000, &timer);
+    hive_message msg;
+    hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
+
+    int data = 777;
+    hive_ipc_notify(target, TAG_A, &data, sizeof(data));
+    hive_exit();
+}
+
+static void test7_mixed_sources(void *arg) {
+    (void)arg;
+    printf("\nTest 7: Multi-source IPC + bus (mixed)\n");
+
+    actor_id self = hive_self();
+
+    // Create and subscribe to bus
+    hive_bus_config cfg = HIVE_BUS_CONFIG_DEFAULT;
+    bus_id bus;
+    hive_bus_create(&cfg, &bus);
+    hive_bus_subscribe(bus);
+
+    // Spawn sender that will send IPC message
+    actor_id sender;
+    hive_spawn(test7_mixed_sender, &self, &sender);
+
+    // Wait for either bus data or IPC message
+    hive_select_source sources[] = {
+        {.type = HIVE_SEL_BUS, .bus = bus},
+        {.type = HIVE_SEL_IPC,
+         .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, TAG_A}},
+    };
+    hive_select_result result;
+    hive_status status = hive_select(sources, 2, &result, 500);
+
+    if (HIVE_SUCCEEDED(status) && result.type == HIVE_SEL_IPC) {
+        TEST_PASS("received IPC in mixed select");
+    } else {
+        printf("    status=%d, type=%d\n", status.code, result.type);
+        TEST_FAIL("expected IPC result");
+    }
+
+    if (result.index == 1 && result.ipc.tag == TAG_A) {
+        TEST_PASS("correct index and tag for IPC");
+    } else {
+        printf("    index=%zu, tag=%u\n", result.index, result.ipc.tag);
+        TEST_FAIL("index or tag mismatch");
+    }
+
+    // Cleanup
+    hive_bus_unsubscribe(bus);
+    hive_bus_destroy(bus);
+
+    hive_exit();
+}
+
+// ============================================================================
+// Test 8: Priority ordering - bus wins over IPC when both ready
+// ============================================================================
+
+static void test8_priority_order(void *arg) {
+    (void)arg;
+    printf("\nTest 8: Priority ordering - bus wins over IPC when both ready\n");
+
+    actor_id self = hive_self();
+
+    // Create and subscribe to bus
+    hive_bus_config cfg = HIVE_BUS_CONFIG_DEFAULT;
+    bus_id bus;
+    hive_bus_create(&cfg, &bus);
+    hive_bus_subscribe(bus);
+
+    // Send IPC message first
+    int ipc_data = 111;
+    hive_ipc_notify(self, TAG_A, &ipc_data, sizeof(ipc_data));
+
+    // Publish bus data second
+    int bus_data = 222;
+    hive_bus_publish(bus, &bus_data, sizeof(bus_data));
+
+    // Select - bus should win due to priority
+    hive_select_source sources[] = {
+        {.type = HIVE_SEL_IPC,
+         .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, TAG_A}},
+        {.type = HIVE_SEL_BUS, .bus = bus},
+    };
+    hive_select_result result;
+    hive_status status = hive_select(sources, 2, &result, 100);
+
+    if (HIVE_SUCCEEDED(status) && result.type == HIVE_SEL_BUS) {
+        TEST_PASS("bus has priority over IPC");
+    } else {
+        printf("    type=%d\n", result.type);
+        TEST_FAIL("expected bus to have priority");
+    }
+
+    if (result.index == 1 && *(int *)result.bus.data == 222) {
+        TEST_PASS("correct index and data for bus");
+    } else {
+        TEST_FAIL("index or data mismatch");
+    }
+
+    // Now IPC should be available
+    sources[0].type = HIVE_SEL_IPC;
+    status = hive_select(&sources[0], 1, &result, 100);
+
+    if (HIVE_SUCCEEDED(status) && result.type == HIVE_SEL_IPC) {
+        TEST_PASS("IPC still available after bus priority");
+    } else {
+        TEST_FAIL("IPC should still be in mailbox");
+    }
+
+    // Cleanup
+    hive_bus_unsubscribe(bus);
+    hive_bus_destroy(bus);
+
+    hive_exit();
+}
+
+// ============================================================================
+// Test 9: Timeout behavior
+// ============================================================================
+
+static void test9_timeout(void *arg) {
+    (void)arg;
+    printf("\nTest 9: Timeout behavior\n");
+
+    // Select on nothing with timeout
+    hive_select_source source = {
+        .type = HIVE_SEL_IPC, .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, 9999}};
+    hive_select_result result;
+
+    // Non-blocking (timeout=0)
+    hive_status status = hive_select(&source, 1, &result, 0);
+    if (status.code == HIVE_ERR_WOULDBLOCK) {
+        TEST_PASS("non-blocking returns WOULDBLOCK");
+    } else {
+        printf("    status=%d\n", status.code);
+        TEST_FAIL("expected WOULDBLOCK");
+    }
+
+    // With timeout
+    uint64_t start = time_ms();
+    status = hive_select(&source, 1, &result, 100);
+    uint64_t elapsed = time_ms() - start;
+
+    if (status.code == HIVE_ERR_TIMEOUT) {
+        TEST_PASS("timed select returns TIMEOUT");
+    } else {
+        printf("    status=%d\n", status.code);
+        TEST_FAIL("expected TIMEOUT");
+    }
+
+    if (elapsed >= 80 && elapsed <= 200) {
+        printf("    timed out after %lu ms (expected ~100ms)\n",
+               (unsigned long)elapsed);
+        TEST_PASS("timeout duration correct");
+    } else {
+        printf("    elapsed=%lu ms\n", (unsigned long)elapsed);
+        TEST_FAIL("timeout duration incorrect");
+    }
+
+    hive_exit();
+}
+
+// ============================================================================
+// Test 10: Error cases
+// ============================================================================
+
+static void test10_error_cases(void *arg) {
+    (void)arg;
+    printf("\nTest 10: Error cases\n");
+
+    hive_select_result result;
+
+    // NULL sources
+    hive_status status = hive_select(NULL, 1, &result, 100);
+    if (status.code == HIVE_ERR_INVALID) {
+        TEST_PASS("NULL sources rejected");
+    } else {
+        TEST_FAIL("expected INVALID for NULL sources");
+    }
+
+    // Zero sources
+    hive_select_source source = {.type = HIVE_SEL_IPC};
+    status = hive_select(&source, 0, &result, 100);
+    if (status.code == HIVE_ERR_INVALID) {
+        TEST_PASS("zero sources rejected");
+    } else {
+        TEST_FAIL("expected INVALID for zero sources");
+    }
+
+    // NULL result
+    status = hive_select(&source, 1, NULL, 100);
+    if (status.code == HIVE_ERR_INVALID) {
+        TEST_PASS("NULL result rejected");
+    } else {
+        TEST_FAIL("expected INVALID for NULL result");
+    }
+
+    // Unsubscribed bus
+    bus_id invalid_bus = 9999;
+    hive_select_source bus_source = {.type = HIVE_SEL_BUS, .bus = invalid_bus};
+    status = hive_select(&bus_source, 1, &result, 100);
+    if (status.code == HIVE_ERR_INVALID) {
+        TEST_PASS("unsubscribed bus rejected");
+    } else {
+        printf("    status=%d\n", status.code);
+        TEST_FAIL("expected INVALID for unsubscribed bus");
+    }
+
+    hive_exit();
+}
+
+// ============================================================================
+// Test 11: Immediate return when data ready
+// ============================================================================
+
+static void test11_immediate_return(void *arg) {
+    (void)arg;
+    printf("\nTest 11: Immediate return when data ready\n");
+
+    actor_id self = hive_self();
+
+    // Pre-send a message
+    int data = 42;
+    hive_ipc_notify(self, TAG_A, &data, sizeof(data));
+
+    // Select should return immediately
+    hive_select_source source = {
+        .type = HIVE_SEL_IPC,
+        .ipc = {HIVE_SENDER_ANY, HIVE_MSG_ANY, HIVE_TAG_ANY}};
+    hive_select_result result;
+    uint64_t start = time_ms();
+    hive_status status =
+        hive_select(&source, 1, &result, -1); // infinite timeout
+    uint64_t elapsed = time_ms() - start;
+
+    if (HIVE_SUCCEEDED(status)) {
+        TEST_PASS("select with ready data succeeds");
+    } else {
+        TEST_FAIL("select with ready data failed");
+    }
+
+    if (elapsed < 10) {
+        TEST_PASS("immediate return when data ready");
+    } else {
+        printf("    elapsed=%lu ms\n", (unsigned long)elapsed);
+        TEST_FAIL("should return immediately");
+    }
+
+    hive_exit();
+}
+
+// ============================================================================
+// Test runner
+// ============================================================================
+
+static void (*test_funcs[])(void *) = {
+    test1_ipc_wildcard,    test2_ipc_filtered,      test3_bus_source,
+    test4_ipc_multi_first, test5_ipc_multi_second,  test6_bus_multi,
+    test7_mixed_sources,   test8_priority_order,    test9_timeout,
+    test10_error_cases,    test11_immediate_return,
+};
+
+#define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
+
+static void run_all_tests(void *arg) {
+    (void)arg;
+
+    for (size_t i = 0; i < NUM_TESTS; i++) {
+        actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
+        cfg.stack_size = TEST_STACK_SIZE(64 * 1024);
+
+        actor_id test;
+        if (HIVE_FAILED(hive_spawn_ex(test_funcs[i], NULL, &cfg, &test))) {
+            printf("Failed to spawn test %zu\n", i);
+            continue;
+        }
+
+        hive_link(test);
+
+        hive_message msg;
+        hive_ipc_recv(&msg, 10000);
+    }
+
+    hive_exit();
+}
+
+int main(void) {
+    printf("=== hive_select() Test Suite ===\n");
+
+    hive_status status = hive_init();
+    if (HIVE_FAILED(status)) {
+        fprintf(stderr, "Failed to initialize runtime: %s\n",
+                status.msg ? status.msg : "unknown error");
+        return 1;
+    }
+
+    actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
+    cfg.stack_size = TEST_STACK_SIZE(128 * 1024);
+
+    actor_id runner;
+    if (HIVE_FAILED(hive_spawn_ex(run_all_tests, NULL, &cfg, &runner))) {
+        fprintf(stderr, "Failed to spawn test runner\n");
+        hive_cleanup();
+        return 1;
+    }
+
+    hive_run();
+    hive_cleanup();
+
+    printf("\n=== Results ===\n");
+    printf("Passed: %d\n", tests_passed);
+    printf("Failed: %d\n", tests_failed);
+    printf("\n%s\n",
+           tests_failed == 0 ? "All tests passed!" : "Some tests FAILED!");
+
+    return tests_failed > 0 ? 1 : 0;
+}

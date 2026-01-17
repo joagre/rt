@@ -5,8 +5,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// Bus ID type
-typedef uint32_t bus_id;
+// bus_id typedef is now in hive_types.h
 
 #define BUS_ID_INVALID ((bus_id)0)
 

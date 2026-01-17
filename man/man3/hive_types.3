@@ -214,6 +214,59 @@ Use helper functions from
 .BR hive_is_exit_msg ()
 and
 .BR hive_decode_exit ().
+.SS Receive Filter Structure
+.PP
+Defined in
+.IR <hive_types.h> :
+.PP
+.nf
+typedef struct {
+    actor_id       sender;  /* HIVE_SENDER_ANY for any sender */
+    hive_msg_class class;   /* HIVE_MSG_ANY for any class */
+    uint32_t       tag;     /* HIVE_TAG_ANY for any tag */
+} hive_recv_filter;
+.fi
+.PP
+Used by
+.BR hive_ipc_recv_match (3)
+and
+.BR hive_select (3)
+for filtering messages.
+.SS Select Types
+.PP
+Defined in
+.IR <hive_types.h> :
+.PP
+.nf
+typedef enum {
+    HIVE_SEL_IPC,  /* Wait for IPC message */
+    HIVE_SEL_BUS,  /* Wait for bus data */
+} hive_select_type;
+
+typedef struct {
+    hive_select_type type;
+    union {
+        hive_recv_filter ipc;  /* For HIVE_SEL_IPC */
+        bus_id bus;            /* For HIVE_SEL_BUS */
+    };
+} hive_select_source;
+
+typedef struct {
+    size_t index;           /* Which source triggered (0-based) */
+    hive_select_type type;  /* Type of triggered source */
+    union {
+        hive_message ipc;   /* For HIVE_SEL_IPC */
+        struct {
+            void *data;     /* For HIVE_SEL_BUS */
+            size_t len;
+        } bus;
+    };
+} hive_select_result;
+.fi
+.PP
+Used by
+.BR hive_select (3)
+for unified event waiting.
 .SH COMPILE-TIME CONFIGURATION
 All resource limits are defined in
 .I hive_static_config.h
@@ -369,4 +422,5 @@ gcc -DHIVE_MAX_ACTORS=128 \\
 .BR hive_link (3),
 .BR hive_supervisor (3),
 .BR hive_timer (3),
-.BR hive_bus (3)
+.BR hive_bus (3),
+.BR hive_select (3)

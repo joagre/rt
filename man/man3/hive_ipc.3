@@ -375,9 +375,19 @@ void client(void *arg) {
     hive_exit();
 }
 .fi
+.SS Implementation Note
+The receive functions
+.BR hive_ipc_recv (),
+.BR hive_ipc_recv_match (),
+and
+.BR hive_ipc_recv_matches ()
+are implemented as thin wrappers around
+.BR hive_select (3),
+the unified event waiting primitive.
 .SH SEE ALSO
 .BR hive_init (3),
 .BR hive_spawn (3),
 .BR hive_link (3),
 .BR hive_timer (3),
-.BR hive_types (3)
+.BR hive_types (3),
+.BR hive_select (3)

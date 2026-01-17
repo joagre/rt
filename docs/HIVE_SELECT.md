@@ -1,6 +1,6 @@
 # Unified hive_select() API Design Sketch
 
-**Status:** Idea / Future consideration
+**Status:** Implemented (2026-01-17)
 
 ## Motivation
 
@@ -459,21 +459,24 @@ hive_select.h     ← uses hive_recv_filter
 
 ## Implementation Checklist
 
-When implementing `hive_select()`, update the following:
+Implementation completed 2026-01-17:
 
 ### Core Implementation
-- [ ] `include/hive_types.h` - Move `hive_recv_filter` here from `hive_ipc.h`
-- [ ] `include/hive_select.h` - New header with types and API declaration
-- [ ] `src/hive_select.c` - Implementation
-- [ ] `include/hive_actor.h` - Add select-related fields to actor struct
-- [ ] `src/hive_ipc.c` - Rewrite as wrappers around `hive_select()`
-- [ ] `src/hive_bus.c` - Rewrite `hive_bus_read_wait()` as wrapper, update wake logic
+- [x] `include/hive_types.h` - Added select types (`hive_select_source`, `hive_select_result`, `bus_id`)
+- [x] `include/hive_select.h` - New header with types and API declaration
+- [x] `src/hive_select.c` - Implementation
+- [x] `include/hive_actor.h` - Added `select_sources` and `select_source_count` fields
+- [x] `src/hive_ipc.c` - Rewrote `hive_ipc_recv`, `hive_ipc_recv_match`, `hive_ipc_recv_matches` as wrappers
+- [x] `src/hive_bus.c` - Rewrote `hive_bus_read_wait()` as wrapper, updated wake logic
 
 ### Documentation
-- [ ] `SPEC.md` - Add hive_select() section
-- [ ] `README.md` - Add hive_select() to API overview
-- [ ] `CLAUDE.md` - Add hive_select() to IPC/Bus documentation
-- [ ] `man/man3/hive_select.3` - New man page
+- [x] `man/man3/hive_select.3` - New man page
+- [x] `man/man3/hive_ipc.3` - Added note about wrapper implementation
+- [x] `man/man3/hive_bus.3` - Added note about wrapper implementation
+- [x] `man/man3/hive_types.3` - Added select types documentation
+- [ ] `SPEC.md` - Add hive_select() section (optional - can be done later)
+- [ ] `README.md` - Add hive_select() to API overview (optional - can be done later)
+- [ ] `CLAUDE.md` - Add hive_select() to IPC/Bus documentation (optional - can be done later)
 
 ### Pilot Example Updates
 - [ ] `examples/pilot/altitude_actor.c` - Use hive_select() for state + landing
@@ -482,15 +485,16 @@ When implementing `hive_select()`, update the following:
 - [ ] Review other pilot actors for hive_select() opportunities
 
 ### Tests
-- [ ] `tests/select_test.c` - New test file with:
-  - Basic single IPC source (equivalent to recv_match)
-  - Basic single bus source (equivalent to bus_read_wait)
-  - Multi-source: IPC + IPC
-  - Multi-source: bus + bus
-  - Multi-source: IPC + bus (mixed)
-  - Priority ordering (bus before IPC)
-  - Timeout behavior
-  - Immediate return when data ready
+- [x] `tests/select_test.c` - New test file with:
+  - [x] Basic single IPC source (equivalent to recv_match)
+  - [x] Basic single bus source (equivalent to bus_read_wait)
+  - [x] Multi-source: IPC + IPC
+  - [x] Multi-source: bus + bus
+  - [x] Multi-source: IPC + bus (mixed)
+  - [x] Priority ordering (bus before IPC)
+  - [x] Timeout behavior
+  - [x] Immediate return when data ready
+  - [x] Error cases (NULL args, unsubscribed bus)
 
 ### Example
-- [ ] `examples/select_example.c` - Standalone example demonstrating API
+- [ ] `examples/select_example.c` - Standalone example demonstrating API (optional)

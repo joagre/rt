@@ -1,0 +1,247 @@
+.\" Man page for hive_select function
+.TH HIVE_SELECT 3 "January 2026" "Hive 1.0" "Actor Runtime Manual"
+.SH NAME
+hive_select \- wait for data from multiple event sources
+.SH SYNOPSIS
+.nf
+.B #include <hive_select.h>
+.PP
+.BI "hive_status hive_select(const hive_select_source *" sources ", size_t " num_sources ","
+.BI "                        hive_select_result *" result ", int32_t " timeout_ms ");"
+.fi
+.SH DESCRIPTION
+.BR hive_select ()
+blocks until data is available from any of the specified event sources (IPC
+messages or bus entries). It is the single unified primitive that underlies
+all blocking receive operations in the runtime.
+.PP
+The
+.I sources
+array specifies which event sources to wait on. Each source is either an IPC
+message filter or a bus subscription.
+.PP
+The
+.I timeout_ms
+parameter controls blocking behavior:
+.TP
+.B HIVE_TIMEOUT_NONBLOCKING (0)
+Return immediately with
+.B HIVE_ERR_WOULDBLOCK
+if no data is ready.
+.TP
+.B HIVE_TIMEOUT_INFINITE (-1)
+Block forever until data arrives.
+.TP
+.B positive value
+Block up to the specified milliseconds, return
+.B HIVE_ERR_TIMEOUT
+if exceeded.
+.SS Source Types
+.TP
+.B HIVE_SEL_IPC
+Wait for an IPC message matching the specified filter. The filter uses the
+same semantics as
+.BR hive_ipc_recv_match (3):
+wildcards
+.BR HIVE_SENDER_ANY ", " HIVE_MSG_ANY ", and " HIVE_TAG_ANY
+can be used to match any value.
+.TP
+.B HIVE_SEL_BUS
+Wait for data on the specified bus. The actor must already be subscribed to
+the bus (see
+.BR hive_bus_subscribe (3)).
+.SS Select Source Structure
+.PP
+.nf
+typedef enum {
+    HIVE_SEL_IPC,  /* Wait for IPC message */
+    HIVE_SEL_BUS,  /* Wait for bus data */
+} hive_select_type;
+
+typedef struct {
+    hive_select_type type;
+    union {
+        hive_recv_filter ipc;  /* For HIVE_SEL_IPC */
+        bus_id bus;            /* For HIVE_SEL_BUS */
+    };
+} hive_select_source;
+.fi
+.SS Select Result Structure
+.PP
+.nf
+typedef struct {
+    size_t index;           /* Which source triggered (0-based) */
+    hive_select_type type;  /* Type of triggered source */
+    union {
+        hive_message ipc;   /* For HIVE_SEL_IPC */
+        struct {
+            void *data;     /* For HIVE_SEL_BUS */
+            size_t len;
+        } bus;
+    };
+} hive_select_result;
+.fi
+.PP
+After a successful call,
+.I result.index
+indicates which source (0-based array index) triggered the return. The
+.I result.type
+field provides the source type for convenience. Access the actual data through
+either
+.I result.ipc
+(for IPC sources) or
+.I result.bus
+(for bus sources).
+.SS Priority Ordering
+When multiple sources have data ready simultaneously,
+.BR hive_select ()
+checks sources in the following priority order:
+.IP 1. 3
+All bus sources (in array order)
+.IP 2. 3
+All IPC sources (in array order)
+.PP
+The first match wins. This priority ensures time-sensitive bus data (sensor
+streams, state updates) is processed before IPC messages, which are queued
+and will not be lost.
+.SH RETURN VALUE
+On success, returns
+.B HIVE_OK
+and populates
+.IR result .
+.SH ERRORS
+.TP
+.B HIVE_ERR_TIMEOUT
+No data received within timeout period.
+.TP
+.B HIVE_ERR_WOULDBLOCK
+No data available and timeout was
+.BR HIVE_TIMEOUT_NONBLOCKING .
+.TP
+.B HIVE_ERR_INVALID
+Invalid arguments: NULL
+.IR sources ,
+.I num_sources
+is zero, NULL
+.IR result ,
+or a bus source specifies a bus the actor is not subscribed to.
+.SH NOTES
+.SS Data Lifetime
+Data returned in
+.I result
+is only valid until the next
+.BR hive_select ()
+or related receive call:
+.IP \(bu 2
+.I result.ipc
+\- valid until next
+.BR hive_select ()
+or
+.BR hive_ipc_recv* ()
+.IP \(bu 2
+.I result.bus.data
+\- valid until next
+.BR hive_select ()
+or
+.BR hive_bus_read* ()
+.PP
+Copy data immediately if needed longer:
+.PP
+.nf
+hive_select_result result;
+hive_select(sources, 2, &result, -1);
+
+if (result.type == HIVE_SEL_BUS) {
+    my_data copy = *(my_data *)result.bus.data;
+    /* Use copy after next select */
+}
+.fi
+.SS Relationship to Other APIs
+.BR hive_select ()
+is the core primitive. The following APIs are thin wrappers:
+.IP \(bu 2
+.BR hive_ipc_recv ()
+\- select with wildcard IPC filter
+.IP \(bu 2
+.BR hive_ipc_recv_match ()
+\- select with single IPC filter
+.IP \(bu 2
+.BR hive_ipc_recv_matches ()
+\- select with multiple IPC filters
+.IP \(bu 2
+.BR hive_bus_read_wait ()
+\- select with single bus source
+.PP
+Use
+.BR hive_select ()
+directly when you need to wait on a mix of IPC and bus sources, or when you
+want the unified API.
+.SS Efficiency
+Source scan complexity:
+.IP \(bu 2
+Bus sources: O(entries) per bus
+.IP \(bu 2
+IPC sources: O(mailbox_depth) per filter
+.IP \(bu 2
+Total: O(sources x max_depth)
+.PP
+This is acceptable because source counts are typically small (2-5) and depths
+are bounded by pool sizes.
+.SS Embedded Considerations
+.IP \(bu 2
+Zero heap allocation
+.IP \(bu 2
+All data structures are caller-provided
+.IP \(bu 2
+Works on all platforms (Linux and STM32)
+.SH EXAMPLE
+.nf
+#include <hive_runtime.h>
+#include <hive_select.h>
+#include <hive_bus.h>
+#include <hive_timer.h>
+
+/* Wait for either sensor data OR a command notification */
+void controller(void *arg) {
+    bus_id sensor_bus = *(bus_id *)arg;
+
+    /* Subscribe to sensor bus */
+    hive_bus_subscribe(sensor_bus);
+
+    /* Create periodic timer for status updates */
+    timer_id tick;
+    hive_timer_every(100000, &tick);  /* 100ms */
+
+    enum { SEL_SENSOR, SEL_TIMER, SEL_COMMAND };
+    hive_select_source sources[] = {
+        [SEL_SENSOR] = {HIVE_SEL_BUS, .bus = sensor_bus},
+        [SEL_TIMER] = {HIVE_SEL_IPC, .ipc = {HIVE_SENDER_ANY, HIVE_MSG_TIMER, tick}},
+        [SEL_COMMAND] = {HIVE_SEL_IPC, .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, CMD_TAG}},
+    };
+
+    while (1) {
+        hive_select_result result;
+        hive_select(sources, 3, &result, -1);
+
+        switch (result.index) {
+            case SEL_SENSOR:
+                /* Process sensor data immediately */
+                process_sensor(result.bus.data, result.bus.len);
+                break;
+            case SEL_TIMER:
+                /* Periodic status update */
+                send_status();
+                break;
+            case SEL_COMMAND:
+                /* Handle command */
+                handle_command(&result.ipc);
+                break;
+        }
+    }
+}
+.fi
+.SH SEE ALSO
+.BR hive_ipc (3),
+.BR hive_bus (3),
+.BR hive_timer (3),
+.BR hive_types (3)

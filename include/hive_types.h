@@ -110,4 +110,39 @@ typedef enum {
     HIVE_EXIT_KILLED, // Actor was killed externally (reserved for future use)
 } hive_exit_reason;
 
+// -----------------------------------------------------------------------------
+// Select Types (for hive_select unified event API)
+// -----------------------------------------------------------------------------
+
+// Forward declaration for bus_id (defined in hive_bus.h)
+typedef uint32_t bus_id;
+
+// Select source types
+typedef enum {
+    HIVE_SEL_IPC, // Wait for IPC message matching filter
+    HIVE_SEL_BUS, // Wait for data on bus
+} hive_select_type;
+
+// Select source (tagged union)
+typedef struct {
+    hive_select_type type;
+    union {
+        hive_recv_filter ipc; // For HIVE_SEL_IPC: message filter
+        bus_id bus;           // For HIVE_SEL_BUS: bus ID
+    };
+} hive_select_source;
+
+// Select result
+typedef struct {
+    size_t index;          // Which source triggered (0-based index in array)
+    hive_select_type type; // Type of triggered source (convenience copy)
+    union {
+        hive_message ipc; // For HIVE_SEL_IPC: the received message
+        struct {
+            void *data; // For HIVE_SEL_BUS: pointer to bus data
+            size_t len; // Length of bus data
+        } bus;
+    };
+} hive_select_result;
+
 #endif // HIVE_TYPES_H

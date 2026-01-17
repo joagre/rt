@@ -6,6 +6,7 @@
 #include "hive_scheduler.h"
 #include "hive_runtime.h"
 #include "hive_log.h"
+#include "hive_select.h"
 #include <string.h>
 #include <sys/time.h>
 
@@ -359,9 +360,25 @@ hive_status hive_bus_publish(bus_id id, const void *data, size_t len) {
         if (sub->active && sub->blocked) {
             actor *a = hive_actor_get(sub->id);
             if (a && a->state == ACTOR_STATE_WAITING) {
-                a->state = ACTOR_STATE_READY;
-                HIVE_LOG_TRACE("Woke blocked subscriber %u on bus %u", sub->id,
-                               id);
+                // Check if using hive_select
+                if (a->select_sources) {
+                    // Check if this bus is in select sources
+                    for (size_t j = 0; j < a->select_source_count; j++) {
+                        if (a->select_sources[j].type == HIVE_SEL_BUS &&
+                            a->select_sources[j].bus == bus->id) {
+                            a->state = ACTOR_STATE_READY;
+                            HIVE_LOG_TRACE(
+                                "Woke select subscriber %u on bus %u", sub->id,
+                                id);
+                            break;
+                        }
+                    }
+                } else {
+                    // Legacy single-bus wait
+                    a->state = ACTOR_STATE_READY;
+                    HIVE_LOG_TRACE("Woke blocked subscriber %u on bus %u",
+                                   sub->id, id);
+                }
             }
         }
     }
@@ -522,7 +539,7 @@ hive_status hive_bus_read(bus_id id, void *buf, size_t max_len,
     return HIVE_SUCCESS;
 }
 
-// Read with blocking
+// Read with blocking - wrapper around hive_select
 hive_status hive_bus_read_wait(bus_id id, void *buf, size_t max_len,
                                size_t *actual_len, int32_t timeout_ms) {
     if (!buf || !actual_len) {
@@ -530,70 +547,19 @@ hive_status hive_bus_read_wait(bus_id id, void *buf, size_t max_len,
                           "NULL buffer or actual_len pointer");
     }
 
-    bus_t *bus = find_bus(id);
-    if (!bus) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Bus not found");
-    }
-
     HIVE_REQUIRE_ACTOR_CONTEXT();
-    actor *current = hive_actor_current();
 
-    int sub_idx = find_subscriber(bus, current->id);
-    if (sub_idx < 0) {
-        return HIVE_ERROR(HIVE_ERR_INVALID, "Not subscribed");
+    // Use hive_select with single bus source
+    hive_select_source source = {.type = HIVE_SEL_BUS, .bus = id};
+    hive_select_result result;
+    hive_status s = hive_select(&source, 1, &result, timeout_ms);
+    if (HIVE_SUCCEEDED(s)) {
+        // Copy data to user buffer
+        size_t copy_len = result.bus.len < max_len ? result.bus.len : max_len;
+        memcpy(buf, result.bus.data, copy_len);
+        *actual_len = copy_len;
     }
-
-    bus_subscriber *sub = &bus->subscribers[sub_idx];
-
-    // Try non-blocking read first
-    hive_status status = hive_bus_read(id, buf, max_len, actual_len);
-    if (HIVE_SUCCEEDED(status)) {
-        return status;
-    }
-
-    if (status.code != HIVE_ERR_WOULDBLOCK) {
-        return status; // Real error, not just no data
-    }
-
-    // No data available
-    if (timeout_ms == 0) {
-        return status; // Non-blocking
-    }
-
-    // Block until data is available or timeout expires
-    // Mark subscriber as blocked so hive_bus_publish can wake us
-    sub->blocked = true;
-    current->state = ACTOR_STATE_WAITING;
-
-    // Create timeout timer if needed
-    timer_id timeout_timer = TIMER_ID_INVALID;
-    if (timeout_ms > 0) {
-        hive_status timer_status =
-            hive_timer_after((uint32_t)timeout_ms * 1000, &timeout_timer);
-        if (HIVE_FAILED(timer_status)) {
-            sub->blocked = false;
-            current->state = ACTOR_STATE_READY;
-            return timer_status;
-        }
-    }
-
-    // Yield to scheduler - will resume when woken by publish or timeout
-    hive_scheduler_yield();
-
-    // Woken up - clear blocked flag
-    sub->blocked = false;
-
-    // Check for timeout
-    if (timeout_timer != TIMER_ID_INVALID) {
-        hive_status timeout_status = hive_mailbox_handle_timeout(
-            current, timeout_timer, "Bus read timeout");
-        if (HIVE_FAILED(timeout_status)) {
-            return timeout_status;
-        }
-    }
-
-    // Try to read again
-    return hive_bus_read(id, buf, max_len, actual_len);
+    return s;
 }
 
 // Query bus state
@@ -604,4 +570,83 @@ size_t hive_bus_entry_count(bus_id id) {
     }
 
     return bus->count;
+}
+
+// -----------------------------------------------------------------------------
+// hive_select helpers
+// -----------------------------------------------------------------------------
+
+// Check if bus has unread data for current actor (non-blocking, no consume)
+bool hive_bus_has_data(bus_id id) {
+    bus_t *bus = find_bus(id);
+    if (!bus) {
+        return false;
+    }
+
+    actor *current = hive_actor_current();
+    if (!current) {
+        return false;
+    }
+
+    int sub_idx = find_subscriber(bus, current->id);
+    if (sub_idx < 0) {
+        return false;
+    }
+
+    // Expire old entries
+    expire_old_entries(bus);
+
+    // Check for unread entry
+    for (size_t i = 0; i < bus->count; i++) {
+        size_t check_idx = (bus->tail + i) % bus->config.max_entries;
+        bus_entry *e = &bus->entries[check_idx];
+
+        if (!e->valid) {
+            continue;
+        }
+
+        // Check if this subscriber has already read this entry
+        if (e->readers_mask & (1u << sub_idx)) {
+            continue; // Already read
+        }
+
+        return true; // Found unread data
+    }
+
+    return false;
+}
+
+// Set blocked flag for current actor on specified bus
+void hive_bus_set_blocked(bus_id id, bool blocked) {
+    bus_t *bus = find_bus(id);
+    if (!bus) {
+        return;
+    }
+
+    actor *current = hive_actor_current();
+    if (!current) {
+        return;
+    }
+
+    int sub_idx = find_subscriber(bus, current->id);
+    if (sub_idx < 0) {
+        return;
+    }
+
+    bus->subscribers[sub_idx].blocked = blocked;
+}
+
+// Check if current actor is subscribed to bus
+bool hive_bus_is_subscribed(bus_id id) {
+    bus_t *bus = find_bus(id);
+    if (!bus) {
+        return false;
+    }
+
+    actor *current = hive_actor_current();
+    if (!current) {
+        return false;
+    }
+
+    return find_subscriber(bus, current->id) >= 0;
 }
