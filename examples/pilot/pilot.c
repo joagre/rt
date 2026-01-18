@@ -193,7 +193,7 @@ int main(void) {
          .init_args_size = sizeof(buses),
          .name = "flight_manager",
          .auto_register = true,
-         .restart = HIVE_CHILD_PERMANENT,
+         .restart = HIVE_CHILD_TRANSIENT, // Normal exit = mission complete
          .actor_cfg = {.priority = HIVE_PRIORITY_CRITICAL,
                        .name = "flight_mgr"}},
     };
