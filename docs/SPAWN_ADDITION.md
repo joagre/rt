@@ -335,8 +335,8 @@ void my_actor(void *args, const hive_spawn_info *siblings, size_t count) {
 - [x] `tests/file_test.c`
 - [x] `tests/registry_test.c`
 - [x] `tests/supervisor_test.c`
-- [ ] Add new test: `tests/spawn_init_test.c` (test init function, auto-register)
-- [ ] Add new test: `tests/sibling_test.c` (test sibling array)
+- [x] Add new test: `tests/spawn_init_test.c` (test init function, auto-register)
+- [x] Add new test: `tests/sibling_test.c` (test sibling array)
 
 ### Example Updates (all actor signatures change)
 - [x] `examples/pingpong.c`
@@ -370,5 +370,5 @@ void my_actor(void *args, const hive_spawn_info *siblings, size_t count) {
 - [x] `qemu/test_main.c`
 - [x] `qemu/test_runner.c`
 - [x] `qemu/hive_select.c` - New select test for QEMU
-- [ ] Verify all QEMU tests pass
-- [ ] Verify all QEMU examples pass
+- [x] Verify all QEMU tests pass
+- [x] Verify all QEMU examples pass
