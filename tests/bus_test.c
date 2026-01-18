@@ -101,7 +101,7 @@ static void test1_basic_pubsub(void *args, const hive_spawn_info *siblings,
 // Test 2: Multiple subscribers
 // ============================================================================
 
-static bus_id g_shared_bus;
+static bus_id s_shared_bus;
 static int g_subscriber_received[3] = {0, 0, 0};
 
 static void subscriber_actor(void *args, const hive_spawn_info *siblings,
@@ -110,7 +110,7 @@ static void subscriber_actor(void *args, const hive_spawn_info *siblings,
     (void)sibling_count;
     int id = *(int *)args;
 
-    hive_status status = hive_bus_subscribe(g_shared_bus);
+    hive_status status = hive_bus_subscribe(s_shared_bus);
     if (HIVE_FAILED(status)) {
         hive_exit();
     }
@@ -119,13 +119,13 @@ static void subscriber_actor(void *args, const hive_spawn_info *siblings,
     char buf[64];
     size_t actual_len;
     status =
-        hive_bus_read_wait(g_shared_bus, buf, sizeof(buf), &actual_len, 500);
+        hive_bus_read_wait(s_shared_bus, buf, sizeof(buf), &actual_len, 500);
 
     if (HIVE_SUCCEEDED(status)) {
         g_subscriber_received[id] = 1;
     }
 
-    hive_bus_unsubscribe(g_shared_bus);
+    hive_bus_unsubscribe(s_shared_bus);
     hive_exit();
 }
 
@@ -138,7 +138,7 @@ static void test2_multi_subscriber(void *args, const hive_spawn_info *siblings,
 
     // Create bus
     hive_bus_config cfg = TEST_BUS_CONFIG;
-    hive_status status = hive_bus_create(&cfg, &g_shared_bus);
+    hive_status status = hive_bus_create(&cfg, &s_shared_bus);
     if (HIVE_FAILED(status)) {
         TEST_FAIL("hive_bus_create");
         hive_exit();
@@ -160,10 +160,10 @@ static void test2_multi_subscriber(void *args, const hive_spawn_info *siblings,
 
     // Publish data
     const char *data = "Broadcast!";
-    status = hive_bus_publish(g_shared_bus, data, strlen(data) + 1);
+    status = hive_bus_publish(s_shared_bus, data, strlen(data) + 1);
     if (HIVE_FAILED(status)) {
         TEST_FAIL("hive_bus_publish");
-        hive_bus_destroy(g_shared_bus);
+        hive_bus_destroy(s_shared_bus);
         hive_exit();
     }
 
@@ -181,7 +181,7 @@ static void test2_multi_subscriber(void *args, const hive_spawn_info *siblings,
         TEST_FAIL("not all subscribers received data");
     }
 
-    hive_bus_destroy(g_shared_bus);
+    hive_bus_destroy(s_shared_bus);
     hive_exit();
 }
 
@@ -189,7 +189,7 @@ static void test2_multi_subscriber(void *args, const hive_spawn_info *siblings,
 // Test 3: max_readers retention policy (entry consumed after N subscribers read)
 // ============================================================================
 
-static bus_id g_max_readers_bus;
+static bus_id s_max_readers_bus;
 static int g_max_readers_success[3] = {0, 0, 0};
 
 static void max_readers_subscriber(void *args, const hive_spawn_info *siblings,
@@ -198,19 +198,19 @@ static void max_readers_subscriber(void *args, const hive_spawn_info *siblings,
     (void)sibling_count;
     int id = *(int *)args;
 
-    hive_bus_subscribe(g_max_readers_bus);
+    hive_bus_subscribe(s_max_readers_bus);
 
     // Try to read
     char buf[64];
     size_t actual_len;
-    hive_status status = hive_bus_read_wait(g_max_readers_bus, buf, sizeof(buf),
+    hive_status status = hive_bus_read_wait(s_max_readers_bus, buf, sizeof(buf),
                                             &actual_len, 500);
 
     if (HIVE_SUCCEEDED(status)) {
         g_max_readers_success[id] = 1;
     }
 
-    hive_bus_unsubscribe(g_max_readers_bus);
+    hive_bus_unsubscribe(s_max_readers_bus);
     hive_exit();
 }
 
@@ -224,7 +224,7 @@ static void test3_max_readers(void *args, const hive_spawn_info *siblings,
     // Create bus with max_readers = 2 (entry consumed after 2 subscribers read)
     hive_bus_config cfg = TEST_BUS_CONFIG;
     cfg.consume_after_reads = 2;
-    hive_status status = hive_bus_create(&cfg, &g_max_readers_bus);
+    hive_status status = hive_bus_create(&cfg, &s_max_readers_bus);
     if (HIVE_FAILED(status)) {
         TEST_FAIL("hive_bus_create");
         hive_exit();
@@ -250,7 +250,7 @@ static void test3_max_readers(void *args, const hive_spawn_info *siblings,
 
     // Publish one entry
     const char *data = "Limited reads";
-    hive_bus_publish(g_max_readers_bus, data, strlen(data) + 1);
+    hive_bus_publish(s_max_readers_bus, data, strlen(data) + 1);
 
     // Wait for subscribers to try reading
     hive_timer_after(300000, &timer);
@@ -273,7 +273,7 @@ static void test3_max_readers(void *args, const hive_spawn_info *siblings,
         }
     }
 
-    hive_bus_destroy(g_max_readers_bus);
+    hive_bus_destroy(s_max_readers_bus);
     hive_exit();
 }
 

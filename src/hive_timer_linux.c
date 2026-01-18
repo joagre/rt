@@ -28,9 +28,9 @@ typedef struct timer_entry {
 } timer_entry;
 
 // Static pool for timer entries
-static timer_entry g_timer_pool[HIVE_TIMER_ENTRY_POOL_SIZE];
-static bool g_timer_used[HIVE_TIMER_ENTRY_POOL_SIZE];
-static hive_pool g_timer_pool_mgr;
+static timer_entry s_timer_pool[HIVE_TIMER_ENTRY_POOL_SIZE];
+static bool s_timer_used[HIVE_TIMER_ENTRY_POOL_SIZE];
+static hive_pool s_timer_pool_mgr;
 
 // Timer subsystem state
 static struct {
@@ -39,7 +39,7 @@ static struct {
     timer_id next_id;
     bool sim_mode;        // Simulation time mode (enabled by hive_advance_time)
     uint64_t sim_time_us; // Current simulation time in microseconds
-} g_timer = {0};
+} s_timer = {0};
 
 // Helper: Close timer fd and remove from epoll (only in real-time mode)
 static void timer_close_fd(timer_entry *entry) {
@@ -65,8 +65,8 @@ void hive_timer_handle_event(io_source *source) {
     if (!a) {
         // Actor is dead - cleanup timer
         timer_close_fd(entry);
-        SLIST_REMOVE(g_timer.timers, entry);
-        hive_pool_free(&g_timer_pool_mgr, entry);
+        SLIST_REMOVE(s_timer.timers, entry);
+        hive_pool_free(&s_timer_pool_mgr, entry);
         return;
     }
 
@@ -84,42 +84,42 @@ void hive_timer_handle_event(io_source *source) {
     // If one-shot, cleanup
     if (!entry->periodic) {
         timer_close_fd(entry);
-        SLIST_REMOVE(g_timer.timers, entry);
-        hive_pool_free(&g_timer_pool_mgr, entry);
+        SLIST_REMOVE(s_timer.timers, entry);
+        hive_pool_free(&s_timer_pool_mgr, entry);
     }
 }
 
 // Initialize timer subsystem
 hive_status hive_timer_init(void) {
-    HIVE_INIT_GUARD(g_timer.initialized);
+    HIVE_INIT_GUARD(s_timer.initialized);
 
     // Initialize timer entry pool
-    hive_pool_init(&g_timer_pool_mgr, g_timer_pool, g_timer_used,
+    hive_pool_init(&s_timer_pool_mgr, s_timer_pool, s_timer_used,
                    sizeof(timer_entry), HIVE_TIMER_ENTRY_POOL_SIZE);
 
     // Initialize timer state
-    g_timer.timers = NULL;
-    g_timer.next_id = 1;
+    s_timer.timers = NULL;
+    s_timer.next_id = 1;
 
-    g_timer.initialized = true;
+    s_timer.initialized = true;
     return HIVE_SUCCESS;
 }
 
 // Cleanup timer subsystem
 void hive_timer_cleanup(void) {
-    HIVE_CLEANUP_GUARD(g_timer.initialized);
+    HIVE_CLEANUP_GUARD(s_timer.initialized);
 
     // Clean up all active timers
-    timer_entry *entry = g_timer.timers;
+    timer_entry *entry = s_timer.timers;
     while (entry) {
         timer_entry *next = entry->next;
         timer_close_fd(entry);
-        hive_pool_free(&g_timer_pool_mgr, entry);
+        hive_pool_free(&s_timer_pool_mgr, entry);
         entry = next;
     }
-    g_timer.timers = NULL;
+    s_timer.timers = NULL;
 
-    g_timer.initialized = false;
+    s_timer.initialized = false;
 }
 
 // Create a timer (one-shot or periodic)
@@ -129,38 +129,38 @@ static hive_status create_timer(uint32_t interval_us, bool periodic,
         return HIVE_ERROR(HIVE_ERR_INVALID, "NULL out pointer");
     }
 
-    HIVE_REQUIRE_INIT(g_timer.initialized, "Timer");
+    HIVE_REQUIRE_INIT(s_timer.initialized, "Timer");
 
     HIVE_REQUIRE_ACTOR_CONTEXT();
     actor *current = hive_actor_current();
 
     // Allocate timer entry from pool
-    timer_entry *entry = hive_pool_alloc(&g_timer_pool_mgr);
+    timer_entry *entry = hive_pool_alloc(&s_timer_pool_mgr);
     if (!entry) {
         return HIVE_ERROR(HIVE_ERR_NOMEM, "Timer entry pool exhausted");
     }
 
     // Initialize common fields
-    entry->id = g_timer.next_id++;
+    entry->id = s_timer.next_id++;
     entry->owner = current->id;
     entry->periodic = periodic;
     entry->interval_us =
         interval_us; // Always store for potential sim mode conversion
-    entry->next = g_timer.timers;
+    entry->next = s_timer.timers;
 
-    if (g_timer.sim_mode) {
+    if (s_timer.sim_mode) {
         // Simulation mode: store expiry time, no timerfd
         entry->fd = -1;
-        entry->expiry_us = g_timer.sim_time_us + interval_us;
+        entry->expiry_us = s_timer.sim_time_us + interval_us;
         HIVE_LOG_DEBUG(
             "Timer %u created in sim mode (expiry=%lu, sim_time=%lu)",
             entry->id, (unsigned long)entry->expiry_us,
-            (unsigned long)g_timer.sim_time_us);
+            (unsigned long)s_timer.sim_time_us);
     } else {
         // Real-time mode: use timerfd
         int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
         if (tfd < 0) {
-            hive_pool_free(&g_timer_pool_mgr, entry);
+            hive_pool_free(&s_timer_pool_mgr, entry);
             return HIVE_ERROR(HIVE_ERR_IO, "timerfd_create failed");
         }
 
@@ -188,7 +188,7 @@ static hive_status create_timer(uint32_t interval_us, bool periodic,
 
         if (timerfd_settime(tfd, 0, &its, NULL) < 0) {
             close(tfd);
-            hive_pool_free(&g_timer_pool_mgr, entry);
+            hive_pool_free(&s_timer_pool_mgr, entry);
             return HIVE_ERROR(HIVE_ERR_IO, "timerfd_settime failed");
         }
 
@@ -208,12 +208,12 @@ static hive_status create_timer(uint32_t interval_us, bool periodic,
 
         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, tfd, &ev) < 0) {
             close(tfd);
-            hive_pool_free(&g_timer_pool_mgr, entry);
+            hive_pool_free(&s_timer_pool_mgr, entry);
             return HIVE_ERROR(HIVE_ERR_IO, "epoll_ctl failed");
         }
     }
 
-    g_timer.timers = entry;
+    s_timer.timers = entry;
     *out = entry->id;
     return HIVE_SUCCESS;
 }
@@ -227,15 +227,15 @@ hive_status hive_timer_every(uint32_t interval_us, timer_id *out) {
 }
 
 hive_status hive_timer_cancel(timer_id id) {
-    HIVE_REQUIRE_INIT(g_timer.initialized, "Timer");
+    HIVE_REQUIRE_INIT(s_timer.initialized, "Timer");
 
     // Find and remove timer from list
     timer_entry *found = NULL;
-    SLIST_FIND_REMOVE(g_timer.timers, entry->id == id, found);
+    SLIST_FIND_REMOVE(s_timer.timers, entry->id == id, found);
 
     if (found) {
         timer_close_fd(found);
-        hive_pool_free(&g_timer_pool_mgr, found);
+        hive_pool_free(&s_timer_pool_mgr, found);
         return HIVE_SUCCESS;
     }
 
@@ -260,17 +260,17 @@ hive_status hive_sleep(uint32_t delay_us) {
 // Advance simulation time and fire due timers
 // Calling this function enables simulation mode (disables timerfd)
 void hive_timer_advance_time(uint64_t delta_us) {
-    if (!g_timer.initialized) {
+    if (!s_timer.initialized) {
         return;
     }
 
     // Enable simulation mode on first call
-    if (!g_timer.sim_mode) {
-        g_timer.sim_mode = true;
+    if (!s_timer.sim_mode) {
+        s_timer.sim_mode = true;
         HIVE_LOG_INFO("Simulation time mode enabled");
 
         // Convert any existing timerfd-based timers to simulation mode
-        for (timer_entry *entry = g_timer.timers; entry; entry = entry->next) {
+        for (timer_entry *entry = s_timer.timers; entry; entry = entry->next) {
             if (entry->fd >= 0) {
                 // Close timerfd and unregister from epoll
                 timer_close_fd(entry);
@@ -282,7 +282,7 @@ void hive_timer_advance_time(uint64_t delta_us) {
     }
 
     // Advance time
-    g_timer.sim_time_us += delta_us;
+    s_timer.sim_time_us += delta_us;
 
     // Fire all due timers
     // We need to iterate carefully since firing a timer may cause actor to
@@ -290,14 +290,14 @@ void hive_timer_advance_time(uint64_t delta_us) {
     bool fired_any;
     do {
         fired_any = false;
-        timer_entry *entry = g_timer.timers;
+        timer_entry *entry = s_timer.timers;
         timer_entry *prev = NULL;
 
         while (entry) {
             timer_entry *next = entry->next;
 
             // Check if timer is due (only for simulation mode timers)
-            if (entry->fd < 0 && entry->expiry_us <= g_timer.sim_time_us) {
+            if (entry->fd < 0 && entry->expiry_us <= s_timer.sim_time_us) {
                 // Get the actor
                 actor *a = hive_actor_get(entry->owner);
                 if (!a) {
@@ -305,9 +305,9 @@ void hive_timer_advance_time(uint64_t delta_us) {
                     if (prev) {
                         prev->next = next;
                     } else {
-                        g_timer.timers = next;
+                        s_timer.timers = next;
                     }
-                    hive_pool_free(&g_timer_pool_mgr, entry);
+                    hive_pool_free(&s_timer_pool_mgr, entry);
                     entry = next;
                     continue;
                 }
@@ -315,7 +315,7 @@ void hive_timer_advance_time(uint64_t delta_us) {
                 // Send timer tick message to actor
                 HIVE_LOG_DEBUG(
                     "Timer %u fired for actor %u (sim_time=%lu, expiry=%lu)",
-                    entry->id, entry->owner, (unsigned long)g_timer.sim_time_us,
+                    entry->id, entry->owner, (unsigned long)s_timer.sim_time_us,
                     (unsigned long)entry->expiry_us);
 
                 hive_status status = hive_ipc_notify_internal(
@@ -340,9 +340,9 @@ void hive_timer_advance_time(uint64_t delta_us) {
                     if (prev) {
                         prev->next = next;
                     } else {
-                        g_timer.timers = next;
+                        s_timer.timers = next;
                     }
-                    hive_pool_free(&g_timer_pool_mgr, entry);
+                    hive_pool_free(&s_timer_pool_mgr, entry);
                 }
             } else {
                 prev = entry;
@@ -356,8 +356,8 @@ void hive_timer_advance_time(uint64_t delta_us) {
 
 // Get current time in microseconds
 uint64_t hive_get_time(void) {
-    if (g_timer.sim_mode) {
-        return g_timer.sim_time_us;
+    if (s_timer.sim_mode) {
+        return s_timer.sim_time_us;
     }
 
     struct timespec ts;

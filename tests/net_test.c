@@ -185,7 +185,7 @@ static void test1_listen_accept(void *args, const hive_spawn_info *siblings,
 // Test 2: Send and receive data
 // ============================================================================
 
-static char g_received_data[64] = {0};
+static char s_received_data[64] = {0};
 static size_t g_received_len = 0;
 
 static void echo_server_actor(void *args, const hive_spawn_info *siblings,
@@ -210,13 +210,13 @@ static void echo_server_actor(void *args, const hive_spawn_info *siblings,
     }
 
     // Receive and store
-    status = hive_net_recv(conn_fd, g_received_data,
-                           sizeof(g_received_data) - 1, &g_received_len, 2000);
+    status = hive_net_recv(conn_fd, s_received_data,
+                           sizeof(s_received_data) - 1, &g_received_len, 2000);
 
     // Echo back with modification
     if (HIVE_SUCCEEDED(status)) {
         char reply[128];
-        snprintf(reply, sizeof(reply), "Echo: %.60s", g_received_data);
+        snprintf(reply, sizeof(reply), "Echo: %.60s", s_received_data);
         size_t sent = 0;
         hive_net_send(conn_fd, reply, strlen(reply), &sent, 2000);
     }
@@ -227,7 +227,7 @@ static void echo_server_actor(void *args, const hive_spawn_info *siblings,
 }
 
 static bool g_echo_received = false;
-static char g_echo_reply[64] = {0};
+static char s_echo_reply[64] = {0};
 
 static void echo_client_actor(void *args, const hive_spawn_info *siblings,
                               size_t sibling_count) {
@@ -258,7 +258,7 @@ static void echo_client_actor(void *args, const hive_spawn_info *siblings,
 
     // Receive reply
     size_t received = 0;
-    status = hive_net_recv(fd, g_echo_reply, sizeof(g_echo_reply) - 1,
+    status = hive_net_recv(fd, s_echo_reply, sizeof(s_echo_reply) - 1,
                            &received, 2000);
     if (HIVE_SUCCEEDED(status)) {
         g_echo_received = true;
@@ -277,8 +277,8 @@ static void test2_send_receive(void *args, const hive_spawn_info *siblings,
 
     g_server_ready = false;
     g_echo_received = false;
-    memset(g_received_data, 0, sizeof(g_received_data));
-    memset(g_echo_reply, 0, sizeof(g_echo_reply));
+    memset(s_received_data, 0, sizeof(s_received_data));
+    memset(s_echo_reply, 0, sizeof(s_echo_reply));
 
     actor_id server;
     hive_spawn(echo_server_actor, NULL, NULL, NULL, &server);
@@ -292,17 +292,17 @@ static void test2_send_receive(void *args, const hive_spawn_info *siblings,
     hive_ipc_recv(&msg, 5000);
     hive_ipc_recv(&msg, 5000);
 
-    if (strcmp(g_received_data, "TestMessage") == 0) {
+    if (strcmp(s_received_data, "TestMessage") == 0) {
         TEST_PASS("server received correct data");
     } else {
-        printf("    Received: '%s'\n", g_received_data);
+        printf("    Received: '%s'\n", s_received_data);
         TEST_FAIL("server received wrong data");
     }
 
-    if (g_echo_received && strstr(g_echo_reply, "TestMessage") != NULL) {
+    if (g_echo_received && strstr(s_echo_reply, "TestMessage") != NULL) {
         TEST_PASS("client received echo reply");
     } else {
-        printf("    Reply: '%s'\n", g_echo_reply);
+        printf("    Reply: '%s'\n", s_echo_reply);
         TEST_FAIL("client did not receive echo");
     }
 
@@ -725,14 +725,14 @@ static void test11_connect_timeout(void *args, const hive_spawn_info *siblings,
 // Test 12: Actor death during blocked recv (resource cleanup)
 // ============================================================================
 
-static volatile bool g_recv_actor_started = false;
+static volatile bool s_recv_actor_started = false;
 
 static void blocked_recv_actor(void *args, const hive_spawn_info *siblings,
                                size_t sibling_count) {
     (void)siblings;
     (void)sibling_count;
     int fd = *(int *)args;
-    g_recv_actor_started = true;
+    s_recv_actor_started = true;
 
     // Block on recv - will never complete because no one sends
     char buf[64];
@@ -778,7 +778,7 @@ static void test12_actor_death_during_recv(void *args,
     }
 
     // Spawn actor that will block on recv
-    g_recv_actor_started = false;
+    s_recv_actor_started = false;
     actor_id recv_actor;
     if (HIVE_FAILED(hive_spawn(blocked_recv_actor, NULL, &server_fd, NULL,
                                &recv_actor))) {
@@ -793,7 +793,7 @@ static void test12_actor_death_during_recv(void *args,
     hive_link(recv_actor);
 
     // Wait for actor to start blocking
-    for (int i = 0; i < 10 && !g_recv_actor_started; i++) {
+    for (int i = 0; i < 10 && !s_recv_actor_started; i++) {
         hive_yield();
     }
 

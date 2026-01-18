@@ -14,7 +14,7 @@
 #include <time.h>
 
 // Worker states for demonstration
-static volatile int g_worker_iterations[3] = {0};
+static volatile int s_worker_iterations[3] = {0};
 
 // Worker actor - does some work, occasionally crashes
 static void worker_actor(void *args, const hive_spawn_info *siblings,
@@ -27,7 +27,7 @@ static void worker_actor(void *args, const hive_spawn_info *siblings,
 
     // Do some work iterations
     for (int i = 0; i < 5; i++) {
-        g_worker_iterations[worker_id]++;
+        s_worker_iterations[worker_id]++;
 
         // Simulate work with a short delay
         timer_id t;
@@ -36,7 +36,7 @@ static void worker_actor(void *args, const hive_spawn_info *siblings,
         hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, t, &msg, -1);
 
         printf("Worker %d: iteration %d (total: %d)\n", worker_id, i + 1,
-               g_worker_iterations[worker_id]);
+               s_worker_iterations[worker_id]);
 
         // Randomly crash (1 in 3 chance per iteration)
         if (rand() % 3 == 0) {
@@ -53,8 +53,8 @@ static void worker_actor(void *args, const hive_spawn_info *siblings,
 static void on_supervisor_shutdown(void *ctx) {
     (void)ctx;
     printf("\n=== Supervisor shutting down ===\n");
-    printf("Final worker iterations: [%d, %d, %d]\n", g_worker_iterations[0],
-           g_worker_iterations[1], g_worker_iterations[2]);
+    printf("Final worker iterations: [%d, %d, %d]\n", s_worker_iterations[0],
+           s_worker_iterations[1], s_worker_iterations[2]);
 }
 
 // Main orchestrator actor

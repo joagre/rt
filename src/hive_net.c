@@ -27,14 +27,14 @@ enum {
 };
 
 // Static pool for io_source entries
-static io_source g_io_source_pool[HIVE_IO_SOURCE_POOL_SIZE];
-static bool g_io_source_used[HIVE_IO_SOURCE_POOL_SIZE];
-static hive_pool g_io_source_pool_mgr;
+static io_source s_io_source_pool[HIVE_IO_SOURCE_POOL_SIZE];
+static bool s_io_source_used[HIVE_IO_SOURCE_POOL_SIZE];
+static hive_pool s_io_source_pool_mgr;
 
 // Network I/O subsystem state
 static struct {
     bool initialized;
-} g_net = {0};
+} s_net = {0};
 
 // Set socket to non-blocking mode
 static int set_nonblocking(int fd) {
@@ -55,7 +55,7 @@ void hive_net_handle_event(io_source *source) {
         // Actor is dead - cleanup
         int epoll_fd = hive_scheduler_get_epoll_fd();
         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, net->fd, NULL);
-        hive_pool_free(&g_io_source_pool_mgr, source);
+        hive_pool_free(&s_io_source_pool_mgr, source);
         return;
     }
 
@@ -144,25 +144,25 @@ void hive_net_handle_event(io_source *source) {
     a->state = ACTOR_STATE_READY;
 
     // Free io_source
-    hive_pool_free(&g_io_source_pool_mgr, source);
+    hive_pool_free(&s_io_source_pool_mgr, source);
 }
 
 // Initialize network I/O subsystem
 hive_status hive_net_init(void) {
-    HIVE_INIT_GUARD(g_net.initialized);
+    HIVE_INIT_GUARD(s_net.initialized);
 
     // Initialize io_source pool
-    hive_pool_init(&g_io_source_pool_mgr, g_io_source_pool, g_io_source_used,
+    hive_pool_init(&s_io_source_pool_mgr, s_io_source_pool, s_io_source_used,
                    sizeof(io_source), HIVE_IO_SOURCE_POOL_SIZE);
 
-    g_net.initialized = true;
+    s_net.initialized = true;
     return HIVE_SUCCESS;
 }
 
 // Cleanup network I/O subsystem
 void hive_net_cleanup(void) {
-    HIVE_CLEANUP_GUARD(g_net.initialized);
-    g_net.initialized = false;
+    HIVE_CLEANUP_GUARD(s_net.initialized);
+    s_net.initialized = false;
 }
 
 // Helper: Try non-blocking I/O, add to epoll if would block
@@ -188,7 +188,7 @@ static hive_status try_or_epoll(int fd, uint32_t epoll_events, int operation,
     }
 
     // Allocate io_source from pool
-    io_source *source = hive_pool_alloc(&g_io_source_pool_mgr);
+    io_source *source = hive_pool_alloc(&s_io_source_pool_mgr);
     if (!source) {
         if (timeout_timer != TIMER_ID_INVALID) {
             hive_timer_cancel(timeout_timer);
@@ -211,7 +211,7 @@ static hive_status try_or_epoll(int fd, uint32_t epoll_events, int operation,
     ev.data.ptr = source;
 
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) < 0) {
-        hive_pool_free(&g_io_source_pool_mgr, source);
+        hive_pool_free(&s_io_source_pool_mgr, source);
         if (timeout_timer != TIMER_ID_INVALID) {
             hive_timer_cancel(timeout_timer);
         }
@@ -228,7 +228,7 @@ static hive_status try_or_epoll(int fd, uint32_t epoll_events, int operation,
     if (HIVE_FAILED(timeout_status)) {
         // Timeout occurred - cleanup epoll registration
         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
-        hive_pool_free(&g_io_source_pool_mgr, source);
+        hive_pool_free(&s_io_source_pool_mgr, source);
         return timeout_status;
     }
 
@@ -241,7 +241,7 @@ hive_status hive_net_listen(uint16_t port, int *fd_out) {
         return HIVE_ERROR(HIVE_ERR_INVALID, "NULL fd_out pointer");
     }
 
-    HIVE_REQUIRE_INIT(g_net.initialized, "Network I/O");
+    HIVE_REQUIRE_INIT(s_net.initialized, "Network I/O");
 
     // Create socket (synchronous, doesn't block)
     int fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -279,7 +279,7 @@ hive_status hive_net_accept(int listen_fd, int *conn_fd_out,
         return HIVE_ERROR(HIVE_ERR_INVALID, "NULL conn_fd_out pointer");
     }
 
-    HIVE_REQUIRE_INIT(g_net.initialized, "Network I/O");
+    HIVE_REQUIRE_INIT(s_net.initialized, "Network I/O");
 
     HIVE_REQUIRE_ACTOR_CONTEXT();
     actor *current = hive_actor_current();
@@ -320,7 +320,7 @@ hive_status hive_net_connect(const char *ip, uint16_t port, int *fd_out,
         return HIVE_ERROR(HIVE_ERR_INVALID, "NULL ip or fd_out pointer");
     }
 
-    HIVE_REQUIRE_INIT(g_net.initialized, "Network I/O");
+    HIVE_REQUIRE_INIT(s_net.initialized, "Network I/O");
 
     HIVE_REQUIRE_ACTOR_CONTEXT();
     actor *current = hive_actor_current();
@@ -382,7 +382,7 @@ hive_status hive_net_recv(int fd, void *buf, size_t len, size_t *received,
         return HIVE_ERROR(HIVE_ERR_INVALID, "NULL buffer or received pointer");
     }
 
-    HIVE_REQUIRE_INIT(g_net.initialized, "Network I/O");
+    HIVE_REQUIRE_INIT(s_net.initialized, "Network I/O");
 
     HIVE_REQUIRE_ACTOR_CONTEXT();
     actor *current = hive_actor_current();
@@ -418,7 +418,7 @@ hive_status hive_net_send(int fd, const void *buf, size_t len, size_t *sent,
         return HIVE_ERROR(HIVE_ERR_INVALID, "NULL buffer or sent pointer");
     }
 
-    HIVE_REQUIRE_INIT(g_net.initialized, "Network I/O");
+    HIVE_REQUIRE_INIT(s_net.initialized, "Network I/O");
 
     HIVE_REQUIRE_ACTOR_CONTEXT();
     actor *current = hive_actor_current();

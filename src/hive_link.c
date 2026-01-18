@@ -20,33 +20,33 @@ static bool send_exit_notification(actor *recipient, actor_id dying_id,
 extern actor_table *hive_actor_get_table(void);
 
 // Static pools for links and monitors
-static link_entry g_link_pool[HIVE_LINK_ENTRY_POOL_SIZE];
-static bool g_link_used[HIVE_LINK_ENTRY_POOL_SIZE];
-static hive_pool g_link_pool_mgr;
+static link_entry s_link_pool[HIVE_LINK_ENTRY_POOL_SIZE];
+static bool s_link_used[HIVE_LINK_ENTRY_POOL_SIZE];
+static hive_pool s_link_pool_mgr;
 
-static monitor_entry g_monitor_pool[HIVE_MONITOR_ENTRY_POOL_SIZE];
-static bool g_monitor_used[HIVE_MONITOR_ENTRY_POOL_SIZE];
-static hive_pool g_monitor_pool_mgr;
+static monitor_entry s_monitor_pool[HIVE_MONITOR_ENTRY_POOL_SIZE];
+static bool s_monitor_used[HIVE_MONITOR_ENTRY_POOL_SIZE];
+static hive_pool s_monitor_pool_mgr;
 
 // Global state
 static struct {
     uint32_t next_monitor_id;
     bool initialized;
-} g_link_state = {0};
+} s_link_state = {0};
 
 // Initialize link subsystem
 hive_status hive_link_init(void) {
-    HIVE_INIT_GUARD(g_link_state.initialized);
+    HIVE_INIT_GUARD(s_link_state.initialized);
 
     // Initialize link and monitor pools
-    hive_pool_init(&g_link_pool_mgr, g_link_pool, g_link_used,
+    hive_pool_init(&s_link_pool_mgr, s_link_pool, s_link_used,
                    sizeof(link_entry), HIVE_LINK_ENTRY_POOL_SIZE);
 
-    hive_pool_init(&g_monitor_pool_mgr, g_monitor_pool, g_monitor_used,
+    hive_pool_init(&s_monitor_pool_mgr, s_monitor_pool, s_monitor_used,
                    sizeof(monitor_entry), HIVE_MONITOR_ENTRY_POOL_SIZE);
 
-    g_link_state.next_monitor_id = 1;
-    g_link_state.initialized = true;
+    s_link_state.next_monitor_id = 1;
+    s_link_state.initialized = true;
 
     HIVE_LOG_DEBUG("Link subsystem initialized");
     return HIVE_SUCCESS;
@@ -54,9 +54,9 @@ hive_status hive_link_init(void) {
 
 // Cleanup link subsystem
 void hive_link_cleanup(void) {
-    HIVE_CLEANUP_GUARD(g_link_state.initialized);
+    HIVE_CLEANUP_GUARD(s_link_state.initialized);
 
-    g_link_state.initialized = false;
+    s_link_state.initialized = false;
     HIVE_LOG_DEBUG("Link subsystem cleaned up");
 }
 
@@ -92,7 +92,7 @@ hive_status hive_link(actor_id target_id) {
     }
 
     // Allocate link entry for current -> target
-    link_entry *current_link = hive_pool_alloc(&g_link_pool_mgr);
+    link_entry *current_link = hive_pool_alloc(&s_link_pool_mgr);
     if (!current_link) {
         return HIVE_ERROR(HIVE_ERR_NOMEM, "Link pool exhausted");
     }
@@ -100,9 +100,9 @@ hive_status hive_link(actor_id target_id) {
     current_link->next = NULL;
 
     // Allocate link entry for target -> current
-    link_entry *target_link = hive_pool_alloc(&g_link_pool_mgr);
+    link_entry *target_link = hive_pool_alloc(&s_link_pool_mgr);
     if (!target_link) {
-        hive_pool_free(&g_link_pool_mgr, current_link);
+        hive_pool_free(&s_link_pool_mgr, current_link);
         return HIVE_ERROR(HIVE_ERR_NOMEM, "Link pool exhausted");
     }
     target_link->target = current->id;
@@ -129,7 +129,7 @@ hive_status hive_link_remove(actor_id target_id) {
     if (!found) {
         return HIVE_ERROR(HIVE_ERR_INVALID, "Not linked to target");
     }
-    hive_pool_free(&g_link_pool_mgr, found);
+    hive_pool_free(&s_link_pool_mgr, found);
 
     // Remove reciprocal link from target actor's list
     actor *target = hive_actor_get(target_id);
@@ -138,7 +138,7 @@ hive_status hive_link_remove(actor_id target_id) {
         SLIST_FIND_REMOVE(target->links, entry->target == current->id,
                           reciprocal);
         if (reciprocal) {
-            hive_pool_free(&g_link_pool_mgr, reciprocal);
+            hive_pool_free(&s_link_pool_mgr, reciprocal);
         }
     }
 
@@ -167,13 +167,13 @@ hive_status hive_monitor(actor_id target_id, uint32_t *monitor_id) {
     }
 
     // Allocate monitor entry from pool
-    monitor_entry *entry = hive_pool_alloc(&g_monitor_pool_mgr);
+    monitor_entry *entry = hive_pool_alloc(&s_monitor_pool_mgr);
     if (!entry) {
         return HIVE_ERROR(HIVE_ERR_NOMEM, "Monitor pool exhausted");
     }
 
     // Generate unique monitor ID
-    entry->ref = g_link_state.next_monitor_id++;
+    entry->ref = s_link_state.next_monitor_id++;
     entry->target = target_id;
     entry->next = NULL;
 
@@ -197,7 +197,7 @@ hive_status hive_monitor_cancel(uint32_t monitor_id) {
     if (found) {
         HIVE_LOG_DEBUG("Actor %u cancelled monitor (id=%u)", current->id,
                        monitor_id);
-        hive_pool_free(&g_monitor_pool_mgr, found);
+        hive_pool_free(&s_monitor_pool_mgr, found);
         return HIVE_SUCCESS;
     }
 
@@ -270,7 +270,7 @@ static bool send_exit_notification(actor *recipient, actor_id dying_id,
 
 // Cleanup actor links/monitors and send death notifications
 void hive_link_cleanup_actor(actor_id dying_actor_id) {
-    if (!g_link_state.initialized) {
+    if (!s_link_state.initialized) {
         return;
     }
 
@@ -317,12 +317,12 @@ void hive_link_cleanup_actor(actor_id dying_actor_id) {
             SLIST_FIND_REMOVE(linked_actor->links,
                               entry->target == dying_actor_id, reciprocal);
             if (reciprocal) {
-                hive_pool_free(&g_link_pool_mgr, reciprocal);
+                hive_pool_free(&s_link_pool_mgr, reciprocal);
             }
         }
 
         link_entry *next_link = link->next;
-        hive_pool_free(&g_link_pool_mgr, link);
+        hive_pool_free(&s_link_pool_mgr, link);
         link = next_link;
     }
     dying->links = NULL;
@@ -355,7 +355,7 @@ void hive_link_cleanup_actor(actor_id dying_actor_id) {
                     monitor_entry *to_free = mon;
                     *prev = mon->next;
                     mon = mon->next;
-                    hive_pool_free(&g_monitor_pool_mgr, to_free);
+                    hive_pool_free(&s_monitor_pool_mgr, to_free);
                 } else {
                     prev = &mon->next;
                     mon = mon->next;
@@ -368,7 +368,7 @@ void hive_link_cleanup_actor(actor_id dying_actor_id) {
     monitor_entry *mon = dying->monitors;
     while (mon) {
         monitor_entry *next_mon = mon->next;
-        hive_pool_free(&g_monitor_pool_mgr, mon);
+        hive_pool_free(&s_monitor_pool_mgr, mon);
         mon = next_mon;
     }
     dying->monitors = NULL;

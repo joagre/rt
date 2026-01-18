@@ -291,7 +291,7 @@ static void test5_actor_alive(void *args, const hive_spawn_info *siblings,
 // Test 6: Spawn with custom priority
 // ============================================================================
 
-static hive_priority_level g_captured_priority = HIVE_PRIORITY_NORMAL;
+static hive_priority_level s_captured_priority = HIVE_PRIORITY_NORMAL;
 
 static void priority_reporter_actor(void *args, const hive_spawn_info *siblings,
                                     size_t sibling_count) {
@@ -299,7 +299,7 @@ static void priority_reporter_actor(void *args, const hive_spawn_info *siblings,
     (void)siblings;
     (void)sibling_count;
     // Can't directly access priority, but we can verify the actor runs
-    g_captured_priority =
+    s_captured_priority =
         HIVE_PRIORITY_HIGH; // Indicate we ran with expected priority
     hive_exit();
 }
@@ -311,7 +311,7 @@ static void test6_custom_priority(void *args, const hive_spawn_info *siblings,
     (void)sibling_count;
     printf("\nTest 6: Spawn with custom priority\n");
 
-    g_captured_priority = HIVE_PRIORITY_NORMAL;
+    s_captured_priority = HIVE_PRIORITY_NORMAL;
 
     actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
     cfg.priority = HIVE_PRIORITY_HIGH;

@@ -30,16 +30,16 @@ static int tests_failed = 0;
 // =============================================================================
 
 // Shared state for test coordination
-static volatile int g_child_started[4] = {0};
-static volatile int g_child_exited[4] = {0};
-static volatile int g_shutdown_called = 0;
+static volatile int s_child_started[4] = {0};
+static volatile int s_child_exited[4] = {0};
+static volatile int s_shutdown_called = 0;
 
 static void reset_test_state(void) {
     for (int i = 0; i < 4; i++) {
-        g_child_started[i] = 0;
-        g_child_exited[i] = 0;
+        s_child_started[i] = 0;
+        s_child_exited[i] = 0;
     }
-    g_shutdown_called = 0;
+    s_shutdown_called = 0;
 }
 
 // Wait for a condition with timeout
@@ -60,13 +60,13 @@ static void stable_child(void *args, const hive_spawn_info *siblings,
     (void)siblings;
     (void)sibling_count;
     int id = args ? *(int *)args : 0;
-    g_child_started[id]++;
+    s_child_started[id]++;
 
     // Wait indefinitely (will be killed by supervisor)
     hive_message msg;
     hive_ipc_recv(&msg, -1);
 
-    g_child_exited[id]++;
+    s_child_exited[id]++;
     hive_exit();
 }
 
@@ -76,8 +76,8 @@ static void crashing_child(void *args, const hive_spawn_info *siblings,
     (void)siblings;
     (void)sibling_count;
     int id = args ? *(int *)args : 0;
-    g_child_started[id]++;
-    g_child_exited[id]++;
+    s_child_started[id]++;
+    s_child_exited[id]++;
     // Return without calling hive_exit() = crash
 }
 
@@ -87,8 +87,8 @@ static void exiting_child(void *args, const hive_spawn_info *siblings,
     (void)siblings;
     (void)sibling_count;
     int id = args ? *(int *)args : 0;
-    g_child_started[id]++;
-    g_child_exited[id]++;
+    s_child_started[id]++;
+    s_child_exited[id]++;
     hive_exit();
 }
 
@@ -98,18 +98,18 @@ static void delayed_crash_child(void *args, const hive_spawn_info *siblings,
     (void)siblings;
     (void)sibling_count;
     int id = args ? *(int *)args : 0;
-    g_child_started[id]++;
+    s_child_started[id]++;
 
     wait_ms(50);
 
-    g_child_exited[id]++;
+    s_child_exited[id]++;
     // Crash
 }
 
 // Shutdown callback
 static void test_shutdown_callback(void *ctx) {
     (void)ctx;
-    g_shutdown_called = 1;
+    s_shutdown_called = 1;
 }
 
 // =============================================================================
@@ -168,11 +168,11 @@ static void test1_basic_lifecycle(void *args, const hive_spawn_info *siblings,
     // Wait for children to start
     wait_ms(100);
 
-    if (g_child_started[0] == 1 && g_child_started[1] == 1) {
+    if (s_child_started[0] == 1 && s_child_started[1] == 1) {
         TEST_PASS("children started");
     } else {
-        printf("    child0=%d child1=%d\n", g_child_started[0],
-               g_child_started[1]);
+        printf("    child0=%d child1=%d\n", s_child_started[0],
+               s_child_started[1]);
         TEST_FAIL("children not started correctly");
     }
 
@@ -192,7 +192,7 @@ static void test1_basic_lifecycle(void *args, const hive_spawn_info *siblings,
         hive_exit();
     }
 
-    if (g_shutdown_called) {
+    if (s_shutdown_called) {
         TEST_PASS("shutdown callback called");
     } else {
         TEST_FAIL("shutdown callback not called");
@@ -258,11 +258,11 @@ static void test2_one_for_one(void *args, const hive_spawn_info *siblings,
 
     // Child 0 should have started multiple times (crashed and restarted)
     // Child 1 should have started exactly once
-    if (g_child_started[0] >= 2 && g_child_started[1] == 1) {
+    if (s_child_started[0] >= 2 && s_child_started[1] == 1) {
         TEST_PASS("one_for_one: only crashed child restarted");
     } else {
-        printf("    child0 starts=%d, child1 starts=%d\n", g_child_started[0],
-               g_child_started[1]);
+        printf("    child0 starts=%d, child1 starts=%d\n", s_child_started[0],
+               s_child_started[1]);
         TEST_FAIL("one_for_one: wrong restart behavior");
     }
 
@@ -327,11 +327,11 @@ static void test3_one_for_all(void *args, const hive_spawn_info *siblings,
     wait_ms(150);
 
     // Both children should have been restarted together
-    if (g_child_started[0] >= 2 && g_child_started[1] >= 2) {
+    if (s_child_started[0] >= 2 && s_child_started[1] >= 2) {
         TEST_PASS("one_for_all: all children restarted");
     } else {
-        printf("    child0 starts=%d, child1 starts=%d\n", g_child_started[0],
-               g_child_started[1]);
+        printf("    child0 starts=%d, child1 starts=%d\n", s_child_started[0],
+               s_child_started[1]);
         TEST_FAIL("one_for_all: not all children restarted");
     }
 
@@ -407,12 +407,12 @@ static void test4_rest_for_one(void *args, const hive_spawn_info *siblings,
     // Child 0 (before crasher) should start once
     // Child 1 (crasher) should restart multiple times
     // Child 2 (after crasher) should restart when child 1 crashes
-    if (g_child_started[0] == 1 && g_child_started[1] >= 2 &&
-        g_child_started[2] >= 2) {
+    if (s_child_started[0] == 1 && s_child_started[1] >= 2 &&
+        s_child_started[2] >= 2) {
         TEST_PASS("rest_for_one: correct restart behavior");
     } else {
-        printf("    child0=%d, child1=%d, child2=%d\n", g_child_started[0],
-               g_child_started[1], g_child_started[2]);
+        printf("    child0=%d, child1=%d, child2=%d\n", s_child_started[0],
+               s_child_started[1], s_child_started[2]);
         TEST_FAIL("rest_for_one: wrong restart behavior");
     }
 
@@ -479,7 +479,7 @@ static void test5_restart_intensity(void *args, const hive_spawn_info *siblings,
         TEST_FAIL("supervisor did not shut down");
     }
 
-    if (g_shutdown_called) {
+    if (s_shutdown_called) {
         TEST_PASS("shutdown callback called on intensity exceeded");
     } else {
         TEST_FAIL("shutdown callback not called");
@@ -556,24 +556,24 @@ static void test6_restart_types(void *args, const hive_spawn_info *siblings,
     // Permanent: should have restarted multiple times (normal exit triggers restart)
     // Transient: should have started once (normal exit, no restart)
     // Temporary: should have started once (never restarts)
-    if (g_child_started[0] >= 2) {
+    if (s_child_started[0] >= 2) {
         TEST_PASS("permanent child restarts on normal exit");
     } else {
-        printf("    permanent starts=%d\n", g_child_started[0]);
+        printf("    permanent starts=%d\n", s_child_started[0]);
         TEST_FAIL("permanent child should restart");
     }
 
-    if (g_child_started[1] == 1) {
+    if (s_child_started[1] == 1) {
         TEST_PASS("transient child not restarted on normal exit");
     } else {
-        printf("    transient starts=%d\n", g_child_started[1]);
+        printf("    transient starts=%d\n", s_child_started[1]);
         TEST_FAIL("transient child should not restart on normal exit");
     }
 
-    if (g_child_started[2] == 1) {
+    if (s_child_started[2] == 1) {
         TEST_PASS("temporary child never restarted");
     } else {
-        printf("    temporary starts=%d\n", g_child_started[2]);
+        printf("    temporary starts=%d\n", s_child_started[2]);
         TEST_FAIL("temporary child should never restart");
     }
 

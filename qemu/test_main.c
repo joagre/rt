@@ -48,11 +48,11 @@ static void systick_init(void) {
 }
 
 /* Test counters */
-static volatile int g_test_passed = 0;
-static volatile int g_test_failed = 0;
-static volatile int g_pong_count = 0;
-static volatile int g_context_switches = 0;
-static volatile int g_sleep_done = 0;
+static volatile int s_test_passed = 0;
+static volatile int s_test_failed = 0;
+static volatile int s_pong_count = 0;
+static volatile int s_context_switches = 0;
+static volatile int s_sleep_done = 0;
 static actor_id g_pong_actor = 0;
 
 /* Test macros */
@@ -60,10 +60,10 @@ static actor_id g_pong_actor = 0;
     do {                                            \
         if (cond) {                                 \
             semihosting_printf("[PASS] %s\n", msg); \
-            g_test_passed++;                        \
+            s_test_passed++;                        \
         } else {                                    \
             semihosting_printf("[FAIL] %s\n", msg); \
-            g_test_failed++;                        \
+            s_test_failed++;                        \
         }                                           \
     } while (0)
 
@@ -74,7 +74,7 @@ static void pong_actor(void *args, const hive_spawn_info *siblings,
     (void)siblings;
     (void)sibling_count;
     semihosting_printf("Pong actor started (id=%u)\n", (unsigned)hive_self());
-    g_context_switches++;
+    s_context_switches++;
 
     /* Receive 3 pings and reply to each */
     for (int i = 0; i < 3; i++) {
@@ -85,7 +85,7 @@ static void pong_actor(void *args, const hive_spawn_info *siblings,
         if (HIVE_FAILED(s)) {
             /* Yield and try again */
             hive_yield();
-            g_context_switches++;
+            s_context_switches++;
             i--; /* Retry this iteration */
             continue;
         }
@@ -95,7 +95,7 @@ static void pong_actor(void *args, const hive_spawn_info *siblings,
         /* Reply with pong */
         const char *pong = "PONG";
         hive_ipc_reply(&msg, pong, 5);
-        g_pong_count++;
+        s_pong_count++;
     }
 
     semihosting_printf("Pong actor exiting\n");
@@ -108,7 +108,7 @@ static void ping_actor(void *args, const hive_spawn_info *siblings,
     (void)siblings;
     (void)sibling_count;
     semihosting_printf("Ping actor started (id=%u)\n", (unsigned)hive_self());
-    g_context_switches++;
+    s_context_switches++;
 
     /* Send 3 pings */
     for (int i = 0; i < 3; i++) {
@@ -123,7 +123,7 @@ static void ping_actor(void *args, const hive_spawn_info *siblings,
 
         /* Yield to let pong process */
         hive_yield();
-        g_context_switches++;
+        s_context_switches++;
     }
 
     semihosting_printf("Ping actor exiting\n");
@@ -136,12 +136,12 @@ static void yield_actor(void *args, const hive_spawn_info *siblings,
     (void)sibling_count;
     int id = (int)(intptr_t)args;
     semihosting_printf("Yield actor %d started\n", id);
-    g_context_switches++;
+    s_context_switches++;
 
     for (int i = 0; i < 3; i++) {
         semihosting_printf("Yield actor %d: iteration %d\n", id, i);
         hive_yield();
-        g_context_switches++;
+        s_context_switches++;
     }
 
     semihosting_printf("Yield actor %d exiting\n", id);
@@ -175,7 +175,7 @@ static void sleep_actor(void *args, const hive_spawn_info *siblings,
         semihosting_printf("Sleep actor: sleep completed successfully\n");
     }
 
-    g_sleep_done = 1;
+    s_sleep_done = 1;
     semihosting_printf("Sleep actor exiting\n");
 }
 
@@ -213,12 +213,12 @@ int main(void) {
     /* Run scheduler until actors complete */
     hive_scheduler_run_until_blocked();
 
-    TEST_ASSERT(g_context_switches >= 6, "Context switches occurred");
-    semihosting_printf("Context switches: %d\n", g_context_switches);
+    TEST_ASSERT(s_context_switches >= 6, "Context switches occurred");
+    semihosting_printf("Context switches: %d\n", s_context_switches);
 
     /* Test 3: IPC test */
     semihosting_printf("\n--- Test: IPC Message Passing ---\n");
-    g_context_switches = 0;
+    s_context_switches = 0;
 
     actor_id pong_id, ping_id;
 
@@ -235,8 +235,8 @@ int main(void) {
     /* Run scheduler until actors complete */
     hive_scheduler_run_until_blocked();
 
-    TEST_ASSERT(g_pong_count >= 1, "IPC messages exchanged");
-    semihosting_printf("Pong replies: %d\n", g_pong_count);
+    TEST_ASSERT(s_pong_count >= 1, "IPC messages exchanged");
+    semihosting_printf("Pong replies: %d\n", s_pong_count);
 
     /* Test 4: Sleep/timer test */
     semihosting_printf("\n--- Test: Timer/Sleep ---\n");
@@ -282,7 +282,7 @@ int main(void) {
 
         /* Run scheduler - need to process timer events */
         semihosting_printf("Running scheduler for sleep test...\n");
-        for (int i = 0; i < 1000 && !g_sleep_done; i++) {
+        for (int i = 0; i < 1000 && !s_sleep_done; i++) {
             hive_timer_process_pending();
             hive_scheduler_run_until_blocked();
             /* Small delay to let time pass */
@@ -290,7 +290,7 @@ int main(void) {
             }
         }
 
-        TEST_ASSERT(g_sleep_done, "Sleep completed");
+        TEST_ASSERT(s_sleep_done, "Sleep completed");
     } else {
         semihosting_printf("Skipping sleep test - SysTick not running\n");
     }
@@ -301,11 +301,11 @@ int main(void) {
     /* Summary */
     semihosting_printf("\n");
     semihosting_printf("=== Test Summary ===\n");
-    semihosting_printf("Passed: %d\n", g_test_passed);
-    semihosting_printf("Failed: %d\n", g_test_failed);
+    semihosting_printf("Passed: %d\n", s_test_passed);
+    semihosting_printf("Failed: %d\n", s_test_failed);
     semihosting_printf("\n");
 
-    if (g_test_failed > 0) {
+    if (s_test_failed > 0) {
         semihosting_printf("TESTS FAILED\n");
         semihosting_exit(1);
     } else {

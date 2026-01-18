@@ -54,18 +54,18 @@ typedef struct {
 } bus_t;
 
 // Static bus storage
-static bus_t g_buses[HIVE_MAX_BUSES];
-static bus_entry g_bus_entries[HIVE_MAX_BUSES][HIVE_MAX_BUS_ENTRIES];
-static bus_subscriber g_bus_subscribers[HIVE_MAX_BUSES]
+static bus_t s_buses[HIVE_MAX_BUSES];
+static bus_entry s_bus_entries[HIVE_MAX_BUSES][HIVE_MAX_BUS_ENTRIES];
+static bus_subscriber s_bus_subscribers[HIVE_MAX_BUSES]
                                        [HIVE_MAX_BUS_SUBSCRIBERS];
 
 // Bus table
 static struct {
-    bus_t *buses;     // Points to static g_buses array
+    bus_t *buses;     // Points to static s_buses array
     size_t max_buses; // Maximum number of buses
     bus_id next_id;
     bool initialized;
-} g_bus_table = {0};
+} s_bus_table = {0};
 
 // Get current time in milliseconds
 static uint64_t get_time_ms(void) {
@@ -86,9 +86,9 @@ static bus_t *find_bus(bus_id id) {
         return NULL;
     }
 
-    for (size_t i = 0; i < g_bus_table.max_buses; i++) {
-        if (g_bus_table.buses[i].active && g_bus_table.buses[i].id == id) {
-            return &g_bus_table.buses[i];
+    for (size_t i = 0; i < s_bus_table.max_buses; i++) {
+        if (s_bus_table.buses[i].active && s_bus_table.buses[i].id == id) {
+            return &s_bus_table.buses[i];
         }
     }
 
@@ -150,26 +150,26 @@ static void expire_old_entries(bus_t *bus) {
 
 // Initialize bus subsystem
 hive_status hive_bus_init(void) {
-    HIVE_INIT_GUARD(g_bus_table.initialized);
+    HIVE_INIT_GUARD(s_bus_table.initialized);
 
     // Use static bus array (already zero-initialized)
-    g_bus_table.buses = g_buses;
-    g_bus_table.max_buses = HIVE_MAX_BUSES;
-    g_bus_table.next_id = 1;
-    g_bus_table.initialized = true;
+    s_bus_table.buses = s_buses;
+    s_bus_table.max_buses = HIVE_MAX_BUSES;
+    s_bus_table.next_id = 1;
+    s_bus_table.initialized = true;
 
     return HIVE_SUCCESS;
 }
 
 // Cleanup bus subsystem
 void hive_bus_cleanup(void) {
-    if (!g_bus_table.initialized) {
+    if (!s_bus_table.initialized) {
         return;
     }
 
     // Destroy all buses
-    for (size_t i = 0; i < g_bus_table.max_buses; i++) {
-        bus_t *bus = &g_bus_table.buses[i];
+    for (size_t i = 0; i < s_bus_table.max_buses; i++) {
+        bus_t *bus = &s_bus_table.buses[i];
         if (bus->active) {
             free_bus_entries(bus);
             // Note: bus->entries and bus->subscribers point to static arrays,
@@ -178,20 +178,20 @@ void hive_bus_cleanup(void) {
         }
     }
 
-    // Note: g_bus_table.buses points to static g_buses array, no free needed
-    g_bus_table.buses = NULL;
-    g_bus_table.max_buses = 0;
-    g_bus_table.initialized = false;
+    // Note: s_bus_table.buses points to static s_buses array, no free needed
+    s_bus_table.buses = NULL;
+    s_bus_table.max_buses = 0;
+    s_bus_table.initialized = false;
 }
 
 // Cleanup actor bus subscriptions (called when actor dies)
 void hive_bus_cleanup_actor(actor_id id) {
-    if (!g_bus_table.initialized) {
+    if (!s_bus_table.initialized) {
         return;
     }
 
-    for (size_t i = 0; i < g_bus_table.max_buses; i++) {
-        bus_t *bus = &g_bus_table.buses[i];
+    for (size_t i = 0; i < s_bus_table.max_buses; i++) {
+        bus_t *bus = &s_bus_table.buses[i];
         if (!bus->active) {
             continue;
         }
@@ -214,7 +214,7 @@ hive_status hive_bus_create(const hive_bus_config *cfg, bus_id *out) {
         return HIVE_ERROR(HIVE_ERR_INVALID, "NULL config or out pointer");
     }
 
-    if (!g_bus_table.initialized) {
+    if (!s_bus_table.initialized) {
         return HIVE_ERROR(HIVE_ERR_INVALID, "Bus subsystem not initialized");
     }
 
@@ -242,9 +242,9 @@ hive_status hive_bus_create(const hive_bus_config *cfg, bus_id *out) {
     // Find free slot
     bus_t *bus = NULL;
     size_t bus_idx = 0;
-    for (size_t i = 0; i < g_bus_table.max_buses; i++) {
-        if (!g_bus_table.buses[i].active) {
-            bus = &g_bus_table.buses[i];
+    for (size_t i = 0; i < s_bus_table.max_buses; i++) {
+        if (!s_bus_table.buses[i].active) {
+            bus = &s_bus_table.buses[i];
             bus_idx = i;
             break;
         }
@@ -256,10 +256,10 @@ hive_status hive_bus_create(const hive_bus_config *cfg, bus_id *out) {
 
     // Initialize bus using static arrays
     memset(bus, 0, sizeof(bus_t));
-    bus->id = g_bus_table.next_id++;
+    bus->id = s_bus_table.next_id++;
     bus->config = *cfg;
-    bus->entries = g_bus_entries[bus_idx];
-    bus->subscribers = g_bus_subscribers[bus_idx];
+    bus->entries = s_bus_entries[bus_idx];
+    bus->subscribers = s_bus_subscribers[bus_idx];
     bus->head = 0;
     bus->tail = 0;
     bus->count = 0;

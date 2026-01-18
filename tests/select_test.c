@@ -138,7 +138,7 @@ static void test2_ipc_filtered(void *args, const hive_spawn_info *siblings,
 // Test 3: Single bus source - equivalent to hive_bus_read_wait()
 // ============================================================================
 
-static bus_id g_test_bus = BUS_ID_INVALID;
+static bus_id s_test_bus = BUS_ID_INVALID;
 
 static void test3_publisher(void *args, const hive_spawn_info *siblings,
                             size_t sibling_count) {
@@ -152,7 +152,7 @@ static void test3_publisher(void *args, const hive_spawn_info *siblings,
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
 
     int data = 99;
-    hive_bus_publish(g_test_bus, &data, sizeof(data));
+    hive_bus_publish(s_test_bus, &data, sizeof(data));
     hive_exit();
 }
 
@@ -165,16 +165,16 @@ static void test3_bus_source(void *args, const hive_spawn_info *siblings,
 
     // Create and subscribe to bus
     hive_bus_config cfg = HIVE_BUS_CONFIG_DEFAULT;
-    hive_status status = hive_bus_create(&cfg, &g_test_bus);
+    hive_status status = hive_bus_create(&cfg, &s_test_bus);
     if (HIVE_FAILED(status)) {
         TEST_FAIL("failed to create bus");
         hive_exit();
     }
 
-    status = hive_bus_subscribe(g_test_bus);
+    status = hive_bus_subscribe(s_test_bus);
     if (HIVE_FAILED(status)) {
         TEST_FAIL("failed to subscribe to bus");
-        hive_bus_destroy(g_test_bus);
+        hive_bus_destroy(s_test_bus);
         hive_exit();
     }
 
@@ -183,7 +183,7 @@ static void test3_bus_source(void *args, const hive_spawn_info *siblings,
     hive_spawn(test3_publisher, NULL, NULL, NULL, &publisher);
 
     // Wait for bus data using hive_select
-    hive_select_source source = {.type = HIVE_SEL_BUS, .bus = g_test_bus};
+    hive_select_source source = {.type = HIVE_SEL_BUS, .bus = s_test_bus};
     hive_select_result result;
     uint64_t start = time_ms();
     status = hive_select(&source, 1, &result, 500);
@@ -218,9 +218,9 @@ static void test3_bus_source(void *args, const hive_spawn_info *siblings,
     }
 
     // Cleanup
-    hive_bus_unsubscribe(g_test_bus);
-    hive_bus_destroy(g_test_bus);
-    g_test_bus = BUS_ID_INVALID;
+    hive_bus_unsubscribe(s_test_bus);
+    hive_bus_destroy(s_test_bus);
+    s_test_bus = BUS_ID_INVALID;
 
     hive_exit();
 }
@@ -315,8 +315,8 @@ static void test5_ipc_multi_second(void *args, const hive_spawn_info *siblings,
 // Test 6: Multi-source bus + bus
 // ============================================================================
 
-static bus_id g_bus1 = BUS_ID_INVALID;
-static bus_id g_bus2 = BUS_ID_INVALID;
+static bus_id s_bus1 = BUS_ID_INVALID;
+static bus_id s_bus2 = BUS_ID_INVALID;
 
 static void test6_bus_publisher(void *args, const hive_spawn_info *siblings,
                                 size_t sibling_count) {
@@ -330,7 +330,7 @@ static void test6_bus_publisher(void *args, const hive_spawn_info *siblings,
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
 
     int data = which_bus == 1 ? 111 : 222;
-    hive_bus_publish(which_bus == 1 ? g_bus1 : g_bus2, &data, sizeof(data));
+    hive_bus_publish(which_bus == 1 ? s_bus1 : s_bus2, &data, sizeof(data));
     hive_exit();
 }
 
@@ -343,10 +343,10 @@ static void test6_bus_multi(void *args, const hive_spawn_info *siblings,
 
     // Create two buses
     hive_bus_config cfg = HIVE_BUS_CONFIG_DEFAULT;
-    hive_bus_create(&cfg, &g_bus1);
-    hive_bus_create(&cfg, &g_bus2);
-    hive_bus_subscribe(g_bus1);
-    hive_bus_subscribe(g_bus2);
+    hive_bus_create(&cfg, &s_bus1);
+    hive_bus_create(&cfg, &s_bus2);
+    hive_bus_subscribe(s_bus1);
+    hive_bus_subscribe(s_bus2);
 
     // Spawn publisher for bus 2
     static int which = 2;
@@ -355,8 +355,8 @@ static void test6_bus_multi(void *args, const hive_spawn_info *siblings,
 
     // Wait for data from either bus
     hive_select_source sources[] = {
-        {.type = HIVE_SEL_BUS, .bus = g_bus1},
-        {.type = HIVE_SEL_BUS, .bus = g_bus2},
+        {.type = HIVE_SEL_BUS, .bus = s_bus1},
+        {.type = HIVE_SEL_BUS, .bus = s_bus2},
     };
     hive_select_result result;
     hive_status status = hive_select(sources, 2, &result, 500);
@@ -375,11 +375,11 @@ static void test6_bus_multi(void *args, const hive_spawn_info *siblings,
     }
 
     // Cleanup
-    hive_bus_unsubscribe(g_bus1);
-    hive_bus_unsubscribe(g_bus2);
-    hive_bus_destroy(g_bus1);
-    hive_bus_destroy(g_bus2);
-    g_bus1 = g_bus2 = BUS_ID_INVALID;
+    hive_bus_unsubscribe(s_bus1);
+    hive_bus_unsubscribe(s_bus2);
+    hive_bus_destroy(s_bus1);
+    hive_bus_destroy(s_bus2);
+    s_bus1 = s_bus2 = BUS_ID_INVALID;
 
     hive_exit();
 }

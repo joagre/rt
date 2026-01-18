@@ -12,17 +12,17 @@
 #include <string.h>
 
 // Static pools for IPC (mailbox entries and message data)
-static mailbox_entry g_mailbox_pool[HIVE_MAILBOX_ENTRY_POOL_SIZE];
-static bool g_mailbox_used[HIVE_MAILBOX_ENTRY_POOL_SIZE];
+static mailbox_entry s_mailbox_pool[HIVE_MAILBOX_ENTRY_POOL_SIZE];
+static bool s_mailbox_used[HIVE_MAILBOX_ENTRY_POOL_SIZE];
 hive_pool g_mailbox_pool_mgr; // Non-static so hive_link.c can access
 
 // Message data pool - fixed size entries (type defined in hive_internal.h)
-static message_data_entry g_message_pool[HIVE_MESSAGE_DATA_POOL_SIZE];
-static bool g_message_used[HIVE_MESSAGE_DATA_POOL_SIZE];
+static message_data_entry s_message_pool[HIVE_MESSAGE_DATA_POOL_SIZE];
+static bool s_message_used[HIVE_MESSAGE_DATA_POOL_SIZE];
 hive_pool g_message_pool_mgr; // Non-static so hive_link.c can access
 
 // Tag generator for request/reply correlation
-static uint32_t g_next_tag = 1;
+static uint32_t s_next_tag = 1;
 
 // -----------------------------------------------------------------------------
 // Header Encoding/Decoding
@@ -41,9 +41,9 @@ static inline void decode_header(uint32_t header, hive_msg_class *class,
 }
 
 static uint32_t generate_tag(void) {
-    uint32_t tag = (g_next_tag++ & HIVE_TAG_VALUE_MASK) | HIVE_TAG_GEN_BIT;
-    if ((g_next_tag & HIVE_TAG_VALUE_MASK) == 0) {
-        g_next_tag = 1; // Skip 0 on wrap
+    uint32_t tag = (s_next_tag++ & HIVE_TAG_VALUE_MASK) | HIVE_TAG_GEN_BIT;
+    if ((s_next_tag & HIVE_TAG_VALUE_MASK) == 0) {
+        s_next_tag = 1; // Skip 0 on wrap
     }
     return tag;
 }
@@ -53,10 +53,10 @@ static uint32_t generate_tag(void) {
 // -----------------------------------------------------------------------------
 
 hive_status hive_ipc_init(void) {
-    hive_pool_init(&g_mailbox_pool_mgr, g_mailbox_pool, g_mailbox_used,
+    hive_pool_init(&g_mailbox_pool_mgr, s_mailbox_pool, s_mailbox_used,
                    sizeof(mailbox_entry), HIVE_MAILBOX_ENTRY_POOL_SIZE);
 
-    hive_pool_init(&g_message_pool_mgr, g_message_pool, g_message_used,
+    hive_pool_init(&g_message_pool_mgr, s_message_pool, s_message_used,
                    sizeof(message_data_entry), HIVE_MESSAGE_DATA_POOL_SIZE);
 
     return HIVE_SUCCESS;

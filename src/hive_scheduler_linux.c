@@ -21,12 +21,12 @@ static struct {
     size_t last_run_idx[HIVE_PRIORITY_COUNT]; // Last run actor index for each
                                               // priority
     int epoll_fd;                             // Event loop file descriptor
-} g_scheduler = {0};
+} s_scheduler = {0};
 
 // Dispatch pending epoll events (timeout_ms: -1=block, 0=poll, >0=wait)
 static void dispatch_epoll_events(int timeout_ms) {
     struct epoll_event events[HIVE_EPOLL_MAX_EVENTS];
-    int n = epoll_wait(g_scheduler.epoll_fd, events, HIVE_EPOLL_MAX_EVENTS,
+    int n = epoll_wait(s_scheduler.epoll_fd, events, HIVE_EPOLL_MAX_EVENTS,
                        timeout_ms);
 
     for (int i = 0; i < n; i++) {
@@ -50,7 +50,7 @@ static void run_single_actor(actor *a) {
     hive_actor_set_current(a);
 
     // Context switch to actor
-    hive_context_switch(&g_scheduler.scheduler_ctx, &a->ctx);
+    hive_context_switch(&s_scheduler.scheduler_ctx, &a->ctx);
 
     // Actor has yielded or exited
     HIVE_LOG_TRACE("Scheduler: Actor %u yielded, state=%d", a->id, a->state);
@@ -67,13 +67,13 @@ static void run_single_actor(actor *a) {
 }
 
 hive_status hive_scheduler_init(void) {
-    g_scheduler.shutdown_requested = false;
-    g_scheduler.initialized = true;
+    s_scheduler.shutdown_requested = false;
+    s_scheduler.initialized = true;
 
     // Create epoll instance for event loop
-    g_scheduler.epoll_fd = epoll_create1(0);
-    if (g_scheduler.epoll_fd < 0) {
-        g_scheduler.initialized = false;
+    s_scheduler.epoll_fd = epoll_create1(0);
+    if (s_scheduler.epoll_fd < 0) {
+        s_scheduler.initialized = false;
         return HIVE_ERROR(HIVE_ERR_IO, "Failed to create epoll");
     }
 
@@ -81,11 +81,11 @@ hive_status hive_scheduler_init(void) {
 }
 
 void hive_scheduler_cleanup(void) {
-    if (g_scheduler.epoll_fd >= 0) {
-        close(g_scheduler.epoll_fd);
-        g_scheduler.epoll_fd = -1;
+    if (s_scheduler.epoll_fd >= 0) {
+        close(s_scheduler.epoll_fd);
+        s_scheduler.epoll_fd = -1;
     }
-    g_scheduler.initialized = false;
+    s_scheduler.initialized = false;
 }
 
 // Find next runnable actor (priority-based round-robin)
@@ -100,14 +100,14 @@ static actor *find_next_runnable(void) {
          prio < HIVE_PRIORITY_COUNT; prio++) {
         // Round-robin within priority level - start from after last run actor
         size_t start_idx =
-            (g_scheduler.last_run_idx[prio] + 1) % table->max_actors;
+            (s_scheduler.last_run_idx[prio] + 1) % table->max_actors;
 
         for (size_t i = 0; i < table->max_actors; i++) {
             size_t idx = (start_idx + i) % table->max_actors;
             actor *a = &table->actors[idx];
 
             if (a->state == ACTOR_STATE_READY && a->priority == prio) {
-                g_scheduler.last_run_idx[prio] = idx;
+                s_scheduler.last_run_idx[prio] = idx;
                 HIVE_LOG_TRACE("Scheduler: Found runnable actor %u (prio=%d)",
                                a->id, prio);
                 return a;
@@ -120,7 +120,7 @@ static actor *find_next_runnable(void) {
 }
 
 void hive_scheduler_run(void) {
-    if (!g_scheduler.initialized) {
+    if (!s_scheduler.initialized) {
         HIVE_LOG_ERROR("Scheduler not initialized");
         return;
     }
@@ -133,7 +133,7 @@ void hive_scheduler_run(void) {
 
     HIVE_LOG_INFO("Scheduler started");
 
-    while (!g_scheduler.shutdown_requested && table->num_actors > 0) {
+    while (!s_scheduler.shutdown_requested && table->num_actors > 0) {
         actor *next = find_next_runnable();
 
         if (next) {
@@ -149,7 +149,7 @@ void hive_scheduler_run(void) {
 }
 
 hive_status hive_scheduler_run_until_blocked(void) {
-    if (!g_scheduler.initialized) {
+    if (!s_scheduler.initialized) {
         return HIVE_ERROR(HIVE_ERR_INVALID, "Scheduler not initialized");
     }
 
@@ -159,7 +159,7 @@ hive_status hive_scheduler_run_until_blocked(void) {
     }
 
     // Run actors until all are blocked (WAITING) or dead
-    while (!g_scheduler.shutdown_requested && table->num_actors > 0) {
+    while (!s_scheduler.shutdown_requested && table->num_actors > 0) {
         // Poll for I/O events (non-blocking) - handles timerfd events in
         // real-time mode
         dispatch_epoll_events(0);
@@ -178,7 +178,7 @@ hive_status hive_scheduler_run_until_blocked(void) {
 }
 
 void hive_scheduler_shutdown(void) {
-    g_scheduler.shutdown_requested = true;
+    s_scheduler.shutdown_requested = true;
 }
 
 void hive_scheduler_yield(void) {
@@ -189,13 +189,13 @@ void hive_scheduler_yield(void) {
     }
 
     // Switch back to scheduler
-    hive_context_switch(&current->ctx, &g_scheduler.scheduler_ctx);
+    hive_context_switch(&current->ctx, &s_scheduler.scheduler_ctx);
 }
 
 bool hive_scheduler_should_stop(void) {
-    return g_scheduler.shutdown_requested;
+    return s_scheduler.shutdown_requested;
 }
 
 int hive_scheduler_get_epoll_fd(void) {
-    return g_scheduler.epoll_fd;
+    return s_scheduler.epoll_fd;
 }

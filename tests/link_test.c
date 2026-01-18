@@ -485,7 +485,7 @@ static void test6_link_vs_monitor(void *args, const hive_spawn_info *siblings,
 // Test 7: Exit reason in link notification
 // ============================================================================
 
-static hive_exit_reason g_received_reason = HIVE_EXIT_NORMAL;
+static hive_exit_reason s_received_reason = HIVE_EXIT_NORMAL;
 
 static void link_receiver_checks_reason(void *args,
                                         const hive_spawn_info *siblings,
@@ -501,7 +501,7 @@ static void link_receiver_checks_reason(void *args,
     if (HIVE_SUCCEEDED(status) && hive_is_exit_msg(&msg)) {
         hive_exit_msg exit_info;
         hive_decode_exit(&msg, &exit_info);
-        g_received_reason = exit_info.reason;
+        s_received_reason = exit_info.reason;
     }
 
     hive_exit();
@@ -526,7 +526,7 @@ static void test7_exit_reason(void *args, const hive_spawn_info *siblings,
     (void)sibling_count;
     printf("\nTest 7: Exit reason in link notification\n");
 
-    g_received_reason = (hive_exit_reason)99; // Invalid value
+    s_received_reason = (hive_exit_reason)99; // Invalid value
 
     actor_id target;
     hive_spawn(normal_exit_actor, NULL, NULL, NULL, &target);
@@ -538,10 +538,10 @@ static void test7_exit_reason(void *args, const hive_spawn_info *siblings,
     hive_message msg;
     hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_TIMER, timer, &msg, -1);
 
-    if (g_received_reason == HIVE_EXIT_NORMAL) {
+    if (s_received_reason == HIVE_EXIT_NORMAL) {
         TEST_PASS("exit reason is HIVE_EXIT_NORMAL for normal exit");
     } else {
-        printf("    Got reason: %d, expected: %d\n", g_received_reason,
+        printf("    Got reason: %d, expected: %d\n", s_received_reason,
                HIVE_EXIT_NORMAL);
         TEST_FAIL("wrong exit reason");
     }

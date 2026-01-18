@@ -6,7 +6,7 @@
 #include <string.h>
 
 // Shared bus ID
-static bus_id g_sensor_bus = BUS_ID_INVALID;
+static bus_id s_sensor_bus = BUS_ID_INVALID;
 
 // Sensor data structure
 typedef struct {
@@ -52,7 +52,7 @@ static void publisher_actor(void *args, const hive_spawn_info *siblings,
         data.pressure = 1013.0f + i * 0.1f;
 
         // Publish to bus
-        status = hive_bus_publish(g_sensor_bus, &data, sizeof(data));
+        status = hive_bus_publish(s_sensor_bus, &data, sizeof(data));
         if (HIVE_FAILED(status)) {
             printf("Publisher: Failed to publish: %s\n", HIVE_ERR_STR(status));
             break;
@@ -78,7 +78,7 @@ static void subscriber_actor(void *args, const hive_spawn_info *siblings,
     printf("%s actor started (ID: %u)\n", name, hive_self());
 
     // Subscribe to bus
-    hive_status status = hive_bus_subscribe(g_sensor_bus);
+    hive_status status = hive_bus_subscribe(s_sensor_bus);
     if (HIVE_FAILED(status)) {
         printf("%s: Failed to subscribe: %s\n", name, HIVE_ERR_STR(status));
         hive_exit();
@@ -94,7 +94,7 @@ static void subscriber_actor(void *args, const hive_spawn_info *siblings,
         size_t actual_len;
 
         // Blocking read
-        status = hive_bus_read_wait(g_sensor_bus, &data, sizeof(data),
+        status = hive_bus_read_wait(s_sensor_bus, &data, sizeof(data),
                                     &actual_len, -1);
         if (HIVE_FAILED(status)) {
             printf("%s: Failed to read: %s\n", name, HIVE_ERR_STR(status));
@@ -110,7 +110,7 @@ static void subscriber_actor(void *args, const hive_spawn_info *siblings,
     }
 
     // Unsubscribe
-    hive_bus_unsubscribe(g_sensor_bus);
+    hive_bus_unsubscribe(s_sensor_bus);
     printf("%s: Done reading\n", name);
 
     hive_exit();
@@ -141,14 +141,14 @@ int main(void) {
     bus_cfg.max_subscribers = 32; // Maximum concurrent subscribers
 #endif
 
-    status = hive_bus_create(&bus_cfg, &g_sensor_bus);
+    status = hive_bus_create(&bus_cfg, &s_sensor_bus);
     if (HIVE_FAILED(status)) {
         fprintf(stderr, "Failed to create bus: %s\n", HIVE_ERR_STR(status));
         hive_cleanup();
         return 1;
     }
 
-    printf("Created sensor bus (ID: %u)\n\n", g_sensor_bus);
+    printf("Created sensor bus (ID: %u)\n\n", s_sensor_bus);
 
     // Spawn subscriber actors
     actor_config actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT;
@@ -195,7 +195,7 @@ int main(void) {
     printf("\nScheduler finished\n");
 
     // Destroy bus
-    status = hive_bus_destroy(g_sensor_bus);
+    status = hive_bus_destroy(s_sensor_bus);
     if (HIVE_FAILED(status)) {
         printf("Warning: Failed to destroy bus: %s\n", HIVE_ERR_STR(status));
     }

@@ -9,8 +9,8 @@
 #include <string.h>
 
 // Static buffer for bus data (single-threaded, one actor at a time)
-static uint8_t g_bus_data_buffer[HIVE_MAX_MESSAGE_SIZE];
-static size_t g_bus_data_len = 0;
+static uint8_t s_bus_data_buffer[HIVE_MAX_MESSAGE_SIZE];
+static size_t s_bus_data_len = 0;
 
 // -----------------------------------------------------------------------------
 // Internal helpers
@@ -28,14 +28,14 @@ static bool scan_sources(const hive_select_source *sources, size_t num_sources,
                 // Read bus data into static buffer
                 size_t actual_len = 0;
                 hive_status status =
-                    hive_bus_read(sources[i].bus, g_bus_data_buffer,
-                                  sizeof(g_bus_data_buffer), &actual_len);
+                    hive_bus_read(sources[i].bus, s_bus_data_buffer,
+                                  sizeof(s_bus_data_buffer), &actual_len);
                 if (HIVE_SUCCEEDED(status)) {
                     result->index = i;
                     result->type = HIVE_SEL_BUS;
-                    result->bus.data = g_bus_data_buffer;
+                    result->bus.data = s_bus_data_buffer;
                     result->bus.len = actual_len;
-                    g_bus_data_len = actual_len;
+                    s_bus_data_len = actual_len;
                     HIVE_LOG_TRACE("select: bus source %zu ready, %zu bytes", i,
                                    actual_len);
                     return true;

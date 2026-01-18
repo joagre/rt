@@ -86,7 +86,7 @@ typedef struct {
 } vfile_t;
 
 // Build virtual file table from -D flags
-static vfile_t g_vfiles[] = {
+static vfile_t s_vfiles[] = {
 #ifdef HIVE_VFILE_LOG_BASE
     {
         .path = "/log",
@@ -113,29 +113,29 @@ static vfile_t g_vfiles[] = {
 #endif
 };
 
-#define VFILE_COUNT (sizeof(g_vfiles) / sizeof(g_vfiles[0]))
+#define VFILE_COUNT (sizeof(s_vfiles) / sizeof(s_vfiles[0]))
 
 // ----------------------------------------------------------------------------
 // Ring Buffer for Deferred Writes
 // ----------------------------------------------------------------------------
 
-static uint8_t g_ring_buf[HIVE_FILE_RING_SIZE];
-static volatile uint32_t g_ring_head; // Write position (producers)
-static volatile uint32_t g_ring_tail; // Read position (sync)
+static uint8_t s_ring_buf[HIVE_FILE_RING_SIZE];
+static volatile uint32_t s_ring_head; // Write position (producers)
+static volatile uint32_t s_ring_tail; // Read position (sync)
 
 // Staging buffer for flash block commits
-static uint8_t g_staging[HIVE_FILE_BLOCK_SIZE];
-static uint32_t g_staging_len;
+static uint8_t s_staging[HIVE_FILE_BLOCK_SIZE];
+static uint32_t s_staging_len;
 
 // Current file being written (for ring buffer association)
-static int g_ring_fd = -1;
+static int s_ring_fd = -1;
 
 // ----------------------------------------------------------------------------
 // Ring Buffer Operations
 // ----------------------------------------------------------------------------
 
 static inline uint32_t ring_used(void) {
-    return (g_ring_head - g_ring_tail) & (HIVE_FILE_RING_SIZE - 1);
+    return (s_ring_head - s_ring_tail) & (HIVE_FILE_RING_SIZE - 1);
 }
 
 static inline uint32_t ring_free(void) {
@@ -144,7 +144,7 @@ static inline uint32_t ring_free(void) {
 }
 
 static inline bool ring_empty(void) {
-    return g_ring_head == g_ring_tail;
+    return s_ring_head == s_ring_tail;
 }
 
 static size_t ring_push(const uint8_t *data, size_t len) {
@@ -152,8 +152,8 @@ static size_t ring_push(const uint8_t *data, size_t len) {
     size_t to_write = (len < free) ? len : free;
 
     for (size_t i = 0; i < to_write; i++) {
-        g_ring_buf[g_ring_head & (HIVE_FILE_RING_SIZE - 1)] = data[i];
-        g_ring_head++;
+        s_ring_buf[s_ring_head & (HIVE_FILE_RING_SIZE - 1)] = data[i];
+        s_ring_head++;
     }
 
     return to_write;
@@ -164,8 +164,8 @@ static size_t ring_pop(uint8_t *data, size_t max_len) {
     size_t to_read = (max_len < used) ? max_len : used;
 
     for (size_t i = 0; i < to_read; i++) {
-        data[i] = g_ring_buf[g_ring_tail & (HIVE_FILE_RING_SIZE - 1)];
-        g_ring_tail++;
+        data[i] = s_ring_buf[s_ring_tail & (HIVE_FILE_RING_SIZE - 1)];
+        s_ring_tail++;
     }
 
     return to_read;
@@ -264,26 +264,26 @@ static bool flash_write_block(uint32_t addr, const void *data, uint32_t len) {
 // ----------------------------------------------------------------------------
 
 static void staging_reset(void) {
-    g_staging_len = 0;
+    s_staging_len = 0;
     // Fill with 0xFF (erased flash state)
-    memset(g_staging, 0xFF, HIVE_FILE_BLOCK_SIZE);
+    memset(s_staging, 0xFF, HIVE_FILE_BLOCK_SIZE);
 }
 
 static size_t staging_space(void) {
-    return HIVE_FILE_BLOCK_SIZE - g_staging_len;
+    return HIVE_FILE_BLOCK_SIZE - s_staging_len;
 }
 
 static void staging_append(const uint8_t *data, size_t len) {
-    if (g_staging_len + len > HIVE_FILE_BLOCK_SIZE) {
-        len = HIVE_FILE_BLOCK_SIZE - g_staging_len;
+    if (s_staging_len + len > HIVE_FILE_BLOCK_SIZE) {
+        len = HIVE_FILE_BLOCK_SIZE - s_staging_len;
     }
-    memcpy(&g_staging[g_staging_len], data, len);
-    g_staging_len += len;
+    memcpy(&s_staging[s_staging_len], data, len);
+    s_staging_len += len;
 }
 
 // Commit staging buffer to flash
 static bool staging_commit(vfile_t *vf) {
-    if (g_staging_len == 0) {
+    if (s_staging_len == 0) {
         return true; // Nothing to commit
     }
 
@@ -294,7 +294,7 @@ static bool staging_commit(vfile_t *vf) {
 
     // Write block to flash
     uint32_t addr = vf->flash_base + vf->write_pos;
-    bool ok = flash_write_block(addr, g_staging, HIVE_FILE_BLOCK_SIZE);
+    bool ok = flash_write_block(addr, s_staging, HIVE_FILE_BLOCK_SIZE);
 
     if (ok) {
         vf->write_pos += HIVE_FILE_BLOCK_SIZE;
@@ -329,62 +329,62 @@ static bool flush_ring_to_flash(vfile_t *vf) {
 
 static struct {
     bool initialized;
-} g_file = {0};
+} s_file = {0};
 
 // ----------------------------------------------------------------------------
 // API Implementation
 // ----------------------------------------------------------------------------
 
 hive_status hive_file_init(void) {
-    HIVE_INIT_GUARD(g_file.initialized);
+    HIVE_INIT_GUARD(s_file.initialized);
 
     // Reset ring buffer
-    g_ring_head = 0;
-    g_ring_tail = 0;
-    g_ring_fd = -1;
+    s_ring_head = 0;
+    s_ring_tail = 0;
+    s_ring_fd = -1;
 
     // Reset staging
     staging_reset();
 
     // Reset virtual file state
     for (size_t i = 0; i < VFILE_COUNT; i++) {
-        g_vfiles[i].write_pos = 0;
-        g_vfiles[i].opened = false;
-        g_vfiles[i].erased_ok = false;
-        g_vfiles[i].write_mode = false;
+        s_vfiles[i].write_pos = 0;
+        s_vfiles[i].opened = false;
+        s_vfiles[i].erased_ok = false;
+        s_vfiles[i].write_mode = false;
     }
 
-    g_file.initialized = true;
+    s_file.initialized = true;
     return HIVE_SUCCESS;
 }
 
 void hive_file_cleanup(void) {
-    HIVE_CLEANUP_GUARD(g_file.initialized);
+    HIVE_CLEANUP_GUARD(s_file.initialized);
 
     // Close any open files
     for (size_t i = 0; i < VFILE_COUNT; i++) {
-        g_vfiles[i].opened = false;
+        s_vfiles[i].opened = false;
     }
 
-    g_file.initialized = false;
+    s_file.initialized = false;
 }
 
 // Find virtual file by path
 static vfile_t *find_vfile(const char *path) {
     for (size_t i = 0; i < VFILE_COUNT; i++) {
-        if (strcmp(g_vfiles[i].path, path) == 0) {
-            return &g_vfiles[i];
+        if (strcmp(s_vfiles[i].path, path) == 0) {
+            return &s_vfiles[i];
         }
     }
     return NULL;
 }
 
-// Get virtual file by fd (fd = index into g_vfiles)
+// Get virtual file by fd (fd = index into s_vfiles)
 static vfile_t *get_vfile(int fd) {
     if (fd < 0 || (size_t)fd >= VFILE_COUNT) {
         return NULL;
     }
-    return &g_vfiles[fd];
+    return &s_vfiles[fd];
 }
 
 hive_status hive_file_open(const char *path, int flags, int mode, int *fd_out) {
@@ -394,7 +394,7 @@ hive_status hive_file_open(const char *path, int flags, int mode, int *fd_out) {
         return HIVE_ERROR(HIVE_ERR_INVALID, "NULL path or fd_out pointer");
     }
 
-    HIVE_REQUIRE_INIT(g_file.initialized, "File I/O");
+    HIVE_REQUIRE_INIT(s_file.initialized, "File I/O");
 
     vfile_t *vf = find_vfile(path);
     if (!vf) {
@@ -438,14 +438,14 @@ hive_status hive_file_open(const char *path, int flags, int mode, int *fd_out) {
     vf->opened = true;
     vf->write_mode = write_mode;
 
-    // fd is the index into g_vfiles
-    *fd_out = (int)(vf - g_vfiles);
+    // fd is the index into s_vfiles
+    *fd_out = (int)(vf - s_vfiles);
 
     // If this is write mode, associate ring buffer with this fd
     if (write_mode) {
-        g_ring_fd = *fd_out;
-        g_ring_head = 0;
-        g_ring_tail = 0;
+        s_ring_fd = *fd_out;
+        s_ring_head = 0;
+        s_ring_tail = 0;
         staging_reset();
     }
 
@@ -453,7 +453,7 @@ hive_status hive_file_open(const char *path, int flags, int mode, int *fd_out) {
 }
 
 hive_status hive_file_close(int fd) {
-    HIVE_REQUIRE_INIT(g_file.initialized, "File I/O");
+    HIVE_REQUIRE_INIT(s_file.initialized, "File I/O");
 
     vfile_t *vf = get_vfile(fd);
     if (!vf || !vf->opened) {
@@ -461,9 +461,9 @@ hive_status hive_file_close(int fd) {
     }
 
     // Final sync if write mode
-    if (vf->write_mode && g_ring_fd == fd) {
+    if (vf->write_mode && s_ring_fd == fd) {
         hive_file_sync(fd);
-        g_ring_fd = -1;
+        s_ring_fd = -1;
     }
 
     vf->opened = false;
@@ -480,7 +480,7 @@ hive_status hive_file_read(int fd, void *buf, size_t len, size_t *bytes_read) {
                           "NULL buffer or bytes_read pointer");
     }
 
-    HIVE_REQUIRE_INIT(g_file.initialized, "File I/O");
+    HIVE_REQUIRE_INIT(s_file.initialized, "File I/O");
 
     vfile_t *vf = get_vfile(fd);
     if (!vf || !vf->opened) {
@@ -500,7 +500,7 @@ hive_status hive_file_pread(int fd, void *buf, size_t len, size_t offset,
                           "NULL buffer or bytes_read pointer");
     }
 
-    HIVE_REQUIRE_INIT(g_file.initialized, "File I/O");
+    HIVE_REQUIRE_INIT(s_file.initialized, "File I/O");
 
     vfile_t *vf = get_vfile(fd);
     if (!vf || !vf->opened) {
@@ -532,7 +532,7 @@ hive_status hive_file_write(int fd, const void *buf, size_t len,
                           "NULL buffer or bytes_written pointer");
     }
 
-    HIVE_REQUIRE_INIT(g_file.initialized, "File I/O");
+    HIVE_REQUIRE_INIT(s_file.initialized, "File I/O");
 
     vfile_t *vf = get_vfile(fd);
     if (!vf || !vf->opened) {
@@ -587,14 +587,14 @@ hive_status hive_file_pwrite(int fd, const void *buf, size_t len, size_t offset,
 }
 
 hive_status hive_file_sync(int fd) {
-    HIVE_REQUIRE_INIT(g_file.initialized, "File I/O");
+    HIVE_REQUIRE_INIT(s_file.initialized, "File I/O");
 
     vfile_t *vf = get_vfile(fd);
     if (!vf || !vf->opened) {
         return HIVE_ERROR(HIVE_ERR_INVALID, "invalid fd");
     }
 
-    if (!vf->write_mode || g_ring_fd != fd) {
+    if (!vf->write_mode || s_ring_fd != fd) {
         return HIVE_SUCCESS; // Nothing to sync
     }
 
@@ -608,7 +608,7 @@ hive_status hive_file_sync(int fd) {
     }
 
     // Commit any remaining data in staging (padded with 0xFF)
-    if (g_staging_len > 0) {
+    if (s_staging_len > 0) {
         if (!staging_commit(vf)) {
             return HIVE_ERROR(HIVE_ERR_IO, "flash write failed");
         }

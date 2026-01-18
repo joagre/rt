@@ -60,14 +60,14 @@ typedef struct {
 // Static Pool
 // =============================================================================
 
-static supervisor_state g_supervisors[HIVE_MAX_SUPERVISORS];
+static supervisor_state s_supervisors[HIVE_MAX_SUPERVISORS];
 
 static supervisor_state *alloc_supervisor(void) {
     for (size_t i = 0; i < HIVE_MAX_SUPERVISORS; i++) {
-        if (!g_supervisors[i].in_use) {
-            memset(&g_supervisors[i], 0, sizeof(supervisor_state));
-            g_supervisors[i].in_use = true;
-            return &g_supervisors[i];
+        if (!s_supervisors[i].in_use) {
+            memset(&s_supervisors[i], 0, sizeof(supervisor_state));
+            s_supervisors[i].in_use = true;
+            return &s_supervisors[i];
         }
     }
     return NULL;
@@ -81,8 +81,8 @@ static void free_supervisor(supervisor_state *sup) {
 
 static supervisor_state *find_supervisor_by_id(actor_id id) {
     for (size_t i = 0; i < HIVE_MAX_SUPERVISORS; i++) {
-        if (g_supervisors[i].in_use && g_supervisors[i].supervisor_id == id) {
-            return &g_supervisors[i];
+        if (s_supervisors[i].in_use && s_supervisors[i].supervisor_id == id) {
+            return &s_supervisors[i];
         }
     }
     return NULL;

@@ -29,7 +29,7 @@ typedef struct {
 #define CMD_STATUS 101
 
 // Global bus for sensor data
-static bus_id g_sensor_bus = BUS_ID_INVALID;
+static bus_id s_sensor_bus = BUS_ID_INVALID;
 
 // Sensor publisher actor - simulates sensor readings
 static void sensor_publisher(void *args, const hive_spawn_info *siblings,
@@ -56,7 +56,7 @@ static void sensor_publisher(void *args, const hive_spawn_info *siblings,
         data.sequence++;
 
         // Publish to bus
-        hive_bus_publish(g_sensor_bus, &data, sizeof(data));
+        hive_bus_publish(s_sensor_bus, &data, sizeof(data));
         printf("[Sensor] Published: temp=%.1f, humidity=%.1f, seq=%u\n",
                data.temperature, data.humidity, data.sequence);
     }
@@ -103,7 +103,7 @@ static void controller(void *args, const hive_spawn_info *siblings,
     printf("[Controller] Started\n");
 
     // Subscribe to sensor bus
-    hive_status status = hive_bus_subscribe(g_sensor_bus);
+    hive_status status = hive_bus_subscribe(s_sensor_bus);
     if (HIVE_FAILED(status)) {
         printf("[Controller] Failed to subscribe: %s\n", HIVE_ERR_STR(status));
         hive_exit();
@@ -127,7 +127,7 @@ static void controller(void *args, const hive_spawn_info *siblings,
     // Set up select sources
     enum { SEL_SENSOR, SEL_HEARTBEAT, SEL_STATUS, SEL_SHUTDOWN };
     hive_select_source sources[] = {
-        [SEL_SENSOR] = {HIVE_SEL_BUS, .bus = g_sensor_bus},
+        [SEL_SENSOR] = {HIVE_SEL_BUS, .bus = s_sensor_bus},
         [SEL_HEARTBEAT] = {HIVE_SEL_IPC,
                            .ipc = {HIVE_SENDER_ANY, HIVE_MSG_TIMER, heartbeat}},
         [SEL_STATUS] = {HIVE_SEL_IPC,
@@ -196,7 +196,7 @@ static void controller(void *args, const hive_spawn_info *siblings,
 
     // Cleanup
     hive_timer_cancel(heartbeat);
-    hive_bus_unsubscribe(g_sensor_bus);
+    hive_bus_unsubscribe(s_sensor_bus);
 
     printf("[Controller] Final stats: %d sensor readings, %d heartbeats\n",
            sensor_count, heartbeat_count);
@@ -226,7 +226,7 @@ int main(void) {
     bus_cfg.max_entries = 4;
     bus_cfg.max_entry_size = 64;
     bus_cfg.max_age_ms = 500; // Expire old readings after 500ms
-    status = hive_bus_create(&bus_cfg, &g_sensor_bus);
+    status = hive_bus_create(&bus_cfg, &s_sensor_bus);
     if (HIVE_FAILED(status)) {
         fprintf(stderr, "Failed to create bus: %s\n", HIVE_ERR_STR(status));
         hive_cleanup();
@@ -240,7 +240,7 @@ int main(void) {
     actor_id id;
     if (HIVE_FAILED(hive_spawn(controller, NULL, NULL, &cfg, &id))) {
         fprintf(stderr, "Failed to spawn controller\n");
-        hive_bus_destroy(g_sensor_bus);
+        hive_bus_destroy(s_sensor_bus);
         hive_cleanup();
         return 1;
     }
@@ -249,7 +249,7 @@ int main(void) {
     hive_run();
 
     // Cleanup
-    hive_bus_destroy(g_sensor_bus);
+    hive_bus_destroy(s_sensor_bus);
     hive_cleanup();
 
     printf("\n=== Example completed ===\n");

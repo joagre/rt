@@ -346,7 +346,7 @@ static void test4_coordinator(void *args, const hive_spawn_info *siblings,
 // Test 5: Default priority is NORMAL
 // ============================================================================
 
-static hive_priority_level g_default_prio = HIVE_PRIORITY_COUNT;
+static hive_priority_level s_default_prio = HIVE_PRIORITY_COUNT;
 
 static void check_default_prio(void *args, const hive_spawn_info *siblings,
                                size_t sibling_count) {
@@ -356,7 +356,7 @@ static void check_default_prio(void *args, const hive_spawn_info *siblings,
     // We need to check the actor's priority - but we don't have direct access
     // We'll verify by checking HIVE_ACTOR_CONFIG_DEFAULT
     actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
-    g_default_prio = cfg.priority;
+    s_default_prio = cfg.priority;
     hive_exit();
 }
 

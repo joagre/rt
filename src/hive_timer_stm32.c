@@ -29,9 +29,9 @@ typedef struct timer_entry {
 } timer_entry;
 
 // Static pool for timer entries
-static timer_entry g_timer_pool[HIVE_TIMER_ENTRY_POOL_SIZE];
-static bool g_timer_used[HIVE_TIMER_ENTRY_POOL_SIZE];
-static hive_pool g_timer_pool_mgr;
+static timer_entry s_timer_pool[HIVE_TIMER_ENTRY_POOL_SIZE];
+static bool s_timer_used[HIVE_TIMER_ENTRY_POOL_SIZE];
+static hive_pool s_timer_pool_mgr;
 
 // Timer subsystem state
 static struct {
@@ -40,7 +40,7 @@ static struct {
     timer_id next_id;
     volatile uint32_t tick_count; // Current tick count (updated by ISR)
     volatile bool tick_pending;   // Set by ISR, cleared by scheduler
-} g_timer = {0};
+} s_timer = {0};
 
 // Convert microseconds to ticks (rounding up)
 static uint32_t us_to_ticks(uint32_t us) {
@@ -50,26 +50,26 @@ static uint32_t us_to_ticks(uint32_t us) {
 // Called by hardware timer ISR (SysTick or TIMx)
 // This function must be called from the timer interrupt handler
 void hive_timer_tick_isr(void) {
-    g_timer.tick_count++;
-    g_timer.tick_pending = true;
+    s_timer.tick_count++;
+    s_timer.tick_pending = true;
 }
 
 // Get current tick count
 uint32_t hive_timer_get_ticks(void) {
-    return g_timer.tick_count;
+    return s_timer.tick_count;
 }
 
 // Process expired timers (called by scheduler in main loop)
 void hive_timer_process_pending(void) {
-    if (!g_timer.tick_pending) {
+    if (!s_timer.tick_pending) {
         return;
     }
-    g_timer.tick_pending = false;
+    s_timer.tick_pending = false;
 
-    uint32_t now = g_timer.tick_count;
+    uint32_t now = s_timer.tick_count;
 
     // Process all expired timers
-    timer_entry **pp = &g_timer.timers;
+    timer_entry **pp = &s_timer.timers;
     while (*pp) {
         timer_entry *entry = *pp;
 
@@ -90,7 +90,7 @@ void hive_timer_process_pending(void) {
             } else {
                 // Remove one-shot or dead actor's timer
                 *pp = entry->next;
-                hive_pool_free(&g_timer_pool_mgr, entry);
+                hive_pool_free(&s_timer_pool_mgr, entry);
             }
         } else {
             pp = &entry->next;
@@ -107,40 +107,40 @@ void hive_timer_handle_event(io_source *source) {
 
 // Initialize timer subsystem
 hive_status hive_timer_init(void) {
-    HIVE_INIT_GUARD(g_timer.initialized);
+    HIVE_INIT_GUARD(s_timer.initialized);
 
     // Initialize timer entry pool
-    hive_pool_init(&g_timer_pool_mgr, g_timer_pool, g_timer_used,
+    hive_pool_init(&s_timer_pool_mgr, s_timer_pool, s_timer_used,
                    sizeof(timer_entry), HIVE_TIMER_ENTRY_POOL_SIZE);
 
     // Initialize timer state
-    g_timer.timers = NULL;
-    g_timer.next_id = 1;
-    g_timer.tick_count = 0;
-    g_timer.tick_pending = false;
+    s_timer.timers = NULL;
+    s_timer.next_id = 1;
+    s_timer.tick_count = 0;
+    s_timer.tick_pending = false;
 
     // Hardware timer initialization should be done by the application
     // (e.g., configure SysTick to call hive_timer_tick_isr every
     // HIVE_TIMER_TICK_US)
 
-    g_timer.initialized = true;
+    s_timer.initialized = true;
     return HIVE_SUCCESS;
 }
 
 // Cleanup timer subsystem
 void hive_timer_cleanup(void) {
-    HIVE_CLEANUP_GUARD(g_timer.initialized);
+    HIVE_CLEANUP_GUARD(s_timer.initialized);
 
     // Clean up all active timers
-    timer_entry *entry = g_timer.timers;
+    timer_entry *entry = s_timer.timers;
     while (entry) {
         timer_entry *next = entry->next;
-        hive_pool_free(&g_timer_pool_mgr, entry);
+        hive_pool_free(&s_timer_pool_mgr, entry);
         entry = next;
     }
-    g_timer.timers = NULL;
+    s_timer.timers = NULL;
 
-    g_timer.initialized = false;
+    s_timer.initialized = false;
 }
 
 // Create a timer (one-shot or periodic)
@@ -150,13 +150,13 @@ static hive_status create_timer(uint32_t interval_us, bool periodic,
         return HIVE_ERROR(HIVE_ERR_INVALID, "NULL out pointer");
     }
 
-    HIVE_REQUIRE_INIT(g_timer.initialized, "Timer");
+    HIVE_REQUIRE_INIT(s_timer.initialized, "Timer");
 
     HIVE_REQUIRE_ACTOR_CONTEXT();
     actor *current = hive_actor_current();
 
     // Allocate timer entry from pool
-    timer_entry *entry = hive_pool_alloc(&g_timer_pool_mgr);
+    timer_entry *entry = hive_pool_alloc(&s_timer_pool_mgr);
     if (!entry) {
         return HIVE_ERROR(HIVE_ERR_NOMEM, "Timer entry pool exhausted");
     }
@@ -167,15 +167,15 @@ static hive_status create_timer(uint32_t interval_us, bool periodic,
         ticks = 1; // Minimum 1 tick
 
     // Initialize timer entry
-    entry->id = g_timer.next_id++;
+    entry->id = s_timer.next_id++;
     entry->owner = current->id;
-    entry->expiry_ticks = g_timer.tick_count + ticks;
+    entry->expiry_ticks = s_timer.tick_count + ticks;
     entry->interval_ticks = periodic ? ticks : 0;
     entry->periodic = periodic;
 
     // Insert into list (simple append - could optimize with sorted insert)
-    entry->next = g_timer.timers;
-    g_timer.timers = entry;
+    entry->next = s_timer.timers;
+    s_timer.timers = entry;
 
     *out = entry->id;
     return HIVE_SUCCESS;
@@ -190,14 +190,14 @@ hive_status hive_timer_every(uint32_t interval_us, timer_id *out) {
 }
 
 hive_status hive_timer_cancel(timer_id id) {
-    HIVE_REQUIRE_INIT(g_timer.initialized, "Timer");
+    HIVE_REQUIRE_INIT(s_timer.initialized, "Timer");
 
     // Find and remove timer from list
     timer_entry *found = NULL;
-    SLIST_FIND_REMOVE(g_timer.timers, entry->id == id, found);
+    SLIST_FIND_REMOVE(s_timer.timers, entry->id == id, found);
 
     if (found) {
-        hive_pool_free(&g_timer_pool_mgr, found);
+        hive_pool_free(&s_timer_pool_mgr, found);
         return HIVE_SUCCESS;
     }
 
@@ -222,7 +222,7 @@ hive_status hive_sleep(uint32_t delay_us) {
 // Advance simulation time (microseconds) and process expired timers
 // On STM32, this directly advances the tick counter (similar to ISR)
 void hive_timer_advance_time(uint64_t delta_us) {
-    if (!g_timer.initialized) {
+    if (!s_timer.initialized) {
         return;
     }
 
@@ -230,8 +230,8 @@ void hive_timer_advance_time(uint64_t delta_us) {
     uint32_t ticks = us_to_ticks((uint32_t)delta_us);
 
     // Advance tick count
-    g_timer.tick_count += ticks;
-    g_timer.tick_pending = true;
+    s_timer.tick_count += ticks;
+    s_timer.tick_pending = true;
 
     // Process expired timers immediately
     hive_timer_process_pending();
@@ -242,5 +242,5 @@ void hive_timer_advance_time(uint64_t delta_us) {
 // For sub-millisecond precision, reduce HIVE_TIMER_TICK_US or use
 // platform-specific high-resolution timers (DWT cycle counter).
 uint64_t hive_get_time(void) {
-    return (uint64_t)g_timer.tick_count * HIVE_TIMER_TICK_US;
+    return (uint64_t)s_timer.tick_count * HIVE_TIMER_TICK_US;
 }

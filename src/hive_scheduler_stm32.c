@@ -25,7 +25,7 @@ static struct {
     bool initialized;
     size_t last_run_idx[HIVE_PRIORITY_COUNT]; // Last run actor index for each
                                               // priority
-} g_scheduler = {0};
+} s_scheduler = {0};
 
 // Process pending events (timers on STM32)
 static void dispatch_events(void) {
@@ -47,7 +47,7 @@ static void run_single_actor(actor *a) {
     hive_actor_set_current(a);
 
     // Context switch to actor
-    hive_context_switch(&g_scheduler.scheduler_ctx, &a->ctx);
+    hive_context_switch(&s_scheduler.scheduler_ctx, &a->ctx);
 
     // Actor has yielded or exited
     HIVE_LOG_TRACE("Scheduler: Actor %u yielded, state=%d", a->id, a->state);
@@ -64,19 +64,19 @@ static void run_single_actor(actor *a) {
 }
 
 hive_status hive_scheduler_init(void) {
-    g_scheduler.shutdown_requested = false;
-    g_scheduler.initialized = true;
+    s_scheduler.shutdown_requested = false;
+    s_scheduler.initialized = true;
 
     // Initialize last_run indices
     for (int i = 0; i < HIVE_PRIORITY_COUNT; i++) {
-        g_scheduler.last_run_idx[i] = 0;
+        s_scheduler.last_run_idx[i] = 0;
     }
 
     return HIVE_SUCCESS;
 }
 
 void hive_scheduler_cleanup(void) {
-    g_scheduler.initialized = false;
+    s_scheduler.initialized = false;
 }
 
 // Find next runnable actor (priority-based round-robin)
@@ -91,14 +91,14 @@ static actor *find_next_runnable(void) {
          prio < HIVE_PRIORITY_COUNT; prio++) {
         // Round-robin within priority level - start from after last run actor
         size_t start_idx =
-            (g_scheduler.last_run_idx[prio] + 1) % table->max_actors;
+            (s_scheduler.last_run_idx[prio] + 1) % table->max_actors;
 
         for (size_t i = 0; i < table->max_actors; i++) {
             size_t idx = (start_idx + i) % table->max_actors;
             actor *a = &table->actors[idx];
 
             if (a->state == ACTOR_STATE_READY && a->priority == prio) {
-                g_scheduler.last_run_idx[prio] = idx;
+                s_scheduler.last_run_idx[prio] = idx;
                 HIVE_LOG_TRACE("Scheduler: Found runnable actor %u (prio=%d)",
                                a->id, prio);
                 return a;
@@ -111,7 +111,7 @@ static actor *find_next_runnable(void) {
 }
 
 void hive_scheduler_run(void) {
-    if (!g_scheduler.initialized) {
+    if (!s_scheduler.initialized) {
         HIVE_LOG_ERROR("Scheduler not initialized");
         return;
     }
@@ -124,7 +124,7 @@ void hive_scheduler_run(void) {
 
     HIVE_LOG_INFO("Scheduler started (num_actors=%zu)", table->num_actors);
 
-    while (!g_scheduler.shutdown_requested && table->num_actors > 0) {
+    while (!s_scheduler.shutdown_requested && table->num_actors > 0) {
         dispatch_events();
         actor *next = find_next_runnable();
 
@@ -137,7 +137,7 @@ void hive_scheduler_run(void) {
 }
 
 hive_status hive_scheduler_run_until_blocked(void) {
-    if (!g_scheduler.initialized) {
+    if (!s_scheduler.initialized) {
         return HIVE_ERROR(HIVE_ERR_INVALID, "Scheduler not initialized");
     }
 
@@ -147,7 +147,7 @@ hive_status hive_scheduler_run_until_blocked(void) {
     }
 
     // Run actors until all are blocked (WAITING) or dead
-    while (!g_scheduler.shutdown_requested && table->num_actors > 0) {
+    while (!s_scheduler.shutdown_requested && table->num_actors > 0) {
         // Process any pending events (timers)
         dispatch_events();
 
@@ -165,7 +165,7 @@ hive_status hive_scheduler_run_until_blocked(void) {
 }
 
 void hive_scheduler_shutdown(void) {
-    g_scheduler.shutdown_requested = true;
+    s_scheduler.shutdown_requested = true;
 }
 
 void hive_scheduler_yield(void) {
@@ -176,11 +176,11 @@ void hive_scheduler_yield(void) {
     }
 
     // Switch back to scheduler
-    hive_context_switch(&current->ctx, &g_scheduler.scheduler_ctx);
+    hive_context_switch(&current->ctx, &s_scheduler.scheduler_ctx);
 }
 
 bool hive_scheduler_should_stop(void) {
-    return g_scheduler.shutdown_requested;
+    return s_scheduler.shutdown_requested;
 }
 
 // Stub for compatibility - STM32 doesn't use epoll
