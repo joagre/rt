@@ -89,6 +89,13 @@ Non-blocking operation would block.
 .TP
 .B HIVE_ERR_IO
 I/O error (network or file).
+.TP
+.B HIVE_ERR_EXISTS
+Name already registered (for auto_register or
+.BR hive_register ()).
+.TP
+.B HIVE_ERR_TRUNCATED
+Data was truncated to fit buffer (bus read operations).
 .SS Message Structure
 .PP
 .nf

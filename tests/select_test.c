@@ -480,7 +480,7 @@ static void test8_priority_order(void *args, const hive_spawn_info *siblings,
     int bus_data = 222;
     hive_bus_publish(bus, &bus_data, sizeof(bus_data));
 
-    // Select - bus should win due to priority
+    // Select - first source in array wins (array order priority)
     hive_select_source sources[] = {
         {.type = HIVE_SEL_IPC,
          .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, TAG_A}},
@@ -489,27 +489,27 @@ static void test8_priority_order(void *args, const hive_spawn_info *siblings,
     hive_select_result result;
     hive_status status = hive_select(sources, 2, &result, 100);
 
-    if (HIVE_SUCCEEDED(status) && result.type == HIVE_SEL_BUS) {
-        TEST_PASS("bus has priority over IPC");
+    // IPC is at index 0, should win with array order priority
+    if (HIVE_SUCCEEDED(status) && result.type == HIVE_SEL_IPC) {
+        TEST_PASS("array order priority (IPC first wins)");
     } else {
         printf("    type=%d\n", result.type);
-        TEST_FAIL("expected bus to have priority");
+        TEST_FAIL("expected IPC (first in array) to win");
     }
 
-    if (result.index == 1 && *(int *)result.bus.data == 222) {
-        TEST_PASS("correct index and data for bus");
+    if (result.index == 0 && *(int *)result.ipc.data == 111) {
+        TEST_PASS("correct index and data for IPC");
     } else {
         TEST_FAIL("index or data mismatch");
     }
 
-    // Now IPC should be available
-    sources[0].type = HIVE_SEL_IPC;
-    status = hive_select(&sources[0], 1, &result, 100);
+    // Now bus should be available
+    status = hive_select(&sources[1], 1, &result, 100);
 
-    if (HIVE_SUCCEEDED(status) && result.type == HIVE_SEL_IPC) {
-        TEST_PASS("IPC still available after bus priority");
+    if (HIVE_SUCCEEDED(status) && result.type == HIVE_SEL_BUS) {
+        TEST_PASS("bus still available after IPC consumed");
     } else {
-        TEST_FAIL("IPC should still be in mailbox");
+        TEST_FAIL("bus should still be available");
     }
 
     // Cleanup

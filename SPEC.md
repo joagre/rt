@@ -11,7 +11,7 @@ A minimalistic actor-based runtime designed for **embedded and safety-critical s
 1. **Minimalistic**: Only essential features, no bloat
 2. **Predictable**: Cooperative scheduling, no surprises
 3. **Modern C11**: Clean, safe, standards-compliant code
-4. **Statically bounded memory**: All runtime memory is statically bounded and deterministic. Heap allocation is forbidden in hot paths and optional only for actor stacks (`malloc_stack = true`)
+4. **Statically bounded memory**: All runtime memory is statically bounded (calculable at link time). Heap allocation is forbidden in hot paths and optional only for actor stacks (`malloc_stack = true`)
 5. **Pool-based allocation**: O(1) pools for hot paths; stack arena allocation is bounded and occurs only on spawn/exit
 6. **No preemption**: Actors run until they block (IPC, I/O, timers) or yield
 
@@ -200,24 +200,26 @@ Each blocking network request has an implicit state: `PENDING` → `COMPLETED` o
 **Note:** This serialization model does NOT apply to:
 - **File I/O**: Stalls scheduler synchronously (no event loop involvement)
 
-**Determinism guarantee (qualified):**
+**Predictability guarantee:**
 
-> **Summary:** The runtime is deterministic given a fixed event order, but event order itself is kernel-dependent (epoll). Scheduling policy is deterministic; event arrival order is not.
+> **Summary:** The runtime has predictable scheduling policy but not reproducible execution order. Given the same epoll event order, scheduling is reproducible; but epoll event order itself is kernel-dependent.
 
-The runtime provides **conditional determinism**, not absolute determinism:
+The runtime provides **bounded, predictable behavior**, not full reproducibility:
 
-- **Deterministic policy**: Given identical epoll event arrays in identical order, scheduling decisions are deterministic
-- **Source of nondeterminism**: epoll_wait returns ready file descriptors in kernel-determined order (not sorted, not stable)
+- **Predictable policy**: Given identical epoll event arrays in identical order, scheduling decisions are reproducible
+- **Source of variation**: epoll_wait returns ready file descriptors in kernel-determined order (not sorted, not stable)
 - **Consequence**: If multiple FDs become ready simultaneously, their processing order is kernel-dependent
 - **What we guarantee**:
+  - Bounded memory usage (calculable at link time)
+  - Bounded latency (O(1) pool allocation in hot paths)
   - No phantom wakeups (actor only unblocks on specified conditions)
-  - Consistent policy (same input → same output)
+  - Consistent policy (same event order → same scheduling decisions)
   - **Concrete wake ordering rule**: When processing I/O events from a single `epoll_wait` call, actors made ready are appended to their priority run queues in event processing order. Within a priority level, the run queue is FIFO.
 - **What we do NOT guarantee**:
-  - Deterministic ordering when multiple timers/sockets fire in the same epoll_wait call
-  - Reproducible event dispatch order across kernel versions or system load conditions
+  - Reproducible ordering when multiple timers/sockets fire in the same epoll_wait call
+  - Same event dispatch order across kernel versions or system load conditions
 
-**Design choice**: Sorting epoll events by fd/source-id before dispatch would provide determinism but adds O(n log n) overhead per epoll_wait. For embedded systems prioritizing latency over reproducibility, this overhead is not justified. Applications requiring deterministic replay should use external event logging.
+**Design choice**: Sorting epoll events by fd/source-id before dispatch would provide reproducibility but adds O(n log n) overhead per epoll_wait. For embedded systems prioritizing latency over reproducibility, this overhead is not justified. Applications requiring reproducible replay should use external event logging.
 
 ### Scheduler-Stalling Calls
 
@@ -242,6 +244,8 @@ File I/O operations (`hive_file_read()`, `hive_file_write()`, `hive_file_sync()`
 - Long file operations delay all actors, timers, and network processing
 - Use file I/O sparingly and with small buffers
 - For latency-sensitive systems: perform file I/O only during initialization or shutdown
+
+**Priority rule:** Actors using file I/O should run at `HIVE_PRIORITY_LOW` or `HIVE_PRIORITY_NORMAL`. Never use file I/O from `HIVE_PRIORITY_CRITICAL` or `HIVE_PRIORITY_HIGH` actors - this stalls time-critical control loops.
 
 **Design alternatives not implemented:**
 - `io_uring`: Would add Linux 5.1+ dependency and significant complexity
@@ -388,9 +392,9 @@ Stack growth/reallocation is not supported. Stack overflow results in undefined 
 
 ### Memory Allocation
 
-The runtime uses static allocation for deterministic behavior and suitability for MCU deployment:
+The runtime uses static allocation for predictable behavior and suitability for MCU deployment:
 
-**Design Principle:** All memory regions are statically reserved at compile time; allocation within those regions (e.g., stack arena, message pools) occurs at runtime via deterministic algorithms. No heap allocation occurs in hot paths (message passing, scheduling, I/O). Optional malloc for actor stacks when explicitly enabled via `actor_config.malloc_stack = true`.
+**Design Principle:** All memory regions are statically reserved at compile time; allocation within those regions (e.g., stack arena, message pools) occurs at runtime via bounded algorithms (O(1) for pools, O(n) for arena). No heap allocation occurs in hot paths (message passing, scheduling, I/O). Optional malloc for actor stacks when explicitly enabled via `actor_config.malloc_stack = true`.
 
 **Allocation Strategy:**
 
@@ -433,11 +437,11 @@ The runtime uses static allocation for deterministic behavior and suitability fo
 
 **Benefits:**
 
-- Deterministic memory: Footprint calculable at link time
+- Bounded memory: Footprint calculable at link time
 - Zero heap fragmentation: No malloc after initialization (except explicit `malloc_stack` flag)
 - Predictable allocation: Pool exhaustion returns clear errors (`HIVE_ERR_NOMEM`)
 - Suitable for safety-critical certification
-- Predictable timing: O(1) pool allocation for hot paths, bounded arena allocation for cold paths (spawn/exit)
+- Bounded latency: O(1) pool allocation for hot paths, O(n) bounded arena allocation for cold paths (spawn/exit)
 
 ## Architectural Limits
 
@@ -506,7 +510,7 @@ if (len > HIVE_MAX_MESSAGE_SIZE) {
 
 ## Design Trade-offs and Sharp Edges
 
-This runtime makes deliberate design choices that favor **determinism, performance, and simplicity** over **ergonomics and safety**. These are not bugs - they are conscious trade-offs suitable for embedded/safety-critical systems with trusted code.
+This runtime makes deliberate design choices that favor **predictability, performance, and simplicity** over **ergonomics and safety**. These are not bugs - they are conscious trade-offs suitable for embedded/safety-critical systems with trusted code.
 
 **Accept these consciously before using this runtime:**
 
@@ -515,7 +519,7 @@ This runtime makes deliberate design choices that favor **determinism, performan
 **Trade-off:** Message payload pointer valid only until next `hive_ipc_recv()` call.
 
 **Why this design:**
-- Pool reuse: Deterministic O(1) allocation, no fragmentation
+- Pool reuse: Bounded O(1) allocation, no fragmentation
 - Performance: Single pool slot per actor, no reference counting
 - Simplicity: No hidden malloc, no garbage collection
 
@@ -525,7 +529,7 @@ This runtime makes deliberate design choices that favor **determinism, performan
 
 **Mitigation:** Documented with WARNING box and correct/incorrect examples in IPC section. But developers will still make mistakes.
 
-**Acceptable if:** You optimize for determinism over ergonomics, and code reviews catch pointer misuse.
+**Acceptable if:** You optimize for predictability over ergonomics, and code reviews catch pointer misuse.
 
 ---
 
@@ -585,7 +589,7 @@ This runtime makes deliberate design choices that favor **determinism, performan
 ### Summary: This Runtime is a Sharp Tool
 
 These design choices make the runtime:
-- **Deterministic:** Bounded memory, predictable timing, no hidden allocations
+- **Predictable:** Bounded memory, bounded latency, no hidden allocations
 - **Fast:** O(1) hot paths, minimal overhead, zero-copy options
 - **Simple:** Minimal code, easy to audit, no complex features
 - **Not beginner-friendly:** Sharp edges require careful use
@@ -593,7 +597,7 @@ These design choices make the runtime:
 
 **This is intentional.** The runtime provides primitives for building robust systems, not a complete safe environment.
 
-This runtime provides primitives for deterministic embedded performance with full control.
+This runtime provides primitives for predictable embedded performance with full control.
 
 ## Core Types
 
@@ -680,6 +684,12 @@ const hive_spawn_info *hive_find_sibling(const hive_spawn_info *siblings,
   - Supervised actors: siblings = all sibling children
 - If `cfg->auto_register` is true and `cfg->name` is set, actor is auto-registered in name registry
 
+**Sibling array lifetime:**
+The sibling array is a **startup-time snapshot**. If a sibling restarts (getting a new `actor_id`), any cached IDs become stale. For scenarios where siblings may restart:
+- Use `hive_whereis()` for dynamic lookups
+- Sibling array is best for stable peer references in ONE_FOR_ALL supervision (all restart together)
+- Registry is best for service discovery patterns where restarts are expected
+
 **Actor function return behavior:**
 
 Actors **must** call `hive_exit()` to terminate cleanly. If an actor function returns without calling `hive_exit()`, the runtime detects this as a crash:
@@ -705,7 +715,9 @@ bool hive_actor_alive(actor_id id);
 hive_status hive_kill(actor_id target);
 ```
 
-**hive_kill(target)**: Terminates the target actor from outside. The target's exit reason is set to `HIVE_EXIT_KILLED`. Linked/monitoring actors receive exit notifications. Cannot kill self (use `hive_exit()` instead). Used internally by supervisors to terminate children during shutdown or strategy application.
+**hive_kill(target)**: Terminates the target actor immediately. This is a **hard kill** - the target cannot resist or defer termination. There is no graceful shutdown protocol; the actor is removed from the scheduler at the next opportunity. The target's exit reason is set to `HIVE_EXIT_KILLED`. Linked/monitoring actors receive exit notifications. Cannot kill self (use `hive_exit()` instead). Used internally by supervisors to terminate children during shutdown or strategy application.
+
+For graceful shutdown, implement an application-level protocol: send a shutdown request message, wait for acknowledgment, then kill if needed.
 
 ### Linking and Monitoring
 
@@ -825,6 +837,34 @@ void send_query(const char *query) {
     }
 }
 ```
+
+### Siblings vs Registry: When to Use Each
+
+| Use Case | Siblings | Registry |
+|----------|----------|----------|
+| Supervised pipeline (ONE_FOR_ALL) | ✓ Best | Works |
+| Supervised workers (ONE_FOR_ONE) | Careful | ✓ Best |
+| Service discovery pattern | No | ✓ Best |
+| Tight peer coupling | ✓ Best | Overkill |
+| Cross-supervisor communication | No | ✓ Required |
+
+**Heuristics:**
+
+1. **Use siblings when:**
+   - All communicating actors restart together (ONE_FOR_ALL strategy)
+   - Actors are tightly coupled and always start/stop as a group
+   - You want zero-overhead lookup (sibling array is passed at startup)
+
+2. **Use registry when:**
+   - Actors may restart independently (ONE_FOR_ONE or separate supervisors)
+   - You need late binding (sender doesn't know receiver at compile time)
+   - Cross-supervisor or cross-subsystem communication
+   - Service discovery pattern (many clients, one named service)
+
+3. **Avoid caching IDs from either:**
+   - Both sibling IDs and registry IDs become stale after target restarts
+   - Always lookup fresh when the target may have restarted
+   - Exception: ONE_FOR_ALL where you restart together anyway
 
 ## IPC API
 
@@ -1044,6 +1084,8 @@ if (status.code == HIVE_ERR_CLOSED) {
 ```
 
 This eliminates the "timeout but actually dead" ambiguity from previous versions.
+
+**Concurrency constraint:** An actor can only have **one outstanding request at a time**. Since `hive_ipc_request()` blocks the caller until a reply arrives (or timeout), the actor cannot issue concurrent requests. To implement scatter/gather patterns, spawn multiple worker actors that each make one request.
 
 ### API Contract: hive_ipc_notify()
 
@@ -1407,9 +1449,9 @@ size_t hive_bus_entry_count(bus_id bus);
 
 `hive_bus_read()` / `hive_bus_read_wait()`:
 - If message size > `max_len`: Data is **truncated** to fit in buffer
-- `*bytes_read` returns the **actual bytes copied** (truncated length), NOT the original message size
-- This is safe buffer overflow protection - caller gets as much data as fits
-- No error is returned for truncation (caller can compare `bytes_read < max_entry_size` to detect)
+- `*bytes_read` returns the **actual bytes copied** (truncated length)
+- Returns `HIVE_ERR_TRUNCATED` when truncation occurs (data was still read successfully)
+- Caller can check for truncation: `if (status.code == HIVE_ERR_TRUNCATED) { /* handle */ }`
 
 ### Bus Consumption Model (Semantic Contract)
 
@@ -1711,12 +1753,17 @@ hive_status hive_select(const hive_select_source *sources, size_t num_sources,
 
 ### Priority Semantics
 
-When multiple sources have data ready simultaneously:
+When multiple sources have data ready simultaneously, sources are checked in **strict array order**. The first ready source wins. There is no type-based priority - bus and IPC sources are treated equally.
 
-1. **Bus sources** are checked before **IPC sources** (bus has higher priority)
-2. Within each type, **array order** determines priority (lower index wins)
+To prioritize certain sources, place them earlier in the array.
 
-This allows users to define a strict priority ordering by arranging sources appropriately.
+### Bus Readiness Semantics
+
+A bus source is "ready" when the bus contains an entry the calling actor has not yet read. Each subscriber's read position is tracked independently via a bitmask. This means:
+
+- A bus can have data for one subscriber but not another
+- Reading an entry marks it as read for that subscriber only
+- New publishes are unread for all subscribers until consumed
 
 ### Example Usage
 
@@ -1784,8 +1831,7 @@ This architectural design ensures consistent blocking behavior and wake-up logic
 
 ### Implementation Notes
 
-- **Bus data buffer:** Bus data is read into a static buffer. The `result.bus.data` pointer is valid until the next `hive_select()` call.
-- **IPC message lifetime:** IPC message data lifetime follows the same rules as `hive_ipc_recv()` - valid until next receive operation.
+- **Data lifetime:** All data in `result` (both `result.ipc` and `result.bus.data`) is valid until the next blocking call: `hive_select()`, `hive_ipc_recv*()`, or `hive_bus_read*()`. Copy immediately if needed longer.
 - **Wake mechanism:** When blocked, the actor is woken by bus publishers (via `blocked` flag) or IPC senders (via `select_sources` check in mailbox wake logic).
 
 ## Timer API
@@ -2060,6 +2106,11 @@ The supervisor tracks restart attempts within a sliding time window. If `max_res
 
 - `max_restarts = 0`: Unlimited restarts (never give up)
 - `max_restarts = 5, restart_period_ms = 10000`: Allow 5 restarts in 10 seconds
+
+**Algorithm:** The supervisor maintains a ring buffer of the last `HIVE_MAX_SUPERVISOR_CHILDREN` restart timestamps. On each restart attempt:
+1. Record current timestamp in ring buffer
+2. Count entries where `now - timestamp <= restart_period_ms`
+3. If `count >= max_restarts`, intensity exceeded → supervisor shuts down
 
 **Rationale**: Prevents infinite restart loops when a child has a persistent bug (e.g., crashes immediately on startup).
 
@@ -2538,7 +2589,7 @@ void main_actor(void *arg) {
 
 ## Memory Allocation Architecture
 
-The runtime uses **compile-time configuration** for deterministic memory allocation.
+The runtime uses **compile-time configuration** for bounded, predictable memory allocation.
 
 ### Compile-Time Configuration (`hive_static_config.h`)
 
@@ -2569,7 +2620,7 @@ All resource limits are defined at compile-time and require recompilation to cha
 Feature toggles can also be set via Makefile: `make ENABLE_NET=0 ENABLE_FILE=0`.
 
 All runtime structures are **statically allocated** based on these limits. Actor stacks use a static arena allocator by default (configurable via `actor_config.malloc_stack` for malloc). This ensures:
-- Deterministic memory footprint (calculable at link time)
+- Bounded memory footprint (calculable at link time)
 - Zero heap allocation in runtime operations (see Heap Usage Policy)
 - O(1) pool allocation for hot paths (scheduling, IPC); O(n) bounded arena allocation for cold paths (spawn/exit)
 - Suitable for embedded/MCU deployment

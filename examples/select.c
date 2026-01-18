@@ -157,7 +157,7 @@ static void controller(void *args, const hive_spawn_info *siblings,
 
         switch (result.index) {
         case SEL_SENSOR: {
-            // Bus data has priority - processed first when both ready
+            // Sensor is first in array, so processed first when multiple ready
             sensor_data_t *data = (sensor_data_t *)result.bus.data;
             sensor_count++;
             printf("[Controller] Sensor: temp=%.1f, seq=%u (count=%d)\n",
@@ -208,7 +208,7 @@ static void controller(void *args, const hive_spawn_info *siblings,
 int main(void) {
     printf("=== hive_select() Example ===\n\n");
     printf("This example demonstrates unified event waiting:\n");
-    printf("- Sensor bus data (highest priority)\n");
+    printf("- Sensor bus data (first in array)\n");
     printf("- Timer heartbeats\n");
     printf("- Command messages\n\n");
 

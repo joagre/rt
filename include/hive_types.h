@@ -52,7 +52,8 @@ typedef enum {
     HIVE_ERR_CLOSED,
     HIVE_ERR_WOULDBLOCK,
     HIVE_ERR_IO,
-    HIVE_ERR_EXISTS, // Name already registered (for auto_register failure)
+    HIVE_ERR_EXISTS,    // Name already registered (for auto_register failure)
+    HIVE_ERR_TRUNCATED, // Data truncated to fit buffer (bus read)
 } hive_error_code;
 
 // Status with optional message

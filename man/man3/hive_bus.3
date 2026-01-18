@@ -135,6 +135,12 @@ No data available and timeout was 0 (for
 .B HIVE_ERR_TIMEOUT
 No data received within timeout period (for
 .BR hive_bus_read_wait ()).
+.TP
+.B HIVE_ERR_TRUNCATED
+Data was read but truncated to fit the provided buffer. The
+.I actual_len
+parameter contains the number of bytes actually copied. Use a larger buffer
+or check entry size if full data is needed.
 .SH NOTES
 .SS Bus vs IPC
 Use bus for:

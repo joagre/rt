@@ -560,7 +560,7 @@ case 2: /* Shutdown: result.ipc */ break;
 }
 ```
 
-**Priority:** Bus sources are checked before IPC sources. Within each type, array order determines priority.
+**Priority:** Strict array order. When multiple sources are ready, the first one in the array wins.
 
 ## Implementation Details
 

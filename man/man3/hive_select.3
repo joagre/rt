@@ -47,8 +47,12 @@ wildcards
 can be used to match any value.
 .TP
 .B HIVE_SEL_BUS
-Wait for data on the specified bus. The actor must already be subscribed to
-the bus (see
+Wait for unread data on the specified bus. "Unread" means an entry the calling
+actor has not yet consumed via
+.BR hive_bus_read ()
+or
+.BR hive_select ().
+The actor must already be subscribed to the bus (see
 .BR hive_bus_subscribe (3)).
 .SS Select Source Structure
 .PP
@@ -95,15 +99,17 @@ either
 .SS Priority Ordering
 When multiple sources have data ready simultaneously,
 .BR hive_select ()
-checks sources in the following priority order:
-.IP 1. 3
-All bus sources (in array order)
-.IP 2. 3
-All IPC sources (in array order)
+checks sources in strict array order. The first ready source wins.
 .PP
-The first match wins. This priority ensures time-sensitive bus data (sensor
-streams, state updates) is processed before IPC messages, which are queued
-and will not be lost.
+To prioritize certain sources, place them earlier in the array. For example,
+to ensure sensor data is processed before commands:
+.PP
+.nf
+hive_select_source sources[] = {
+    {HIVE_SEL_BUS, .bus = sensor_bus},   /* Checked first */
+    {HIVE_SEL_IPC, .ipc = {...}},        /* Checked second */
+};
+.fi
 .SH RETURN VALUE
 On success, returns
 .B HIVE_OK
@@ -129,21 +135,15 @@ or a bus source specifies a bus the actor is not subscribed to.
 .SS Data Lifetime
 Data returned in
 .I result
-is only valid until the next
-.BR hive_select ()
-or related receive call:
-.IP \(bu 2
+(both
 .I result.ipc
-\- valid until next
-.BR hive_select ()
+and
+.IR result.bus.data )
+is only valid until the next blocking call:
+.BR hive_select (),
+.BR hive_ipc_recv* (),
 or
-.BR hive_ipc_recv* ()
-.IP \(bu 2
-.I result.bus.data
-\- valid until next
-.BR hive_select ()
-or
-.BR hive_bus_read* ()
+.BR hive_bus_read* ().
 .PP
 Copy data immediately if needed longer:
 .PP

@@ -385,15 +385,12 @@ if (result.type == HIVE_SEL_BUS) {
 
 ## Priority When Multiple Sources Ready
 
-When multiple sources have data simultaneously, the check order is:
-1. All bus sources (in array order)
-2. All IPC sources (in array order)
-3. First match wins
+When multiple sources have data simultaneously, sources are checked in **strict array order**. The first ready source wins. There is no type-based priority - bus and IPC sources are treated equally.
 
 **Rationale:**
-- **Bus data is time-sensitive** - Sensor streams, state updates. Stale data = bad control decisions.
-- **Bus can expire** - Ring buffer wraps, `max_age_ms` expires entries. Missing bus data = data loss.
-- **IPC is queued** - Messages stay in mailbox until consumed. They won't be lost.
+- **Explicit control** - User decides priority via array ordering
+- **Predictable** - No hidden rules about which source type wins
+- **Simple** - First ready source in array wins
 
 **Example:**
 ```c
@@ -406,9 +403,9 @@ hive_select_source sources[] = {
 };
 ```
 
-If both `state_bus` and `SEL_COMMAND` are ready simultaneously, `state_bus` wins.
+If both `SEL_STATE` and `SEL_COMMAND` are ready simultaneously, `SEL_STATE` wins (first in array).
 
-This is **guaranteed behavior**, not an implementation detail. Users can rely on it for correctness.
+To prioritize time-sensitive data, place those sources earlier in the array.
 
 ## Design Decisions
 
@@ -422,7 +419,7 @@ Intentionally excluded for now. Reasons:
 **May be added in future** - the API is extensible:
 - Tagged union allows adding `HIVE_SEL_NET` enum value and union member
 - No breaking changes to existing code
-- Priority order can be decided when needed (likely: bus → IPC → network)
+- Priority follows array order (user controls via source placement)
 
 **Current workaround** - idiomatic actor model pattern:
 ```c
@@ -491,7 +488,7 @@ Implementation completed 2026-01-17:
   - [x] Multi-source: IPC + IPC
   - [x] Multi-source: bus + bus
   - [x] Multi-source: IPC + bus (mixed)
-  - [x] Priority ordering (bus before IPC)
+  - [x] Priority ordering (array order)
   - [x] Timeout behavior
   - [x] Immediate return when data ready
   - [x] Error cases (NULL args, unsubscribed bus)

@@ -502,10 +502,11 @@ hive_status hive_bus_read(bus_id id, void *buf, size_t max_len,
         return HIVE_ERROR(HIVE_ERR_WOULDBLOCK, "No data available");
     }
 
-    // Copy data (truncate to buffer size to prevent overflow)
-    size_t copy_len = entry->len < max_len ? entry->len : max_len;
+    // Copy data (truncate to buffer size if necessary)
+    bool truncated = entry->len > max_len;
+    size_t copy_len = truncated ? max_len : entry->len;
     memcpy(buf, entry->data, copy_len);
-    *actual_len = copy_len; // Return actual bytes copied, not original length
+    *actual_len = copy_len; // Bytes actually copied
 
     // Mark as read by this subscriber
     entry->readers_mask |= (1u << sub_idx);
@@ -536,6 +537,9 @@ hive_status hive_bus_read(bus_id id, void *buf, size_t max_len,
                        entry->read_count);
     }
 
+    if (truncated) {
+        return HIVE_ERROR(HIVE_ERR_TRUNCATED, "Data truncated to fit buffer");
+    }
     return HIVE_SUCCESS;
 }
 

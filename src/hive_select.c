@@ -18,10 +18,9 @@ static size_t s_bus_data_len = 0;
 
 // Scan sources for ready data (non-blocking)
 // Returns true if data found, populates result
-// Priority: bus sources first (in array order), then IPC sources (in array order)
+// Priority: strict array order (first ready source wins)
 static bool scan_sources(const hive_select_source *sources, size_t num_sources,
                          hive_select_result *result) {
-    // First pass: check all bus sources (higher priority)
     for (size_t i = 0; i < num_sources; i++) {
         if (sources[i].type == HIVE_SEL_BUS) {
             if (hive_bus_has_data(sources[i].bus)) {
@@ -30,7 +29,9 @@ static bool scan_sources(const hive_select_source *sources, size_t num_sources,
                 hive_status status =
                     hive_bus_read(sources[i].bus, s_bus_data_buffer,
                                   sizeof(s_bus_data_buffer), &actual_len);
-                if (HIVE_SUCCEEDED(status)) {
+                // Accept OK or TRUNCATED (data was read, possibly truncated)
+                if (HIVE_SUCCEEDED(status) ||
+                    status.code == HIVE_ERR_TRUNCATED) {
                     result->index = i;
                     result->type = HIVE_SEL_BUS;
                     result->bus.data = s_bus_data_buffer;
@@ -41,12 +42,7 @@ static bool scan_sources(const hive_select_source *sources, size_t num_sources,
                     return true;
                 }
             }
-        }
-    }
-
-    // Second pass: check all IPC sources (lower priority)
-    for (size_t i = 0; i < num_sources; i++) {
-        if (sources[i].type == HIVE_SEL_IPC) {
+        } else if (sources[i].type == HIVE_SEL_IPC) {
             size_t matched_idx = 0;
             mailbox_entry *entry =
                 hive_ipc_scan_mailbox(&sources[i].ipc, 1, &matched_idx);

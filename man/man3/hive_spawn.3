@@ -285,9 +285,17 @@ Spawn/exit are "cold path" operations with O(n) arena allocation. Hot paths
 (IPC, scheduling) use O(1) pool allocation. For deterministic timing, spawn
 actors at startup and reuse them.
 .SS Sibling Array Lifetime
-The sibling array passed to actor functions is only valid during actor startup.
-If you need sibling information later, copy the relevant data to actor-local
-storage.
+The sibling array passed to actor functions is a
+.B startup-time snapshot
+only valid during actor startup. Copy needed data to actor-local storage.
+.PP
+.B Stale IDs:
+If a sibling restarts (getting a new
+.IR actor_id ),
+any cached IDs become stale. For siblings that may restart independently, use
+.BR hive_whereis (3)
+for dynamic lookups. Sibling arrays work best with ONE_FOR_ALL supervision
+where all siblings restart together.
 .SH EXAMPLE
 .nf
 #include <hive_runtime.h>

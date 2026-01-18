@@ -144,7 +144,7 @@ The runtime consists of:
   - Bus: Uses message pool for entry data
 - Cold path structures: Arena allocator with O(n) first-fit (bounded by free blocks)
   - Actor stacks: HIVE_STACK_ARENA_SIZE (1 MB default)
-- Deterministic memory: ~1.2 MB static (incl. stack arena) + optional malloc'd stacks
+- Bounded memory: ~1.2 MB static (incl. stack arena) + optional malloc'd stacks
 - Zero heap allocation in runtime operations (see Heap Usage Policy above)
 
 ### Error Handling
@@ -239,6 +239,9 @@ IPC uses global pools shared by all actors:
 - **max_age_ms**: Remove entry after time expires (0 = no time-based expiry)
 - Buffer full: Oldest entry evicted on publish
 
+### Bus Subscriber Limit
+Maximum 32 subscribers per bus. This is a **hard architectural limit** enforced by the `uint32_t readers_mask` bitmask used to track which subscribers have read each entry. This is not a tunable parameter.
+
 ### Bus Pool Exhaustion
 Bus shares the message data pool with IPC and has per-bus buffer limits:
 
@@ -273,8 +276,8 @@ Bus shares the message data pool with IPC and has per-bus buffer limits:
 - **`hive_select(sources, num_sources, result, timeout)`**: Wait on multiple sources simultaneously
 
 **Priority semantics:**
-- Bus sources are checked before IPC sources (higher priority)
-- Within each type, array order determines priority
+- Sources are checked in strict array order (first ready source wins)
+- No type-based priority - bus and IPC sources are treated equally
 
 **Example:**
 ```c
@@ -296,7 +299,7 @@ hive_select(sources, 3, &result, -1);
 
 ### Memory Allocation - Compile-Time Configuration
 
-The runtime uses **compile-time configuration** for deterministic memory allocation:
+The runtime uses **compile-time configuration** for bounded, predictable memory allocation:
 
 **Compile-Time Limits (`hive_static_config.h`)** - All resource limits defined at compile time:
 - `HIVE_MAX_ACTORS`: Maximum concurrent actors (64)
