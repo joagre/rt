@@ -308,7 +308,7 @@ int main(void) {
     /* Spawn logger at LOW priority */
     actor_id logger;
     actor_config cfg = {.priority = 3};  /* LOW */
-    hive_spawn_ex(logger_actor, NULL, &cfg, &logger);
+    hive_spawn(logger_actor, NULL, NULL, &cfg, &logger);
 
     hive_run();
     hive_cleanup();
