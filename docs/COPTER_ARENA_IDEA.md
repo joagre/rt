@@ -9,9 +9,13 @@ Quadcopters are **differentially flat systems**. This is the key enabler.
 
 This is why flips, rolls, knife-edge flight, and snap maneuvers are tractable in theory.
 
-Classic reference line of work:
-- Mellinger & Kumar (2011–2015): minimum-snap trajectory generation
-- Polynomial splines optimized for snap (4th derivative of position)
+Classic reference:
+- Mellinger & Kumar (2011): "Minimum snap trajectory generation and control for quadrotors" (IEEE ICRA, 2400+ citations)
+
+Recent advances (2023–2024):
+- Foehn et al. (2023): "Agilicious" - open-source agile quadrotor, 5g at 70 km/h, vision-based acrobatics
+- Romero et al. (2024): "Towards MPC for Acrobatic Quadrotor Flights" - real-time MPC for flip maneuvers
+- Torrente et al. (2023): "Learning quadrotor dynamics for precise, safe, and agile flight control" - hybrid learning + control
 
 This is the backbone of autonomous aerobatics.
 
@@ -65,10 +69,19 @@ This is where this idea becomes genuinely interesting.
 
 “Core Wars, but with quadcopters” analogy is **exact**.
 
-Relevant theory:
-- Differential games (Isaacs)
-- Pursuit–evasion problems
-- Reachability analysis (Hamilton–Jacobi reachability)
+Foundational theory:
+- Isaacs (1965): "Differential Games" - the foundational text on pursuit-evasion
+
+Modern developments (2023–2025):
+- Yan et al. (2023): "Multiplayer reach-avoid differential games with simple motions: a review"
+- Chen et al. (2024): "Multi-UAV Pursuit-Evasion with Online Planning in Unknown Environments" (Deep RL)
+- Li et al. (2024): "Multi-UAV pursuit-evasion gaming based on PSO-M3DDPG" - minimax + PSO
+- Survey (2025): "Recent Advances in Pursuit–Evasion Games with Unmanned Vehicles" (MDPI)
+
+Key techniques:
+- Hamilton–Jacobi reachability analysis
+- Multi-agent reinforcement learning (MARL)
+- Transfer learning for obstacle environments
 
 Each drone is:
 - A controlled dynamical system
@@ -92,6 +105,12 @@ Once we have more than two drones:
 - Game-theoretic equilibria
 - Decentralized MPC
 - Collision avoidance as hard constraints
+
+Recent work on multi-agent pursuit-evasion:
+- Liu et al. (2024): "Game of Drones" - intelligent online decision making for multi-UAV confrontation
+- Hu et al. (2024): "Transfer RL for multi-agent pursuit-evasion differential game with obstacles"
+- Zhang et al. (2023): "Collaborative pursuit-evasion of multi-UAVs based on Apollonius circle"
+- Survey (2023): "Pursuit–evasion problem in swarm intelligence" (Frontiers of IT & EE)
 
 We now get:
 - Feints
@@ -189,3 +208,22 @@ we will have something genuinely new.
 If we want, next step could be:
 - a **minimal formal model** for a 1-vs-1 quad duel
 - or a concrete **arena + rule set** that makes this tractable without killing people
+
+---
+
+## References
+
+### Foundations
+- Mellinger & Kumar (2011): [Minimum snap trajectory generation and control for quadrotors](https://ieeexplore.ieee.org/document/5980409/) - IEEE ICRA
+- Isaacs (1965): [Differential Games: A Mathematical Theory with Applications to Warfare and Pursuit](https://www.amazon.com/Differential-Games-Mathematical-Applications-Optimization/dp/0486406822) - Dover
+
+### Agile Flight (2023–2024)
+- Foehn et al. (2023): [Agilicious: Open-source and open-hardware agile quadrotor](https://arxiv.org/abs/2307.06100) - Science Robotics
+- Romero et al. (2024): [Towards Model Predictive Control for Acrobatic Quadrotor Flights](https://arxiv.org/abs/2401.17418) - arXiv
+- Torrente et al. (2023): [Learning quadrotor dynamics for precise, safe, and agile flight control](https://www.sciencedirect.com/science/article/abs/pii/S1367578823000135) - Annual Reviews in Control
+
+### Pursuit-Evasion & Multi-Agent (2023–2025)
+- Chen et al. (2024): [Multi-UAV Pursuit-Evasion with Online Planning in Unknown Environments](https://arxiv.org/abs/2409.15866) - arXiv
+- Li et al. (2024): [Multi-UAV pursuit-evasion gaming based on PSO-M3DDPG](https://link.springer.com/article/10.1007/s40747-024-01504-1) - Complex & Intelligent Systems
+- Hu et al. (2024): [Transfer RL for multi-agent pursuit-evasion differential game](https://onlinelibrary.wiley.com/doi/abs/10.1002/asjc.3328) - Asian Journal of Control
+- Survey (2025): [Recent Advances in Pursuit–Evasion Games with Unmanned Vehicles](https://www.mdpi.com/2077-1312/13/3/458) - MDPI
