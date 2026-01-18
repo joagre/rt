@@ -29,8 +29,11 @@ void position_actor_init(bus_id state_bus, bus_id attitude_setpoint_bus,
     s_position_target_bus = position_target_bus;
 }
 
-void position_actor(void *arg) {
-    (void)arg;
+void position_actor(void *args, const hive_spawn_info *siblings,
+                    size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     hive_status status = hive_bus_subscribe(s_state_bus);
     assert(HIVE_SUCCEEDED(status));

@@ -32,8 +32,11 @@ static uint64_t time_ms(void) {
     return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
 }
 
-static void run_timer_tests(void *arg) {
-    (void)arg;
+static void run_timer_tests(void *args, const hive_spawn_info *siblings,
+                            size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // ========================================================================
     // Test 1: One-shot timer (hive_timer_after)
@@ -570,7 +573,7 @@ int main(void) {
     cfg.stack_size = TEST_STACK_SIZE(128 * 1024);
 
     actor_id runner;
-    if (HIVE_FAILED(hive_spawn_ex(run_timer_tests, NULL, &cfg, &runner))) {
+    if (HIVE_FAILED(hive_spawn(run_timer_tests, NULL, NULL, &cfg, &runner))) {
         fprintf(stderr, "Failed to spawn test runner\n");
         hive_cleanup();
         return 1;

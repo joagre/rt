@@ -9,8 +9,11 @@ typedef struct {
 } ping_msg;
 
 // Pong actor
-static void pong_actor(void *arg) {
-    (void)arg; // Unused
+static void pong_actor(void *args, const hive_spawn_info *siblings,
+                       size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     printf("Pong actor started (ID: %u)\n", hive_self());
 
@@ -54,8 +57,11 @@ static void pong_actor(void *arg) {
 }
 
 // Ping actor
-static void ping_actor(void *arg) {
-    actor_id pong_id = (actor_id)(uintptr_t)arg;
+static void ping_actor(void *args, const hive_spawn_info *siblings,
+                       size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    actor_id pong_id = (actor_id)(uintptr_t)args;
 
     printf("Ping actor started (ID: %u)\n", hive_self());
 
@@ -121,7 +127,7 @@ int main(void) {
     pong_cfg.priority = HIVE_PRIORITY_NORMAL;
 
     actor_id pong_id;
-    if (HIVE_FAILED(hive_spawn_ex(pong_actor, NULL, &pong_cfg, &pong_id))) {
+    if (HIVE_FAILED(hive_spawn(pong_actor, NULL, NULL, &pong_cfg, &pong_id))) {
         fprintf(stderr, "Failed to spawn pong actor\n");
         hive_cleanup();
         return 1;
@@ -135,8 +141,8 @@ int main(void) {
     ping_cfg.priority = HIVE_PRIORITY_NORMAL;
 
     actor_id ping_id;
-    if (HIVE_FAILED(hive_spawn_ex(ping_actor, (void *)(uintptr_t)pong_id,
-                                  &ping_cfg, &ping_id))) {
+    if (HIVE_FAILED(hive_spawn(ping_actor, NULL, (void *)(uintptr_t)pong_id,
+                               &ping_cfg, &ping_id))) {
         fprintf(stderr, "Failed to spawn ping actor\n");
         hive_cleanup();
         return 1;

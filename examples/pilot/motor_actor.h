@@ -12,6 +12,7 @@
 void motor_actor_init(bus_id torque_bus);
 
 // Actor entry point - spawn this with hive_spawn()
-void motor_actor(void *arg);
+void motor_actor(void *args, const hive_spawn_info *siblings,
+                 size_t sibling_count);
 
 #endif // MOTOR_ACTOR_H

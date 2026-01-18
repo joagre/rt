@@ -17,8 +17,11 @@
 static volatile int g_worker_iterations[3] = {0};
 
 // Worker actor - does some work, occasionally crashes
-static void worker_actor(void *arg) {
-    int worker_id = *(int *)arg;
+static void worker_actor(void *args, const hive_spawn_info *siblings,
+                         size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int worker_id = *(int *)args;
 
     printf("Worker %d started (Actor ID: %u)\n", worker_id, hive_self());
 
@@ -55,8 +58,11 @@ static void on_supervisor_shutdown(void *ctx) {
 }
 
 // Main orchestrator actor
-static void orchestrator_actor(void *arg) {
-    (void)arg;
+static void orchestrator_actor(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     printf("Orchestrator started\n\n");
 
@@ -67,26 +73,32 @@ static void orchestrator_actor(void *arg) {
     static int worker_ids[3] = {0, 1, 2};
     hive_child_spec children[3] = {
         {
-            .id = "worker-0",
-            .fn = worker_actor,
-            .arg = &worker_ids[0],
-            .arg_size = sizeof(int),
+            .start = worker_actor,
+            .init = NULL,
+            .init_args = &worker_ids[0],
+            .init_args_size = sizeof(int),
+            .name = "worker-0",
+            .auto_register = false,
             .restart = HIVE_CHILD_PERMANENT,
             .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT,
         },
         {
-            .id = "worker-1",
-            .fn = worker_actor,
-            .arg = &worker_ids[1],
-            .arg_size = sizeof(int),
+            .start = worker_actor,
+            .init = NULL,
+            .init_args = &worker_ids[1],
+            .init_args_size = sizeof(int),
+            .name = "worker-1",
+            .auto_register = false,
             .restart = HIVE_CHILD_PERMANENT,
             .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT,
         },
         {
-            .id = "worker-2",
-            .fn = worker_actor,
-            .arg = &worker_ids[2],
-            .arg_size = sizeof(int),
+            .start = worker_actor,
+            .init = NULL,
+            .init_args = &worker_ids[2],
+            .init_args_size = sizeof(int),
+            .name = "worker-2",
+            .auto_register = false,
             .restart = HIVE_CHILD_TRANSIENT, // Only restart on crash
             .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT,
         },
@@ -109,7 +121,7 @@ static void orchestrator_actor(void *arg) {
            sup_config.restart_period_ms);
     printf("Children:\n");
     for (size_t i = 0; i < sup_config.num_children; i++) {
-        printf("  [%zu] %s - restart: %s\n", i, children[i].id,
+        printf("  [%zu] %s - restart: %s\n", i, children[i].name,
                hive_child_restart_str(children[i].restart));
     }
     printf("\n");
@@ -180,7 +192,7 @@ int main(void) {
 
     actor_id orchestrator;
     if (HIVE_FAILED(
-            hive_spawn_ex(orchestrator_actor, NULL, &cfg, &orchestrator))) {
+            hive_spawn(orchestrator_actor, NULL, NULL, &cfg, &orchestrator))) {
         fprintf(stderr, "Failed to spawn orchestrator\n");
         hive_cleanup();
         return 1;

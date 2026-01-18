@@ -33,8 +33,11 @@ typedef struct {
 } work_result;
 
 // Slow consumer that processes work requests
-static void consumer_actor(void *arg) {
-    (void)arg;
+static void consumer_actor(void *args, const hive_spawn_info *siblings,
+                           size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     printf("Consumer: Started (ID: %u)\n", hive_self());
     printf("Consumer: I process slowly to demonstrate backpressure\n\n");
@@ -96,8 +99,11 @@ static void consumer_actor(void *arg) {
 }
 
 // Fast producer that sends work requests
-static void producer_actor(void *arg) {
-    actor_id consumer_id = (actor_id)(uintptr_t)arg;
+static void producer_actor(void *args, const hive_spawn_info *siblings,
+                           size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    actor_id consumer_id = (actor_id)(uintptr_t)args;
 
     printf("Producer: Started (ID: %u)\n", hive_self());
     printf("Producer: Sending 5 jobs with hive_ipc_request (blocks until "
@@ -135,8 +141,11 @@ static void producer_actor(void *arg) {
 }
 
 // Demo simple message passing (async notify vs request/reply)
-static void demo_actor(void *arg) {
-    actor_id peer_id = (actor_id)(uintptr_t)arg;
+static void demo_actor(void *args, const hive_spawn_info *siblings,
+                       size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    actor_id peer_id = (actor_id)(uintptr_t)args;
     (void)peer_id;
 
     printf("\n--- Message Passing Patterns Demo ---\n");
@@ -174,7 +183,7 @@ int main(void) {
 
     // First, run the demo actor
     actor_id demo;
-    if (HIVE_FAILED(hive_spawn(demo_actor, NULL, &demo))) {
+    if (HIVE_FAILED(hive_spawn(demo_actor, NULL, NULL, NULL, &demo))) {
         fprintf(stderr, "Failed to spawn demo actor\n");
         hive_cleanup();
         return 1;
@@ -182,7 +191,7 @@ int main(void) {
 
     // Spawn consumer first (it will wait for messages)
     actor_id consumer;
-    if (HIVE_FAILED(hive_spawn(consumer_actor, NULL, &consumer))) {
+    if (HIVE_FAILED(hive_spawn(consumer_actor, NULL, NULL, NULL, &consumer))) {
         fprintf(stderr, "Failed to spawn consumer\n");
         hive_cleanup();
         return 1;
@@ -190,8 +199,8 @@ int main(void) {
 
     // Spawn producer with consumer's ID
     actor_id producer;
-    if (HIVE_FAILED(hive_spawn(producer_actor, (void *)(uintptr_t)consumer,
-                               &producer))) {
+    if (HIVE_FAILED(hive_spawn(producer_actor, NULL,
+                               (void *)(uintptr_t)consumer, NULL, &producer))) {
         fprintf(stderr, "Failed to spawn producer\n");
         hive_cleanup();
         return 1;

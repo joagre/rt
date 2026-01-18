@@ -30,19 +30,26 @@ static int tests_failed = 0;
 // Test 1: Basic monitor - get notification when target exits normally
 // ============================================================================
 
-static void target_normal_exit(void *arg) {
-    (void)arg;
+static void target_normal_exit(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     // Exit normally immediately
     hive_exit();
 }
 
-static void test1_monitor_actor(void *arg) {
-    (void)arg;
+static void test1_monitor_actor(void *args, const hive_spawn_info *siblings,
+                                size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 1: Basic monitor (normal exit)\n");
 
     // Spawn target
     actor_id target;
-    if (HIVE_FAILED(hive_spawn(target_normal_exit, NULL, &target))) {
+    if (HIVE_FAILED(
+            hive_spawn(target_normal_exit, NULL, NULL, NULL, &target))) {
         TEST_FAIL("spawn target");
         hive_exit();
     }
@@ -93,8 +100,11 @@ static void test1_monitor_actor(void *arg) {
 // Test 3: Multiple monitors - one actor monitors multiple targets
 // ============================================================================
 
-static void target_delayed_exit(void *arg) {
-    int delay_ms = *(int *)arg;
+static void target_delayed_exit(void *args, const hive_spawn_info *siblings,
+                                size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int delay_ms = *(int *)args;
 
     timer_id timer;
     hive_timer_after(delay_ms * 1000, &timer); // Convert ms to us
@@ -105,8 +115,12 @@ static void target_delayed_exit(void *arg) {
     hive_exit();
 }
 
-static void test3_multi_monitor_actor(void *arg) {
-    (void)arg;
+static void test3_multi_monitor_actor(void *args,
+                                      const hive_spawn_info *siblings,
+                                      size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 3: Multiple monitors\n");
 
     // Spawn 3 targets with different delays
@@ -115,8 +129,8 @@ static void test3_multi_monitor_actor(void *arg) {
     uint32_t refs[3];
 
     for (int i = 0; i < 3; i++) {
-        if (HIVE_FAILED(
-                hive_spawn(target_delayed_exit, &delays[i], &targets[i]))) {
+        if (HIVE_FAILED(hive_spawn(target_delayed_exit, NULL, &delays[i], NULL,
+                                   &targets[i]))) {
             TEST_FAIL("spawn target");
             hive_exit();
         }
@@ -165,8 +179,11 @@ static void test3_multi_monitor_actor(void *arg) {
 // Test 4: Demonitor - cancel monitoring before target dies
 // ============================================================================
 
-static void target_slow_exit(void *arg) {
-    (void)arg;
+static void target_slow_exit(void *args, const hive_spawn_info *siblings,
+                             size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     timer_id timer;
     hive_timer_after(500000, &timer); // 500ms delay
@@ -177,13 +194,17 @@ static void target_slow_exit(void *arg) {
     hive_exit();
 }
 
-static void test4_monitor_cancel_actor(void *arg) {
-    (void)arg;
+static void test4_monitor_cancel_actor(void *args,
+                                       const hive_spawn_info *siblings,
+                                       size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 4: Demonitor\n");
 
     // Spawn target
     actor_id target;
-    if (HIVE_FAILED(hive_spawn(target_slow_exit, NULL, &target))) {
+    if (HIVE_FAILED(hive_spawn(target_slow_exit, NULL, NULL, NULL, &target))) {
         TEST_FAIL("spawn target");
         hive_exit();
     }
@@ -229,8 +250,11 @@ static void test4_monitor_cancel_actor(void *arg) {
 
 static bool g_target_received_exit = false;
 
-static void target_waits_for_exit(void *arg) {
-    (void)arg;
+static void target_waits_for_exit(void *args, const hive_spawn_info *siblings,
+                                  size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Wait for any message
     hive_message msg;
@@ -243,8 +267,11 @@ static void target_waits_for_exit(void *arg) {
     hive_exit();
 }
 
-static void monitor_dies_early(void *arg) {
-    actor_id target = *(actor_id *)arg;
+static void monitor_dies_early(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    actor_id target = *(actor_id *)args;
 
     // Monitor the target
     uint32_t ref;
@@ -254,21 +281,26 @@ static void monitor_dies_early(void *arg) {
     hive_exit();
 }
 
-static void test5_coordinator(void *arg) {
-    (void)arg;
+static void test5_coordinator(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 5: Monitor is unidirectional (target not notified when "
            "monitor dies)\n");
 
     // Spawn target first
     actor_id target;
-    if (HIVE_FAILED(hive_spawn(target_waits_for_exit, NULL, &target))) {
+    if (HIVE_FAILED(
+            hive_spawn(target_waits_for_exit, NULL, NULL, NULL, &target))) {
         TEST_FAIL("spawn target");
         hive_exit();
     }
 
     // Spawn monitor that will monitor target then die
     actor_id monitor;
-    if (HIVE_FAILED(hive_spawn(monitor_dies_early, &target, &monitor))) {
+    if (HIVE_FAILED(
+            hive_spawn(monitor_dies_early, NULL, &target, NULL, &monitor))) {
         TEST_FAIL("spawn monitor");
         hive_exit();
     }
@@ -293,8 +325,11 @@ static void test5_coordinator(void *arg) {
 // Test 6: Monitor invalid/dead actor
 // ============================================================================
 
-static void test6_monitor_invalid(void *arg) {
-    (void)arg;
+static void test6_monitor_invalid(void *args, const hive_spawn_info *siblings,
+                                  size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 6: Monitor invalid actor\n");
 
     uint32_t ref;
@@ -322,8 +357,12 @@ static void test6_monitor_invalid(void *arg) {
 // Test 7: Demonitor invalid/non-existent ref
 // ============================================================================
 
-static void test7_monitor_cancel_invalid(void *arg) {
-    (void)arg;
+static void test7_monitor_cancel_invalid(void *args,
+                                         const hive_spawn_info *siblings,
+                                         size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 7: Demonitor invalid ref\n");
 
     // Try to monitor_cancel with invalid ref (0 or very high number)
@@ -348,8 +387,12 @@ static void test7_monitor_cancel_invalid(void *arg) {
 // Test 8: Double monitor_cancel (same ref twice)
 // ============================================================================
 
-static void double_monitor_cancel_target(void *arg) {
-    (void)arg;
+static void double_monitor_cancel_target(void *args,
+                                         const hive_spawn_info *siblings,
+                                         size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     timer_id timer;
     hive_timer_after(500000, &timer);
     hive_message msg;
@@ -357,12 +400,17 @@ static void double_monitor_cancel_target(void *arg) {
     hive_exit();
 }
 
-static void test8_double_monitor_cancel(void *arg) {
-    (void)arg;
+static void test8_double_monitor_cancel(void *args,
+                                        const hive_spawn_info *siblings,
+                                        size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 8: Double monitor_cancel (same ref twice)\n");
 
     actor_id target;
-    if (HIVE_FAILED(hive_spawn(double_monitor_cancel_target, NULL, &target))) {
+    if (HIVE_FAILED(hive_spawn(double_monitor_cancel_target, NULL, NULL, NULL,
+                               &target))) {
         TEST_FAIL("spawn target");
         hive_exit();
     }
@@ -403,15 +451,22 @@ static void test8_double_monitor_cancel(void *arg) {
 // Test 9: Monitor pool exhaustion (HIVE_MONITOR_ENTRY_POOL_SIZE=128)
 // ============================================================================
 
-static void monitor_pool_target(void *arg) {
-    (void)arg;
+static void monitor_pool_target(void *args, const hive_spawn_info *siblings,
+                                size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     hive_message msg;
     hive_ipc_recv(&msg, 5000);
     hive_exit();
 }
 
-static void test9_monitor_pool_exhaustion(void *arg) {
-    (void)arg;
+static void test9_monitor_pool_exhaustion(void *args,
+                                          const hive_spawn_info *siblings,
+                                          size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf(
         "\nTest 9: Monitor pool exhaustion (HIVE_MONITOR_ENTRY_POOL_SIZE=%d)\n",
         HIVE_MONITOR_ENTRY_POOL_SIZE);
@@ -429,7 +484,7 @@ static void test9_monitor_pool_exhaustion(void *arg) {
 
         actor_id target;
         if (HIVE_FAILED(
-                hive_spawn_ex(monitor_pool_target, NULL, &cfg, &target))) {
+                hive_spawn(monitor_pool_target, NULL, NULL, &cfg, &target))) {
             break;
         }
         targets[spawned++] = target;
@@ -474,7 +529,7 @@ static void test9_monitor_pool_exhaustion(void *arg) {
 // Test runner
 // ============================================================================
 
-static void (*test_funcs[])(void *) = {
+static void (*test_funcs[])(void *, const hive_spawn_info *, size_t) = {
     test1_monitor_actor,         test3_multi_monitor_actor,
     test4_monitor_cancel_actor,  test5_coordinator,
     test6_monitor_invalid,       test7_monitor_cancel_invalid,
@@ -483,15 +538,18 @@ static void (*test_funcs[])(void *) = {
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
 
-static void run_all_tests(void *arg) {
-    (void)arg;
+static void run_all_tests(void *args, const hive_spawn_info *siblings,
+                          size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     for (size_t i = 0; i < NUM_TESTS; i++) {
         actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
         cfg.stack_size = TEST_STACK_SIZE(64 * 1024);
 
         actor_id test;
-        if (HIVE_FAILED(hive_spawn_ex(test_funcs[i], NULL, &cfg, &test))) {
+        if (HIVE_FAILED(hive_spawn(test_funcs[i], NULL, NULL, &cfg, &test))) {
             printf("Failed to spawn test %zu\n", i);
             continue;
         }
@@ -521,7 +579,7 @@ int main(void) {
     cfg.stack_size = TEST_STACK_SIZE(128 * 1024);
 
     actor_id runner;
-    if (HIVE_FAILED(hive_spawn_ex(run_all_tests, NULL, &cfg, &runner))) {
+    if (HIVE_FAILED(hive_spawn(run_all_tests, NULL, NULL, &cfg, &runner))) {
         fprintf(stderr, "Failed to spawn test runner\n");
         hive_cleanup();
         return 1;

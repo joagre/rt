@@ -26,8 +26,11 @@ void motor_actor_init(bus_id torque_bus) {
     s_torque_bus = torque_bus;
 }
 
-void motor_actor(void *arg) {
-    (void)arg;
+void motor_actor(void *args, const hive_spawn_info *siblings,
+                 size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Register self with name registry
     hive_status status = hive_register("motor");

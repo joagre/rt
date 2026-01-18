@@ -165,6 +165,40 @@ Background tasks: diagnostics, housekeeping.
 .PP
 Lower numeric value means higher priority. Higher priority actors always run
 before lower priority actors.
+.SS Actor Function Types
+.PP
+.nf
+/* Actor entry function signature */
+typedef void (*actor_fn)(void *args,
+                         const hive_spawn_info *siblings,
+                         size_t sibling_count);
+
+/* Init function signature (called in spawner context) */
+typedef void *(*hive_actor_init_fn)(void *init_args);
+.fi
+.PP
+The actor function receives:
+.IP \(bu 2
+.I args
+\- Return value from init function (or init_args if no init)
+.IP \(bu 2
+.I siblings
+\- Array of spawn info for siblings (or self for standalone actors)
+.IP \(bu 2
+.I sibling_count
+\- Number of entries in siblings array
+.SS Spawn Info Structure
+.PP
+.nf
+typedef struct {
+    const char *name;  /* Actor name (may be NULL) */
+    actor_id id;       /* Actor ID */
+    bool registered;   /* Whether registered in name registry */
+} hive_spawn_info;
+.fi
+.PP
+For standalone actors, siblings[0] contains self info with sibling_count=1.
+For supervised actors, siblings contains all sibling children.
 .SS Actor Configuration
 .PP
 .nf
@@ -173,15 +207,24 @@ typedef struct {
     hive_priority_level priority;
     const char *name;         /* for debugging, may be NULL */
     bool        malloc_stack; /* false = arena (default), true = malloc */
+    bool        auto_register;/* auto-register name in registry */
 } actor_config;
 
 #define HIVE_ACTOR_CONFIG_DEFAULT { \\
     .stack_size = 0, \\
     .priority = HIVE_PRIORITY_NORMAL, \\
     .name = NULL, \\
-    .malloc_stack = false \\
+    .malloc_stack = false, \\
+    .auto_register = false \\
 }
 .fi
+.PP
+If
+.I auto_register
+is true and
+.I name
+is set, the actor is automatically registered in the name registry at spawn.
+Spawn fails with HIVE_ERR_EXISTS if the name is already taken.
 .SS Exit Reasons
 .TP
 .B HIVE_EXIT_NORMAL
@@ -401,7 +444,7 @@ Copy data immediately if needed later.
 .SH EXAMPLE
 .SS Error Handling Pattern
 .nf
-hive_status s = hive_spawn(my_fn, NULL, &id);
+hive_status s = hive_spawn(my_fn, NULL, NULL, NULL, &id);
 if (HIVE_FAILED(s)) {
     printf("Spawn failed: %s\\n", HIVE_ERR_STR(s));
     return -1;

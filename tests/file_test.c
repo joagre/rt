@@ -24,8 +24,11 @@ static int tests_failed = 0;
 // Test file path
 static const char *TEST_FILE = "/tmp/hive_file_test.tmp";
 
-static void run_file_tests(void *arg) {
-    (void)arg;
+static void run_file_tests(void *args, const hive_spawn_info *siblings,
+                           size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // ========================================================================
     // Test 1: Open file for writing (create)
@@ -361,7 +364,7 @@ int main(void) {
     cfg.stack_size = 128 * 1024;
 
     actor_id runner;
-    if (HIVE_FAILED(hive_spawn_ex(run_file_tests, NULL, &cfg, &runner))) {
+    if (HIVE_FAILED(hive_spawn(run_file_tests, NULL, NULL, &cfg, &runner))) {
         fprintf(stderr, "Failed to spawn test runner\n");
         hive_cleanup();
         return 1;

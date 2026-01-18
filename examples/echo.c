@@ -17,8 +17,11 @@ typedef struct {
 } coord_msg;
 
 // Echo server actor
-static void server_actor(void *arg) {
-    actor_id client_id = (actor_id)(uintptr_t)arg;
+static void server_actor(void *args, const hive_spawn_info *siblings,
+                         size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    actor_id client_id = (actor_id)(uintptr_t)args;
 
     HIVE_LOG_DEBUG("Server actor starting (ID: %u, client_id: %u)", hive_self(),
                    client_id);
@@ -113,8 +116,11 @@ static void server_actor(void *arg) {
 static const char *messages[] = {"Hello, Server!", "How are you?", "Goodbye!"};
 
 // Echo client actor
-static void client_actor(void *arg) {
-    (void)arg;
+static void client_actor(void *args, const hive_spawn_info *siblings,
+                         size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     HIVE_LOG_DEBUG("Client actor starting (ID: %u)", hive_self());
     printf("Client actor started (ID: %u)\n", hive_self());
@@ -214,7 +220,7 @@ int main(void) {
 
     actor_id client_id;
     if (HIVE_FAILED(
-            hive_spawn_ex(client_actor, NULL, &client_cfg, &client_id))) {
+            hive_spawn(client_actor, NULL, NULL, &client_cfg, &client_id))) {
         fprintf(stderr, "Failed to spawn client actor\n");
         hive_cleanup();
         return 1;
@@ -226,8 +232,8 @@ int main(void) {
     server_cfg.priority = HIVE_PRIORITY_NORMAL;
 
     actor_id server_id;
-    if (HIVE_FAILED(hive_spawn_ex(server_actor, (void *)(uintptr_t)client_id,
-                                  &server_cfg, &server_id))) {
+    if (HIVE_FAILED(hive_spawn(server_actor, NULL, (void *)(uintptr_t)client_id,
+                               &server_cfg, &server_id))) {
         fprintf(stderr, "Failed to spawn server actor\n");
         hive_cleanup();
         return 1;

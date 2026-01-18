@@ -45,8 +45,11 @@ static uint64_t time_ms(void) {
 // Test 1: ASYNC send/recv basic
 // ============================================================================
 
-static void test1_async_basic(void *arg) {
-    (void)arg;
+static void test1_async_basic(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 1: ASYNC send/recv basic\n");
 
     actor_id self = hive_self();
@@ -86,8 +89,12 @@ static void test1_async_basic(void *arg) {
 // Test 2: ASYNC send to invalid actor
 // ============================================================================
 
-static void test2_async_invalid_receiver(void *arg) {
-    (void)arg;
+static void test2_async_invalid_receiver(void *args,
+                                         const hive_spawn_info *siblings,
+                                         size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 2: ASYNC send to invalid actor\n");
 
     int data = 42;
@@ -114,8 +121,11 @@ static void test2_async_invalid_receiver(void *arg) {
 // Test 3: Message ordering (FIFO)
 // ============================================================================
 
-static void test3_message_ordering(void *arg) {
-    (void)arg;
+static void test3_message_ordering(void *args, const hive_spawn_info *siblings,
+                                   size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 3: Message ordering (FIFO)\n");
 
     actor_id self = hive_self();
@@ -157,14 +167,20 @@ static void test3_message_ordering(void *arg) {
 static actor_id g_receiver_id = ACTOR_ID_INVALID;
 static int g_messages_received = 0;
 
-static void sender_actor(void *arg) {
-    int id = *(int *)arg;
+static void sender_actor(void *args, const hive_spawn_info *siblings,
+                         size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int id = *(int *)args;
     hive_ipc_notify(g_receiver_id, 0, &id, sizeof(id));
     hive_exit();
 }
 
-static void test4_multiple_senders(void *arg) {
-    (void)arg;
+static void test4_multiple_senders(void *args, const hive_spawn_info *siblings,
+                                   size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 4: Multiple senders to one receiver\n");
 
     g_receiver_id = hive_self();
@@ -174,7 +190,7 @@ static void test4_multiple_senders(void *arg) {
     static int sender_ids[5] = {1, 2, 3, 4, 5};
     for (int i = 0; i < 5; i++) {
         actor_id sender;
-        hive_spawn(sender_actor, &sender_ids[i], &sender);
+        hive_spawn(sender_actor, NULL, &sender_ids[i], NULL, &sender);
     }
 
     // Give senders time to run
@@ -210,8 +226,11 @@ static void test4_multiple_senders(void *arg) {
 // Test 5: Send to self (allowed - no deadlock since all sends are async-style)
 // ============================================================================
 
-static void test5_send_to_self(void *arg) {
-    (void)arg;
+static void test5_send_to_self(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 5: Send to self (allowed)\n");
 
     actor_id self = hive_self();
@@ -242,8 +261,12 @@ static void test5_send_to_self(void *arg) {
 // Test 6: Request/reply pattern
 // ============================================================================
 
-static void request_reply_server_actor(void *arg) {
-    (void)arg;
+static void request_reply_server_actor(void *args,
+                                       const hive_spawn_info *siblings,
+                                       size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Wait for request
     hive_message msg;
@@ -262,12 +285,15 @@ static void request_reply_server_actor(void *arg) {
     hive_exit();
 }
 
-static void test6_request_reply(void *arg) {
-    (void)arg;
+static void test6_request_reply(void *args, const hive_spawn_info *siblings,
+                                size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 6: Request/reply pattern\n");
 
     actor_id server;
-    hive_spawn(request_reply_server_actor, NULL, &server);
+    hive_spawn(request_reply_server_actor, NULL, NULL, NULL, &server);
 
     // Give server time to start
     hive_yield();
@@ -306,8 +332,11 @@ static void test6_request_reply(void *arg) {
 // Test 7: hive_ipc_pending and hive_ipc_count
 // ============================================================================
 
-static void test7_pending_count(void *arg) {
-    (void)arg;
+static void test7_pending_count(void *args, const hive_spawn_info *siblings,
+                                size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 7: hive_ipc_pending and hive_ipc_count\n");
 
     actor_id self = hive_self();
@@ -363,8 +392,11 @@ static void test7_pending_count(void *arg) {
 // Test 8: recv with timeout=0 (non-blocking)
 // ============================================================================
 
-static void test8_nonblocking_recv(void *arg) {
-    (void)arg;
+static void test8_nonblocking_recv(void *args, const hive_spawn_info *siblings,
+                                   size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 8: recv with timeout=0 (non-blocking)\n");
 
     hive_message msg;
@@ -405,8 +437,11 @@ static void test8_nonblocking_recv(void *arg) {
 // Test 9: recv with timeout > 0
 // ============================================================================
 
-static void test9_timed_recv(void *arg) {
-    (void)arg;
+static void test9_timed_recv(void *args, const hive_spawn_info *siblings,
+                             size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 9: recv with timeout > 0\n");
 
     hive_message msg;
@@ -438,8 +473,11 @@ static void test9_timed_recv(void *arg) {
 // Test 10: recv with timeout < 0 (block forever) - message arrives
 // ============================================================================
 
-static void delayed_sender_actor(void *arg) {
-    actor_id target = *(actor_id *)arg;
+static void delayed_sender_actor(void *args, const hive_spawn_info *siblings,
+                                 size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    actor_id target = *(actor_id *)args;
 
     // Wait 50ms then send
     timer_id timer;
@@ -453,13 +491,17 @@ static void delayed_sender_actor(void *arg) {
     hive_exit();
 }
 
-static void test10_block_forever_recv(void *arg) {
-    (void)arg;
+static void test10_block_forever_recv(void *args,
+                                      const hive_spawn_info *siblings,
+                                      size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 10: recv with timeout < 0 (block forever)\n");
 
     actor_id self = hive_self();
     actor_id sender;
-    hive_spawn(delayed_sender_actor, &self, &sender);
+    hive_spawn(delayed_sender_actor, NULL, &self, NULL, &sender);
 
     uint64_t start = time_ms();
     hive_message msg;
@@ -489,8 +531,12 @@ static void test10_block_forever_recv(void *arg) {
 // Test 11: Message size limits
 // ============================================================================
 
-static void test11_message_size_limits(void *arg) {
-    (void)arg;
+static void test11_message_size_limits(void *args,
+                                       const hive_spawn_info *siblings,
+                                       size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 11: Message size limits\n");
 
     actor_id self = hive_self();
@@ -538,8 +584,11 @@ static void test11_message_size_limits(void *arg) {
 // Test 12: Selective receive (hive_ipc_recv_match)
 // ============================================================================
 
-static void selective_sender_actor(void *arg) {
-    actor_id target = *(actor_id *)arg;
+static void selective_sender_actor(void *args, const hive_spawn_info *siblings,
+                                   size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    actor_id target = *(actor_id *)args;
 
     // Send three messages with different data
     int a = 1, b = 2, c = 3;
@@ -550,14 +599,18 @@ static void selective_sender_actor(void *arg) {
     hive_exit();
 }
 
-static void test12_selective_receive(void *arg) {
-    (void)arg;
+static void test12_selective_receive(void *args,
+                                     const hive_spawn_info *siblings,
+                                     size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 12: Selective receive (hive_ipc_recv_match)\n");
     fflush(stdout);
 
     actor_id self = hive_self();
     actor_id sender;
-    hive_spawn(selective_sender_actor, &self, &sender);
+    hive_spawn(selective_sender_actor, NULL, &self, NULL, &sender);
 
     // Wait for sender to send all messages
     timer_id timer;
@@ -595,8 +648,12 @@ static void test12_selective_receive(void *arg) {
 // Test 13: Send with zero length
 // ============================================================================
 
-static void test13_zero_length_message(void *arg) {
-    (void)arg;
+static void test13_zero_length_message(void *args,
+                                       const hive_spawn_info *siblings,
+                                       size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 13: Send with zero length payload\n");
 
     actor_id self = hive_self();
@@ -624,17 +681,24 @@ static void test13_zero_length_message(void *arg) {
 // Test 14: Send to dead actor
 // ============================================================================
 
-static void quickly_dying_actor(void *arg) {
-    (void)arg;
+static void quickly_dying_actor(void *args, const hive_spawn_info *siblings,
+                                size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     hive_exit();
 }
 
-static void test14_send_to_dead_actor(void *arg) {
-    (void)arg;
+static void test14_send_to_dead_actor(void *args,
+                                      const hive_spawn_info *siblings,
+                                      size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 14: Send to dead actor\n");
 
     actor_id target;
-    hive_spawn(quickly_dying_actor, NULL, &target);
+    hive_spawn(quickly_dying_actor, NULL, NULL, NULL, &target);
     hive_link(target);
 
     // Wait for it to die
@@ -667,8 +731,12 @@ static void test14_send_to_dead_actor(void *arg) {
 #define POOL_TEST_MSG_COUNT 100
 #endif
 
-static void test15_message_pool_info(void *arg) {
-    (void)arg;
+static void test15_message_pool_info(void *args,
+                                     const hive_spawn_info *siblings,
+                                     size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 15: Message pool info (HIVE_MESSAGE_DATA_POOL_SIZE=%d)\n",
            HIVE_MESSAGE_DATA_POOL_SIZE);
     fflush(stdout);
@@ -712,8 +780,11 @@ static void test15_message_pool_info(void *arg) {
 // Test 16: NULL pointer handling - hive_ipc_notify with NULL data (non-zero len)
 // ============================================================================
 
-static void test16_null_data_send(void *arg) {
-    (void)arg;
+static void test16_null_data_send(void *args, const hive_spawn_info *siblings,
+                                  size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 16: NULL data pointer with non-zero length\n");
     fflush(stdout);
 
@@ -737,16 +808,23 @@ static void test16_null_data_send(void *arg) {
 // Test 17: Mailbox integrity after many spawn/death cycles (leak test)
 // ============================================================================
 
-static void short_lived_actor(void *arg) {
-    actor_id parent = *(actor_id *)arg;
+static void short_lived_actor(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    actor_id parent = *(actor_id *)args;
     // Send a message then die
     int data = 42;
     hive_ipc_notify(parent, 0, &data, sizeof(data));
     hive_exit();
 }
 
-static void test17_spawn_death_cycle_leak(void *arg) {
-    (void)arg;
+static void test17_spawn_death_cycle_leak(void *args,
+                                          const hive_spawn_info *siblings,
+                                          size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 17: Mailbox integrity after spawn/death cycles\n");
     fflush(stdout);
 
@@ -761,7 +839,7 @@ static void test17_spawn_death_cycle_leak(void *arg) {
 
         actor_id child;
         if (HIVE_FAILED(
-                hive_spawn_ex(short_lived_actor, &self, &cfg, &child))) {
+                hive_spawn(short_lived_actor, NULL, &self, &cfg, &child))) {
             printf("    Spawn failed at cycle %d\n", i);
             break;
         }
@@ -791,8 +869,12 @@ static void test17_spawn_death_cycle_leak(void *arg) {
 // Test 18: Request to dying actor returns HIVE_ERR_CLOSED
 // ============================================================================
 
-static void dying_without_reply_actor(void *arg) {
-    (void)arg;
+static void dying_without_reply_actor(void *args,
+                                      const hive_spawn_info *siblings,
+                                      size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     // Wait briefly to receive request, then die without replying
     hive_message msg;
     hive_ipc_recv(&msg, 500);
@@ -800,13 +882,17 @@ static void dying_without_reply_actor(void *arg) {
     hive_exit();
 }
 
-static void test18_request_to_dying_actor(void *arg) {
-    (void)arg;
+static void test18_request_to_dying_actor(void *args,
+                                          const hive_spawn_info *siblings,
+                                          size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 18: Request to dying actor returns HIVE_ERR_CLOSED\n");
     fflush(stdout);
 
     actor_id target;
-    hive_spawn(dying_without_reply_actor, NULL, &target);
+    hive_spawn(dying_without_reply_actor, NULL, NULL, NULL, &target);
 
     // Give target time to start
     hive_yield();
@@ -854,20 +940,27 @@ static void test18_request_to_dying_actor(void *arg) {
 #define TEST19_TAG_A 100
 #define TEST19_TAG_B 200
 
-static void test19_sender(void *arg) {
-    actor_id target = *(actor_id *)arg;
+static void test19_sender(void *args, const hive_spawn_info *siblings,
+                          size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    actor_id target = *(actor_id *)args;
     // Send message matching first filter (TAG_A)
     hive_ipc_notify(target, TEST19_TAG_A, "hello", 5);
     hive_exit();
 }
 
-static void test19_multi_filter_basic(void *arg) {
-    (void)arg;
+static void test19_multi_filter_basic(void *args,
+                                      const hive_spawn_info *siblings,
+                                      size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 19: Multi-filter receive - basic (match first filter)\n");
 
     actor_id self = hive_self();
     actor_id sender;
-    hive_spawn(test19_sender, &self, &sender);
+    hive_spawn(test19_sender, NULL, &self, NULL, &sender);
 
     // Wait for either TAG_A or TAG_B
     hive_recv_filter filters[] = {
@@ -894,20 +987,27 @@ static void test19_multi_filter_basic(void *arg) {
 // Test 20: Multi-filter receive - match second filter
 // ============================================================================
 
-static void test20_sender(void *arg) {
-    actor_id target = *(actor_id *)arg;
+static void test20_sender(void *args, const hive_spawn_info *siblings,
+                          size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    actor_id target = *(actor_id *)args;
     // Send message matching second filter (TAG_B)
     hive_ipc_notify(target, TEST19_TAG_B, "world", 5);
     hive_exit();
 }
 
-static void test20_multi_filter_second(void *arg) {
-    (void)arg;
+static void test20_multi_filter_second(void *args,
+                                       const hive_spawn_info *siblings,
+                                       size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 20: Multi-filter receive - match second filter\n");
 
     actor_id self = hive_self();
     actor_id sender;
-    hive_spawn(test20_sender, &self, &sender);
+    hive_spawn(test20_sender, NULL, &self, NULL, &sender);
 
     // Wait for either TAG_A or TAG_B
     hive_recv_filter filters[] = {
@@ -934,8 +1034,12 @@ static void test20_multi_filter_second(void *arg) {
 // Test 21: Multi-filter receive with timeout (no matching message)
 // ============================================================================
 
-static void test21_multi_filter_timeout(void *arg) {
-    (void)arg;
+static void test21_multi_filter_timeout(void *args,
+                                        const hive_spawn_info *siblings,
+                                        size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 21: Multi-filter receive with timeout\n");
 
     // Wait for messages that won't arrive
@@ -960,8 +1064,12 @@ static void test21_multi_filter_timeout(void *arg) {
 // Test 22: Multi-filter non-blocking returns WOULDBLOCK
 // ============================================================================
 
-static void test22_multi_filter_nonblocking(void *arg) {
-    (void)arg;
+static void test22_multi_filter_nonblocking(void *args,
+                                            const hive_spawn_info *siblings,
+                                            size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 22: Multi-filter non-blocking returns WOULDBLOCK\n");
 
     hive_recv_filter filters[] = {
@@ -984,7 +1092,7 @@ static void test22_multi_filter_nonblocking(void *arg) {
 // Test runner
 // ============================================================================
 
-static void (*test_funcs[])(void *) = {
+static void (*test_funcs[])(void *, const hive_spawn_info *, size_t) = {
     test1_async_basic,
     test2_async_invalid_receiver,
     test3_message_ordering,
@@ -1011,15 +1119,18 @@ static void (*test_funcs[])(void *) = {
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
 
-static void run_all_tests(void *arg) {
-    (void)arg;
+static void run_all_tests(void *args, const hive_spawn_info *siblings,
+                          size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     for (size_t i = 0; i < NUM_TESTS; i++) {
         actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
         cfg.stack_size = TEST_STACK_SIZE(64 * 1024);
 
         actor_id test;
-        if (HIVE_FAILED(hive_spawn_ex(test_funcs[i], NULL, &cfg, &test))) {
+        if (HIVE_FAILED(hive_spawn(test_funcs[i], NULL, NULL, &cfg, &test))) {
             printf("Failed to spawn test %zu\n", i);
             continue;
         }
@@ -1047,7 +1158,7 @@ int main(void) {
     cfg.stack_size = TEST_STACK_SIZE(128 * 1024);
 
     actor_id runner;
-    if (HIVE_FAILED(hive_spawn_ex(run_all_tests, NULL, &cfg, &runner))) {
+    if (HIVE_FAILED(hive_spawn(run_all_tests, NULL, NULL, &cfg, &runner))) {
         fprintf(stderr, "Failed to spawn test runner\n");
         hive_cleanup();
         return 1;

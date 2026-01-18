@@ -41,8 +41,11 @@ static int g_accepted_fd = -1;
 static bool g_server_ready = false;
 static bool g_client_connected = false;
 
-static void server_actor(void *arg) {
-    actor_id client = *(actor_id *)arg;
+static void server_actor(void *args, const hive_spawn_info *siblings,
+                         size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    actor_id client = *(actor_id *)args;
     (void)client;
 
     // Listen on port
@@ -85,8 +88,11 @@ static void server_actor(void *arg) {
     hive_exit();
 }
 
-static void client_actor(void *arg) {
-    (void)arg;
+static void client_actor(void *args, const hive_spawn_info *siblings,
+                         size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Wait for server to be ready
     while (!g_server_ready) {
@@ -134,8 +140,11 @@ static void client_actor(void *arg) {
     hive_exit();
 }
 
-static void test1_listen_accept(void *arg) {
-    (void)arg;
+static void test1_listen_accept(void *args, const hive_spawn_info *siblings,
+                                size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 1: Listen and accept connection\n");
 
     g_server_ready = false;
@@ -148,12 +157,12 @@ static void test1_listen_accept(void *arg) {
 
     // Spawn server
     actor_id server;
-    hive_spawn(server_actor, &self, &server);
+    hive_spawn(server_actor, NULL, &self, NULL, &server);
     hive_link(server);
 
     // Spawn client
     actor_id client;
-    hive_spawn(client_actor, NULL, &client);
+    hive_spawn(client_actor, NULL, NULL, NULL, &client);
     hive_link(client);
 
     // Wait for both to complete
@@ -179,8 +188,11 @@ static void test1_listen_accept(void *arg) {
 static char g_received_data[64] = {0};
 static size_t g_received_len = 0;
 
-static void echo_server_actor(void *arg) {
-    (void)arg;
+static void echo_server_actor(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     int listen_fd = -1;
     hive_status status = hive_net_listen(TEST_PORT + 1, &listen_fd);
@@ -217,8 +229,11 @@ static void echo_server_actor(void *arg) {
 static bool g_echo_received = false;
 static char g_echo_reply[64] = {0};
 
-static void echo_client_actor(void *arg) {
-    (void)arg;
+static void echo_client_actor(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     while (!g_server_ready) {
         hive_yield();
@@ -253,8 +268,11 @@ static void echo_client_actor(void *arg) {
     hive_exit();
 }
 
-static void test2_send_receive(void *arg) {
-    (void)arg;
+static void test2_send_receive(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 2: Send and receive data\n");
 
     g_server_ready = false;
@@ -263,11 +281,11 @@ static void test2_send_receive(void *arg) {
     memset(g_echo_reply, 0, sizeof(g_echo_reply));
 
     actor_id server;
-    hive_spawn(echo_server_actor, NULL, &server);
+    hive_spawn(echo_server_actor, NULL, NULL, NULL, &server);
     hive_link(server);
 
     actor_id client;
-    hive_spawn(echo_client_actor, NULL, &client);
+    hive_spawn(echo_client_actor, NULL, NULL, NULL, &client);
     hive_link(client);
 
     hive_message msg;
@@ -295,8 +313,11 @@ static void test2_send_receive(void *arg) {
 // Test 3: Accept timeout
 // ============================================================================
 
-static void test3_accept_timeout(void *arg) {
-    (void)arg;
+static void test3_accept_timeout(void *args, const hive_spawn_info *siblings,
+                                 size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 3: Accept timeout\n");
 
     int listen_fd = -1;
@@ -327,8 +348,11 @@ static void test3_accept_timeout(void *arg) {
 // Test 4: Connect to invalid address
 // ============================================================================
 
-static void test4_connect_invalid(void *arg) {
-    (void)arg;
+static void test4_connect_invalid(void *args, const hive_spawn_info *siblings,
+                                  size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 4: Connect to invalid address\n");
 
     int fd = -1;
@@ -350,8 +374,12 @@ static void test4_connect_invalid(void *arg) {
 // Test 5: Short timeout accept
 // ============================================================================
 
-static void test5_short_timeout_accept(void *arg) {
-    (void)arg;
+static void test5_short_timeout_accept(void *args,
+                                       const hive_spawn_info *siblings,
+                                       size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 5: Short timeout accept\n");
 
     int listen_fd = -1;
@@ -382,8 +410,11 @@ static void test5_short_timeout_accept(void *arg) {
 // Test 6: Close and reuse port
 // ============================================================================
 
-static void test6_close_reuse(void *arg) {
-    (void)arg;
+static void test6_close_reuse(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 6: Close and reuse port\n");
 
     // First listen
@@ -422,8 +453,12 @@ static void test6_close_reuse(void *arg) {
 //       blocks instead of returning immediately.
 // ============================================================================
 
-static void test7_nonblocking_accept(void *arg) {
-    (void)arg;
+static void test7_nonblocking_accept(void *args,
+                                     const hive_spawn_info *siblings,
+                                     size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 7: Non-blocking accept (timeout=0)\n");
 
     int listen_fd = -1;
@@ -467,8 +502,11 @@ static void test7_nonblocking_accept(void *arg) {
 // Test 8: Recv timeout
 // ============================================================================
 
-static void test8_recv_timeout(void *arg) {
-    (void)arg;
+static void test8_recv_timeout(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 8: Recv timeout\n");
 
     // Create a connection to ourselves
@@ -526,8 +564,11 @@ static void test8_recv_timeout(void *arg) {
 // Test 9: Non-blocking recv (timeout=0)
 // ============================================================================
 
-static void test9_nonblocking_recv(void *arg) {
-    (void)arg;
+static void test9_nonblocking_recv(void *args, const hive_spawn_info *siblings,
+                                   size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 9: Non-blocking recv (timeout=0)\n");
 
     // Create a connection to ourselves
@@ -588,8 +629,11 @@ static void test9_nonblocking_recv(void *arg) {
 // Test 10: Non-blocking send (timeout=0)
 // ============================================================================
 
-static void test10_nonblocking_send(void *arg) {
-    (void)arg;
+static void test10_nonblocking_send(void *args, const hive_spawn_info *siblings,
+                                    size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 10: Non-blocking send (timeout=0)\n");
 
     // Create a connection to ourselves
@@ -641,8 +685,11 @@ static void test10_nonblocking_send(void *arg) {
 // Test 11: Connect timeout
 // ============================================================================
 
-static void test11_connect_timeout(void *arg) {
-    (void)arg;
+static void test11_connect_timeout(void *args, const hive_spawn_info *siblings,
+                                   size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 11: Connect timeout to non-routable address\n");
 
     // Try to connect to a non-routable address (should timeout)
@@ -680,8 +727,11 @@ static void test11_connect_timeout(void *arg) {
 
 static volatile bool g_recv_actor_started = false;
 
-static void blocked_recv_actor(void *arg) {
-    int fd = *(int *)arg;
+static void blocked_recv_actor(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int fd = *(int *)args;
     g_recv_actor_started = true;
 
     // Block on recv - will never complete because no one sends
@@ -693,8 +743,12 @@ static void blocked_recv_actor(void *arg) {
     hive_exit();
 }
 
-static void test12_actor_death_during_recv(void *arg) {
-    (void)arg;
+static void test12_actor_death_during_recv(void *args,
+                                           const hive_spawn_info *siblings,
+                                           size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 12: Actor death during blocked recv\n");
     fflush(stdout);
 
@@ -726,7 +780,8 @@ static void test12_actor_death_during_recv(void *arg) {
     // Spawn actor that will block on recv
     g_recv_actor_started = false;
     actor_id recv_actor;
-    if (HIVE_FAILED(hive_spawn(blocked_recv_actor, &server_fd, &recv_actor))) {
+    if (HIVE_FAILED(hive_spawn(blocked_recv_actor, NULL, &server_fd, NULL,
+                               &recv_actor))) {
         TEST_FAIL("spawn blocked_recv_actor");
         hive_net_close(server_fd);
         hive_net_close(client_fd);
@@ -775,7 +830,9 @@ static void test12_actor_death_during_recv(void *arg) {
 // Test runner
 // ============================================================================
 
-static void (*test_funcs[])(void *) = {
+typedef void (*test_func_t)(void *, const hive_spawn_info *, size_t);
+
+static test_func_t test_funcs[] = {
     test1_listen_accept,        test2_send_receive,
     test3_accept_timeout,       test4_connect_invalid,
     test5_short_timeout_accept, test6_close_reuse,
@@ -786,15 +843,18 @@ static void (*test_funcs[])(void *) = {
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
 
-static void run_all_tests(void *arg) {
-    (void)arg;
+static void run_all_tests(void *args, const hive_spawn_info *siblings,
+                          size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     for (size_t i = 0; i < NUM_TESTS; i++) {
         actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
         cfg.stack_size = 64 * 1024;
 
         actor_id test;
-        if (HIVE_FAILED(hive_spawn_ex(test_funcs[i], NULL, &cfg, &test))) {
+        if (HIVE_FAILED(hive_spawn(test_funcs[i], NULL, NULL, &cfg, &test))) {
             printf("Failed to spawn test %zu\n", i);
             continue;
         }
@@ -822,7 +882,7 @@ int main(void) {
     cfg.stack_size = 128 * 1024;
 
     actor_id runner;
-    if (HIVE_FAILED(hive_spawn_ex(run_all_tests, NULL, &cfg, &runner))) {
+    if (HIVE_FAILED(hive_spawn(run_all_tests, NULL, NULL, &cfg, &runner))) {
         fprintf(stderr, "Failed to spawn test runner\n");
         hive_cleanup();
         return 1;

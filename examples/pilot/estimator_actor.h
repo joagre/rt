@@ -11,12 +11,14 @@
 #define ESTIMATOR_ACTOR_H
 
 #include "hive_bus.h"
+#include "hive_types.h"
 
 // Initialize the estimator actor module with bus IDs.
 // Must be called before spawning the actor.
 void estimator_actor_init(bus_id sensor_bus, bus_id state_bus);
 
 // Actor entry point - spawn this with hive_spawn()
-void estimator_actor(void *arg);
+void estimator_actor(void *args, const hive_spawn_info *siblings,
+                     size_t sibling_count);
 
 #endif // ESTIMATOR_ACTOR_H

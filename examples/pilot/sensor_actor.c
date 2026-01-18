@@ -20,8 +20,11 @@ void sensor_actor_init(bus_id sensor_bus) {
     s_sensor_bus = sensor_bus;
 }
 
-void sensor_actor(void *arg) {
-    (void)arg;
+void sensor_actor(void *args, const hive_spawn_info *siblings,
+                  size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     timer_id timer;
     hive_status status = hive_timer_every(SENSOR_INTERVAL_US, &timer);

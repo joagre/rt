@@ -14,6 +14,7 @@ void rate_actor_init(bus_id state_bus, bus_id thrust_bus,
                      bus_id rate_setpoint_bus, bus_id torque_bus);
 
 // Actor entry point - spawn this with hive_spawn()
-void rate_actor(void *arg);
+void rate_actor(void *args, const hive_spawn_info *siblings,
+                size_t sibling_count);
 
 #endif // RATE_ACTOR_H

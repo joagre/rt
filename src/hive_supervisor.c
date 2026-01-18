@@ -3,6 +3,7 @@
 #include "hive_link.h"
 #include "hive_ipc.h"
 #include "hive_timer.h"
+#include "hive_actor.h"
 #include "hive_log.h"
 #include <string.h>
 
@@ -40,11 +41,14 @@ typedef struct {
 
     // Child specs (copied from user)
     hive_child_spec children[HIVE_MAX_SUPERVISOR_CHILDREN];
-    // Storage for copied child arguments
+    // Storage for copied child init_args
     uint8_t arg_storage[HIVE_MAX_SUPERVISOR_CHILDREN][HIVE_MAX_MESSAGE_SIZE];
 
     // Runtime state
     child_state child_states[HIVE_MAX_SUPERVISOR_CHILDREN];
+
+    // Sibling info array (built during two-phase start)
+    hive_spawn_info sibling_info[HIVE_MAX_SUPERVISOR_CHILDREN];
 
     // Restart intensity tracking (ring buffer)
     restart_record restarts[HIVE_MAX_SUPERVISOR_CHILDREN];
@@ -135,39 +139,129 @@ static bool restart_intensity_exceeded(supervisor_state *sup) {
 // Child Management
 // =============================================================================
 
+// Build sibling info array from current child states
+static void build_sibling_info(supervisor_state *sup) {
+    for (size_t i = 0; i < sup->num_children; i++) {
+        sup->sibling_info[i].name = sup->children[i].name;
+        sup->sibling_info[i].id = sup->child_states[i].id;
+        sup->sibling_info[i].registered = sup->children[i].auto_register;
+    }
+}
+
+// Update actor's startup info to point to supervisor's sibling array
+static void set_child_siblings(supervisor_state *sup, size_t index) {
+    actor *a = hive_actor_get(sup->child_states[index].id);
+    if (a) {
+        a->startup_siblings = sup->sibling_info;
+        a->startup_sibling_count = sup->num_children;
+    }
+}
+
+// Spawn a single child with sibling info
 static hive_status spawn_child(supervisor_state *sup, size_t index) {
     hive_child_spec *spec = &sup->children[index];
     child_state *state = &sup->child_states[index];
 
-    // Determine argument to pass
-    void *arg = spec->arg;
-    if (spec->arg_size > 0) {
+    // Determine init_args to pass
+    void *init_args = spec->init_args;
+    if (spec->init_args_size > 0) {
         // Use copied argument from storage
-        arg = sup->arg_storage[index];
+        init_args = sup->arg_storage[index];
     }
 
-    // Spawn the child
+    // Build actor config with name from child spec
+    actor_config cfg = spec->actor_cfg;
+    cfg.name = spec->name;
+    cfg.auto_register = spec->auto_register;
+
+    // Spawn the child using new spawn API
     hive_status status =
-        hive_spawn_ex(spec->fn, arg, &spec->actor_cfg, &state->id);
+        hive_spawn(spec->start, spec->init, init_args, &cfg, &state->id);
     if (HIVE_FAILED(status)) {
-        HIVE_LOG_ERROR("[SUP] Failed to spawn child \"%s\": %s", spec->id,
+        HIVE_LOG_ERROR("[SUP] Failed to spawn child \"%s\": %s", spec->name,
                        HIVE_ERR_STR(status));
         return status;
     }
+
+    // Update sibling info for this child
+    sup->sibling_info[index].name = spec->name;
+    sup->sibling_info[index].id = state->id;
+    sup->sibling_info[index].registered = spec->auto_register;
+
+    // Set sibling info in the actor
+    set_child_siblings(sup, index);
 
     // Monitor the child
     status = hive_monitor(state->id, &state->monitor_ref);
     if (HIVE_FAILED(status)) {
         // Child spawned but monitor failed - child will run but we won't track it
-        HIVE_LOG_ERROR("[SUP] Failed to monitor child \"%s\": %s", spec->id,
+        HIVE_LOG_ERROR("[SUP] Failed to monitor child \"%s\": %s", spec->name,
                        HIVE_ERR_STR(status));
         state->running = true;
         return status;
     }
 
-    HIVE_LOG_DEBUG("[SUP] Child \"%s\" spawned (actor %u)", spec->id,
+    HIVE_LOG_DEBUG("[SUP] Child \"%s\" spawned (actor %u)", spec->name,
                    state->id);
     state->running = true;
+    return HIVE_SUCCESS;
+}
+
+// Two-phase start: spawn all children, then set sibling info for all
+static hive_status spawn_all_children_two_phase(supervisor_state *sup) {
+    // Phase 1: Spawn all children
+    for (size_t i = 0; i < sup->num_children; i++) {
+        hive_child_spec *spec = &sup->children[i];
+        child_state *state = &sup->child_states[i];
+
+        // Determine init_args to pass
+        void *init_args = spec->init_args;
+        if (spec->init_args_size > 0) {
+            init_args = sup->arg_storage[i];
+        }
+
+        // Build actor config
+        actor_config cfg = spec->actor_cfg;
+        cfg.name = spec->name;
+        cfg.auto_register = spec->auto_register;
+
+        // Spawn the child
+        hive_status status =
+            hive_spawn(spec->start, spec->init, init_args, &cfg, &state->id);
+        if (HIVE_FAILED(status)) {
+            HIVE_LOG_ERROR("[SUP] Failed to spawn child \"%s\": %s", spec->name,
+                           HIVE_ERR_STR(status));
+            // Rollback: kill all previously spawned children
+            for (size_t j = 0; j < i; j++) {
+                hive_kill(sup->child_states[j].id);
+                sup->child_states[j].id = ACTOR_ID_INVALID;
+                sup->child_states[j].running = false;
+            }
+            return status;
+        }
+
+        state->running = true;
+    }
+
+    // Phase 2: Build complete sibling info array
+    build_sibling_info(sup);
+
+    // Phase 3: Set sibling info for all children and add monitors
+    for (size_t i = 0; i < sup->num_children; i++) {
+        set_child_siblings(sup, i);
+
+        // Monitor the child
+        hive_status status = hive_monitor(sup->child_states[i].id,
+                                          &sup->child_states[i].monitor_ref);
+        if (HIVE_FAILED(status)) {
+            HIVE_LOG_ERROR("[SUP] Failed to monitor child \"%s\": %s",
+                           sup->children[i].name, HIVE_ERR_STR(status));
+        }
+
+        HIVE_LOG_DEBUG("[SUP] Child \"%s\" spawned (actor %u)",
+                       sup->children[i].name, sup->child_states[i].id);
+    }
+
     return HIVE_SUCCESS;
 }
 
@@ -312,7 +406,7 @@ static hive_status handle_child_exit(supervisor_state *sup, actor_id child,
         return HIVE_SUCCESS;
     }
 
-    HIVE_LOG_WARN("[SUP] Child \"%s\" exited (%s)", sup->children[index].id,
+    HIVE_LOG_WARN("[SUP] Child \"%s\" exited (%s)", sup->children[index].name,
                   hive_exit_reason_str(reason));
 
     switch (sup->strategy) {
@@ -331,24 +425,25 @@ static hive_status handle_child_exit(supervisor_state *sup, actor_id child,
 // Supervisor Actor
 // =============================================================================
 
-static void supervisor_actor_fn(void *arg) {
-    supervisor_state *sup = (supervisor_state *)arg;
+static void supervisor_actor_fn(void *args, const hive_spawn_info *siblings,
+                                size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    supervisor_state *sup = (supervisor_state *)args;
 
     HIVE_LOG_INFO("[SUP] Starting with %zu children (strategy: %s)",
                   sup->num_children, hive_restart_strategy_str(sup->strategy));
 
-    // Spawn all children
-    for (size_t i = 0; i < sup->num_children; i++) {
-        hive_status status = spawn_child(sup, i);
-        if (HIVE_FAILED(status)) {
-            // Failed to spawn initial child - shut down
-            HIVE_LOG_ERROR("[SUP] Startup failed - shutting down");
-            if (sup->on_shutdown) {
-                sup->on_shutdown(sup->shutdown_ctx);
-            }
-            free_supervisor(sup);
-            hive_exit();
+    // Spawn all children using two-phase start
+    hive_status status = spawn_all_children_two_phase(sup);
+    if (HIVE_FAILED(status)) {
+        // Failed to spawn initial children - shut down
+        HIVE_LOG_ERROR("[SUP] Startup failed - shutting down");
+        if (sup->on_shutdown) {
+            sup->on_shutdown(sup->shutdown_ctx);
         }
+        free_supervisor(sup);
+        hive_exit();
     }
 
     HIVE_LOG_INFO("[SUP] All %zu children started", sup->num_children);
@@ -423,11 +518,12 @@ hive_status hive_supervisor_start(const hive_supervisor_config *config,
 
     // Validate child specs
     for (size_t i = 0; i < config->num_children; i++) {
-        if (!config->children[i].fn) {
+        if (!config->children[i].start) {
             return HIVE_ERROR(HIVE_ERR_INVALID, "NULL child function");
         }
-        if (config->children[i].arg_size > HIVE_MAX_MESSAGE_SIZE) {
-            return HIVE_ERROR(HIVE_ERR_INVALID, "child arg_size too large");
+        if (config->children[i].init_args_size > HIVE_MAX_MESSAGE_SIZE) {
+            return HIVE_ERROR(HIVE_ERR_INVALID,
+                              "child init_args_size too large");
         }
     }
 
@@ -445,14 +541,15 @@ hive_status hive_supervisor_start(const hive_supervisor_config *config,
     sup->on_shutdown = config->on_shutdown;
     sup->shutdown_ctx = config->shutdown_ctx;
 
-    // Copy child specs and arguments
+    // Copy child specs and init_args
     for (size_t i = 0; i < config->num_children; i++) {
         sup->children[i] = config->children[i];
 
-        // Copy argument if needed
-        if (config->children[i].arg_size > 0 && config->children[i].arg) {
-            memcpy(sup->arg_storage[i], config->children[i].arg,
-                   config->children[i].arg_size);
+        // Copy init_args if needed
+        if (config->children[i].init_args_size > 0 &&
+            config->children[i].init_args) {
+            memcpy(sup->arg_storage[i], config->children[i].init_args,
+                   config->children[i].init_args_size);
         }
     }
 
@@ -465,9 +562,9 @@ hive_status hive_supervisor_start(const hive_supervisor_config *config,
         cfg.name = "supervisor";
     }
 
-    // Spawn supervisor actor
+    // Spawn supervisor actor using new spawn API
     hive_status status =
-        hive_spawn_ex(supervisor_actor_fn, sup, &cfg, out_supervisor);
+        hive_spawn(supervisor_actor_fn, NULL, sup, &cfg, out_supervisor);
     if (HIVE_FAILED(status)) {
         free_supervisor(sup);
         return status;

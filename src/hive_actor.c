@@ -187,7 +187,9 @@ actor *hive_actor_get(actor_id id) {
     return NULL;
 }
 
-actor *hive_actor_alloc(actor_fn fn, void *arg, const actor_config *cfg) {
+actor *hive_actor_alloc(actor_fn fn, void *args,
+                        const hive_spawn_info *siblings, size_t sibling_count,
+                        const actor_config *cfg) {
     if (g_actor_table.num_actors >= g_actor_table.max_actors) {
         return NULL;
     }
@@ -239,12 +241,20 @@ actor *hive_actor_alloc(actor_fn fn, void *arg, const actor_config *cfg) {
     a->stack_size = stack_size;
     a->stack_is_malloced = is_malloced; // Track allocation method
 
+    // Store startup info for context_entry to use
+    a->startup_args = args;
+    a->startup_siblings = siblings;
+    a->startup_sibling_count = sibling_count;
+
     // Initialize receive filters (NULL = no active filter)
     a->recv_filters = NULL;
     a->recv_filter_count = 0;
 
-    // Initialize context with full stack area
-    hive_context_init(&a->ctx, stack, stack_size, fn, arg);
+    // Initialize context with actor function
+    // Startup info (args, siblings, count) is stored in actor struct
+    // Cast to match hive_context_init signature (const void* vs const hive_spawn_info*)
+    hive_context_init(&a->ctx, stack, stack_size,
+                      (void (*)(void *, const void *, size_t))fn);
 
     g_actor_table.num_actors++;
 
@@ -304,4 +314,20 @@ void hive_actor_set_current(actor *a) {
 // Get actor table (for scheduler)
 actor_table *hive_actor_get_table(void) {
     return &g_actor_table;
+}
+
+// Find a sibling actor by name in the spawn info array
+actor_id hive_find_sibling(const hive_spawn_info *siblings, size_t count,
+                           const char *name) {
+    if (!siblings || !name) {
+        return ACTOR_ID_INVALID;
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        if (siblings[i].name && strcmp(siblings[i].name, name) == 0) {
+            return siblings[i].id;
+        }
+    }
+
+    return ACTOR_ID_INVALID;
 }

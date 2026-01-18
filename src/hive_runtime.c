@@ -139,14 +139,32 @@ void hive_cleanup(void) {
     hive_actor_cleanup();
 }
 
-hive_status hive_spawn(actor_fn fn, void *arg, actor_id *out) {
-    actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
-    cfg.stack_size = HIVE_DEFAULT_STACK_SIZE;
-    return hive_spawn_ex(fn, arg, &cfg, out);
+// Internal function to check if a name is already registered
+static bool name_is_registered(const char *name) {
+    for (size_t i = 0; i < s_registry_count; i++) {
+        if (strcmp(s_registry[i].name, name) == 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
-hive_status hive_spawn_ex(actor_fn fn, void *arg, const actor_config *cfg,
-                          actor_id *out) {
+// Internal function to register an actor by ID (for auto_register)
+static hive_status register_actor_by_id(const char *name, actor_id id) {
+    if (s_registry_count >= HIVE_MAX_REGISTERED_NAMES) {
+        return HIVE_ERROR(HIVE_ERR_NOMEM, "Registry full");
+    }
+
+    s_registry[s_registry_count].name = name;
+    s_registry[s_registry_count].actor = id;
+    s_registry_count++;
+
+    HIVE_LOG_DEBUG("Auto-registered actor %u as '%s'", id, name);
+    return HIVE_SUCCESS;
+}
+
+hive_status hive_spawn(actor_fn fn, hive_actor_init_fn init, void *init_args,
+                       const actor_config *cfg, actor_id *out) {
     if (!fn) {
         return HIVE_ERROR(HIVE_ERR_INVALID, "NULL function pointer");
     }
@@ -154,23 +172,66 @@ hive_status hive_spawn_ex(actor_fn fn, void *arg, const actor_config *cfg,
         return HIVE_ERROR(HIVE_ERR_INVALID, "NULL output pointer");
     }
 
+    // Use default config if none provided
+    actor_config default_cfg = HIVE_ACTOR_CONFIG_DEFAULT;
+    const actor_config *use_cfg = cfg ? cfg : &default_cfg;
+
     // Copy config field by field instead of struct copy to avoid alignment
     // issues (struct copy may use SIMD instructions requiring 16-byte
     // alignment)
     actor_config actual_cfg;
-    actual_cfg.stack_size = cfg->stack_size;
-    actual_cfg.priority = cfg->priority;
-    actual_cfg.name = cfg->name;
-    actual_cfg.malloc_stack = cfg->malloc_stack;
+    actual_cfg.stack_size = use_cfg->stack_size;
+    actual_cfg.priority = use_cfg->priority;
+    actual_cfg.name = use_cfg->name;
+    actual_cfg.malloc_stack = use_cfg->malloc_stack;
+    actual_cfg.auto_register = use_cfg->auto_register;
     if (actual_cfg.stack_size == 0) {
         actual_cfg.stack_size = HIVE_DEFAULT_STACK_SIZE;
     }
 
-    actor *a = hive_actor_alloc(fn, arg, &actual_cfg);
+    // Validate auto_register requirements
+    if (actual_cfg.auto_register) {
+        if (!actual_cfg.name) {
+            return HIVE_ERROR(HIVE_ERR_INVALID,
+                              "auto_register requires name to be set");
+        }
+        // Check if name is already registered
+        if (name_is_registered(actual_cfg.name)) {
+            return HIVE_ERROR(HIVE_ERR_EXISTS, "Name already registered");
+        }
+    }
+
+    // Call init function if provided
+    void *args = init_args;
+    if (init) {
+        args = init(init_args);
+    }
+
+    // Allocate actor first (with NULL siblings, we'll set them after)
+    actor *a = hive_actor_alloc(fn, args, NULL, 0, &actual_cfg);
     if (!a) {
         return HIVE_ERROR(HIVE_ERR_NOMEM,
                           "Actor table or stack arena exhausted");
     }
+
+    // Handle auto_register
+    if (actual_cfg.auto_register) {
+        hive_status reg_status = register_actor_by_id(actual_cfg.name, a->id);
+        if (HIVE_FAILED(reg_status)) {
+            // Registration failed, clean up actor
+            hive_actor_free(a);
+            return reg_status;
+        }
+    }
+
+    // Set up self spawn info in the actor struct (stable storage)
+    a->self_spawn_info.name = actual_cfg.name;
+    a->self_spawn_info.id = a->id;
+    a->self_spawn_info.registered = actual_cfg.auto_register;
+
+    // For standalone spawn, point siblings to self_spawn_info with count=1
+    a->startup_siblings = &a->self_spawn_info;
+    a->startup_sibling_count = 1;
 
     *out = a->id;
     return HIVE_SUCCESS;

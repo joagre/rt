@@ -22,6 +22,7 @@ void altitude_actor_init(bus_id state_bus, bus_id thrust_bus,
                          bus_id position_target_bus);
 
 // Actor entry point - spawn this with hive_spawn()
-void altitude_actor(void *arg);
+void altitude_actor(void *args, const hive_spawn_info *siblings,
+                    size_t sibling_count);
 
 #endif // ALTITUDE_ACTOR_H

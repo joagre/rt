@@ -7,6 +7,7 @@
 #define POSITION_ACTOR_H
 
 #include "hive_bus.h"
+#include "hive_types.h"
 
 // Initialize the position actor module with bus IDs.
 // Must be called before spawning the actor.
@@ -14,6 +15,7 @@ void position_actor_init(bus_id state_bus, bus_id attitude_setpoint_bus,
                          bus_id position_target_bus);
 
 // Actor entry point - spawn this with hive_spawn()
-void position_actor(void *arg);
+void position_actor(void *args, const hive_spawn_info *siblings,
+                    size_t sibling_count);
 
 #endif // POSITION_ACTOR_H

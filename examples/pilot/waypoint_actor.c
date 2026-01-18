@@ -46,8 +46,11 @@ static bool check_arrival(const waypoint_t *wp, const state_estimate_t *state) {
            (yaw_err < WAYPOINT_TOLERANCE_YAW) && (vel < WAYPOINT_TOLERANCE_VEL);
 }
 
-void waypoint_actor(void *arg) {
-    (void)arg;
+void waypoint_actor(void *args, const hive_spawn_info *siblings,
+                    size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Register self with name registry
     hive_status status = hive_register("waypoint");

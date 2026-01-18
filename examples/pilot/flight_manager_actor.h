@@ -23,7 +23,8 @@
 void flight_manager_actor_init(void);
 
 // Flight manager actor entry point
-void flight_manager_actor(void *arg);
+void flight_manager_actor(void *args, const hive_spawn_info *siblings,
+                          size_t sibling_count);
 
 // Startup delay in seconds (real hardware only)
 #ifndef SIMULATED_TIME

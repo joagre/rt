@@ -1,5 +1,6 @@
 #include "hive_context.h"
 #include "hive_internal.h"
+#include "hive_actor.h"
 #include <stdint.h>
 #include <string.h>
 
@@ -13,25 +14,27 @@ extern void hive_context_switch_asm(hive_context *from, hive_context *to);
 
 // Wrapper function that calls the actor function and handles return
 static void context_entry(void) {
-    // When we first enter, r12 and r13 contain our function and argument
-    // We need to extract them via inline assembly
-    void (*fn)(void *);
-    void *arg;
+    // When we first enter, r12 contains our function pointer
+    // We need to extract it via inline assembly
+    void (*fn)(void *, const hive_spawn_info *, size_t);
 
-    __asm__ volatile("movq %%r12, %0\n"
-                     "movq %%r13, %1\n"
-                     : "=r"(fn), "=r"(arg)
-                     :
-                     : "r12", "r13");
+    __asm__ volatile("movq %%r12, %0\n" : "=r"(fn) : : "r12");
 
-    fn(arg);
+    // Get startup info from current actor
+    actor *current = hive_actor_current();
+    void *args = current->startup_args;
+    const hive_spawn_info *siblings = current->startup_siblings;
+    size_t sibling_count = current->startup_sibling_count;
+
+    // Call the actor function with all three arguments
+    fn(args, siblings, sibling_count);
 
     // Actor returned without calling hive_exit() - this is a crash
     hive_exit_crash();
 }
 
 void hive_context_init(hive_context *ctx, void *stack, size_t stack_size,
-                       void (*fn)(void *), void *arg) {
+                       void (*fn)(void *, const void *, size_t)) {
     // Zero out context
     memset(ctx, 0, sizeof(hive_context));
 
@@ -46,11 +49,11 @@ void hive_context_init(hive_context *ctx, void *stack, size_t stack_size,
     // % 16 == 8 Which means: (RSP before RET) % 16 == 0 (since RET adds 8) We
     // already have 16-byte alignment, so just push the return address
 
-    // Store function and argument in callee-saved registers
-    // These will be preserved across the context switch
+    // Store function pointer in callee-saved register r12
+    // Other startup info (args, siblings, count) is stored in actor struct
     // Use a union to safely convert function pointer to void pointer
     union {
-        void (*fn_ptr)(void *);
+        void (*fn_ptr)(void *, const void *, size_t);
         void *obj_ptr;
     } fn_conv;
     fn_conv.fn_ptr = fn;
@@ -62,7 +65,6 @@ void hive_context_init(hive_context *ctx, void *stack, size_t stack_size,
     entry_conv.fn_ptr = context_entry;
 
     ctx->r12 = fn_conv.obj_ptr;
-    ctx->r13 = arg;
 
     // Set instruction pointer to context_entry
     // We do this by pushing the return address onto the stack
@@ -85,28 +87,36 @@ void hive_context_init(hive_context *ctx, void *stack, size_t stack_size,
 
 // Forward declaration of the actual actor runner (not static - needed for asm
 // branch)
-void hive_context_entry_run(void (*fn)(void *), void *arg);
+void hive_context_entry_run(void (*fn)(void *, const hive_spawn_info *,
+                                       size_t));
 
-// Naked wrapper - no prologue/epilogue, so r4/r5 are preserved from context
-// switch
+// Naked wrapper - no prologue/epilogue, so r4 is preserved from context switch
 __attribute__((naked)) static void context_entry(void) {
-    // r4 = fn, r5 = arg (set by hive_context_init, preserved by context switch)
+    // r4 = fn (set by hive_context_init, preserved by context switch)
     __asm__ volatile("mov r0, r4\n"               // r0 = fn
-                     "mov r1, r5\n"               // r1 = arg
                      "b hive_context_entry_run\n" // tail call (no return)
     );
 }
 
-// Actual actor runner - called with fn and arg as parameters
-void hive_context_entry_run(void (*fn)(void *), void *arg) {
-    fn(arg);
+// Actual actor runner - called with fn as parameter
+// Retrieves startup info from current actor and calls actor function
+void hive_context_entry_run(void (*fn)(void *, const hive_spawn_info *,
+                                       size_t)) {
+    // Get startup info from current actor
+    actor *current = hive_actor_current();
+    void *args = current->startup_args;
+    const hive_spawn_info *siblings = current->startup_siblings;
+    size_t sibling_count = current->startup_sibling_count;
+
+    // Call the actor function with all three arguments
+    fn(args, siblings, sibling_count);
 
     // Actor returned without calling hive_exit() - this is a crash
     hive_exit_crash();
 }
 
 void hive_context_init(hive_context *ctx, void *stack, size_t stack_size,
-                       void (*fn)(void *), void *arg) {
+                       void (*fn)(void *, const void *, size_t)) {
     // Zero out context
     memset(ctx, 0, sizeof(hive_context));
 
@@ -115,11 +125,10 @@ void hive_context_init(hive_context *ctx, void *stack, size_t stack_size,
     uintptr_t stack_top = (uintptr_t)stack + stack_size;
     stack_top &= ~((uintptr_t)7); // Align to 8 bytes
 
-    // Store function and argument in callee-saved registers
-    // These will be preserved across the context switch
+    // Store function pointer in callee-saved register r4
+    // Other startup info (args, siblings, count) is stored in actor struct
     // Use memcpy to avoid function pointer to void* conversion warning
     memcpy(&ctx->r4, &fn, sizeof(fn));
-    ctx->r5 = arg;
 
     // Push return address (context_entry) onto stack
     // The context switch will pop this into PC via pop {pc}

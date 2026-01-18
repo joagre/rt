@@ -18,8 +18,11 @@ typedef struct {
 } coordinator_args;
 
 // Worker that processes messages
-void worker_actor(void *arg) {
-    int id = *(int *)arg;
+void worker_actor(void *args, const hive_spawn_info *siblings,
+                  size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int id = *(int *)args;
     int processed = 0;
 
     while (true) {
@@ -41,8 +44,11 @@ void worker_actor(void *arg) {
 }
 
 // Coordinator that distributes work with backoff-retry
-void coordinator_actor(void *arg) {
-    coordinator_args *args = (coordinator_args *)arg;
+void coordinator_actor(void *args, const hive_spawn_info *siblings,
+                       size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    coordinator_args *cargs = (coordinator_args *)args;
 
     printf("\nCoordinator: Distributing %d messages to %d workers...\n",
            BURST_SIZE * NUM_WORKERS, NUM_WORKERS);
@@ -53,11 +59,11 @@ void coordinator_actor(void *arg) {
 
     // Send bursts to each worker
     for (int burst = 0; burst < BURST_SIZE; burst++) {
-        for (int w = 0; w < args->worker_count; w++) {
+        for (int w = 0; w < cargs->worker_count; w++) {
             int data = burst * NUM_WORKERS + w;
 
             hive_status status =
-                hive_ipc_notify(args->workers[w], 0, &data, sizeof(data));
+                hive_ipc_notify(cargs->workers[w], 0, &data, sizeof(data));
 
             if (status.code == HIVE_ERR_NOMEM) {
                 retry_needed++;
@@ -73,14 +79,14 @@ void coordinator_actor(void *arg) {
 
                 // Retry
                 status =
-                    hive_ipc_notify(args->workers[w], 0, &data, sizeof(data));
+                    hive_ipc_notify(cargs->workers[w], 0, &data, sizeof(data));
                 if (HIVE_SUCCEEDED(status)) {
                     retry_success++;
                     total_sent++;
                 } else {
                     // Even retry failed - aggressive backoff
                     hive_ipc_recv(&msg, 20);
-                    status = hive_ipc_notify(args->workers[w], 0, &data,
+                    status = hive_ipc_notify(cargs->workers[w], 0, &data,
                                              sizeof(data));
                     if (HIVE_SUCCEEDED(status)) {
                         retry_success++;
@@ -126,13 +132,13 @@ int main(void) {
     static int worker_ids[NUM_WORKERS];
     for (int i = 0; i < NUM_WORKERS; i++) {
         worker_ids[i] = i + 1;
-        hive_spawn(worker_actor, &worker_ids[i], &args.workers[i]);
+        hive_spawn(worker_actor, NULL, &worker_ids[i], NULL, &args.workers[i]);
     }
     printf("Main: Spawned %d workers\n", NUM_WORKERS);
 
     // Spawn coordinator
     actor_id coordinator;
-    hive_spawn(coordinator_actor, &args, &coordinator);
+    hive_spawn(coordinator_actor, NULL, &args, NULL, &coordinator);
     printf("Main: Spawned coordinator\n");
 
     hive_run();

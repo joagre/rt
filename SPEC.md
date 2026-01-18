@@ -19,7 +19,7 @@ A minimalistic actor-based runtime designed for **embedded and safety-critical s
 
 **Allowed heap use** (malloc/free):
 - `hive_init()`: None (uses only static/BSS)
-- `hive_spawn()` / `hive_spawn_ex()`: Actor stack allocation **only if** `actor_config.malloc_stack = true`
+- `hive_spawn()`: Actor stack allocation **only if** `actor_config.malloc_stack = true`
   - Default: Arena allocator (static memory, no malloc)
   - Optional: Explicit malloc via config flag
 - Actor exit/cleanup: Corresponding free for malloc'd stacks
@@ -610,8 +610,18 @@ typedef uint32_t timer_id;
 // Wildcard for selective receive filtering
 #define HIVE_SENDER_ANY     ((actor_id)0xFFFFFFFF)
 
-// Actor entry point
-typedef void (*actor_fn)(void *arg);
+// Actor entry point (see Actor API section for full signature)
+typedef void (*actor_fn)(void *args, const hive_spawn_info *siblings, size_t sibling_count);
+
+// Init function called in spawner context
+typedef void *(*hive_actor_init_fn)(void *init_args);
+
+// Spawn info passed to actors at startup
+typedef struct {
+    const char *name;  // Actor name (may be NULL)
+    actor_id id;       // Actor ID
+    bool registered;   // Whether registered in name registry
+} hive_spawn_info;
 
 // Actor configuration
 typedef struct {
@@ -619,23 +629,56 @@ typedef struct {
     hive_priority_level priority;
     const char *name;         // for debugging, may be NULL
     bool        malloc_stack; // false = use static arena (default), true = malloc
+    bool        auto_register;// auto-register name in registry
 } actor_config;
 ```
 
 ## Actor API
 
+### Actor Function Signature
+
+```c
+// Actor entry function receives arguments, sibling info, and sibling count
+typedef void (*actor_fn)(void *args, const hive_spawn_info *siblings, size_t sibling_count);
+
+// Init function (optional) called in spawner context
+typedef void *(*hive_actor_init_fn)(void *init_args);
+
+// Spawn info passed to actors at startup
+typedef struct {
+    const char *name;  // Actor name (may be NULL)
+    actor_id id;       // Actor ID
+    bool registered;   // Whether registered in name registry
+} hive_spawn_info;
+```
+
 ### Lifecycle
 
 ```c
-// Spawn a new actor with default configuration
-hive_status hive_spawn(actor_fn fn, void *arg, actor_id *out);
-
-// Spawn with explicit configuration
-hive_status hive_spawn_ex(actor_fn fn, void *arg, const actor_config *cfg, actor_id *out);
+// Spawn a new actor
+// fn: Actor entry function
+// init: Init function (NULL = skip, pass init_args directly to actor)
+// init_args: Arguments to init (or directly to actor if init is NULL)
+// cfg: Actor configuration (NULL = use defaults)
+// out: Receives the new actor's ID
+hive_status hive_spawn(actor_fn fn, hive_actor_init_fn init, void *init_args,
+                       const actor_config *cfg, actor_id *out);
 
 // Terminate current actor
 _Noreturn void hive_exit(void);
+
+// Find sibling by name in spawn info array
+const hive_spawn_info *hive_find_sibling(const hive_spawn_info *siblings,
+                                          size_t count, const char *name);
 ```
+
+**Spawn behavior:**
+- `init` (if provided) is called in spawner context before actor starts
+- `init` return value is passed to actor as `args`
+- Actor receives sibling info at startup:
+  - Standalone actors: siblings[0] = self info, sibling_count = 1
+  - Supervised actors: siblings = all sibling children
+- If `cfg->auto_register` is true and `cfg->name` is set, actor is auto-registered in name registry
 
 **Actor function return behavior:**
 
@@ -1967,18 +2010,27 @@ typedef enum {
 
 ```c
 typedef struct {
-    const char *id;              // Identifier for logging (may be NULL)
-    actor_fn fn;                 // Actor entry point
-    void *arg;                   // Argument to pass to actor
-    size_t arg_size;             // Size to copy (0 = pass pointer directly)
+    actor_fn start;              // Actor entry point
+    hive_actor_init_fn init;     // Init function (NULL = skip)
+    void *init_args;             // Arguments to init/actor
+    size_t init_args_size;       // Size to copy (0 = pass pointer directly)
+    const char *name;            // Child identifier for tracking
+    bool auto_register;          // Auto-register in name registry
     hive_child_restart restart;  // Restart policy
     actor_config actor_cfg;      // Actor configuration (stack size, priority, etc.)
 } hive_child_spec;
 ```
 
 **Argument handling:**
-- If `arg_size > 0`: Argument is copied to supervisor-managed storage (max `HIVE_MAX_MESSAGE_SIZE` bytes). Safe for stack-allocated arguments.
-- If `arg_size == 0`: Pointer is passed directly. Caller must ensure lifetime.
+- If `init_args_size > 0`: Argument is copied to supervisor-managed storage (max `HIVE_MAX_MESSAGE_SIZE` bytes). Safe for stack-allocated arguments.
+- If `init_args_size == 0`: Pointer is passed directly. Caller must ensure lifetime.
+
+**Two-phase child start:**
+1. All children are allocated (actor structures created)
+2. Sibling info array is built with all child names and IDs
+3. All children are started, each receiving the complete sibling array
+
+This allows children to discover sibling actor IDs at startup without using the name registry.
 
 ### Supervisor Configuration
 
@@ -2123,29 +2175,40 @@ This prevents the classic bug: client caches ID → server restarts → client s
 ```c
 #include "hive_supervisor.h"
 
-void worker(void *arg) {
-    int id = *(int *)arg;
+void worker(void *args, const hive_spawn_info *siblings, size_t sibling_count) {
+    int id = *(int *)args;
     printf("Worker %d started\n", id);
+
+    // Can find siblings by name
+    const hive_spawn_info *peer = hive_find_sibling(siblings, sibling_count, "worker-1");
+    if (peer) {
+        printf("Found sibling worker-1 at actor %u\n", peer->id);
+    }
 
     // Do work, may crash...
 
     hive_exit();
 }
 
-void orchestrator(void *arg) {
-    (void)arg;
+void orchestrator(void *args, const hive_spawn_info *siblings, size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Define children
     static int ids[3] = {0, 1, 2};
     hive_child_spec children[3] = {
-        {.id = "worker-0", .fn = worker, .arg = &ids[0],
-         .arg_size = sizeof(int), .restart = HIVE_CHILD_PERMANENT,
+        {.start = worker, .init = NULL, .init_args = &ids[0],
+         .init_args_size = sizeof(int), .name = "worker-0",
+         .auto_register = false, .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
-        {.id = "worker-1", .fn = worker, .arg = &ids[1],
-         .arg_size = sizeof(int), .restart = HIVE_CHILD_PERMANENT,
+        {.start = worker, .init = NULL, .init_args = &ids[1],
+         .init_args_size = sizeof(int), .name = "worker-1",
+         .auto_register = true, .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
-        {.id = "worker-2", .fn = worker, .arg = &ids[2],
-         .arg_size = sizeof(int), .restart = HIVE_CHILD_TRANSIENT,
+        {.start = worker, .init = NULL, .init_args = &ids[2],
+         .init_args_size = sizeof(int), .name = "worker-2",
+         .auto_register = false, .restart = HIVE_CHILD_TRANSIENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
     };
 

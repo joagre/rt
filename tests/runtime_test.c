@@ -46,8 +46,12 @@ static void test1_init_success(void) {
 
 // Cannot safely test hive_self outside actor context from within actor
 // Just document the expected behavior
-static void test2_self_outside_actor(void *arg) {
-    (void)arg;
+static void test2_self_outside_actor(void *args,
+                                     const hive_spawn_info *siblings,
+                                     size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 2: hive_self outside actor context\n");
     printf("    NOTE: Cannot test from within actor - would need separate "
            "process\n");
@@ -73,24 +77,33 @@ static int g_yield_order = 0;
 static int g_actor1_order = 0;
 static int g_actor2_order = 0;
 
-static void yield_actor1(void *arg) {
-    (void)arg;
+static void yield_actor1(void *args, const hive_spawn_info *siblings,
+                         size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     g_actor1_order = ++g_yield_order;
     hive_yield();
     g_actor1_order = ++g_yield_order;
     hive_exit();
 }
 
-static void yield_actor2(void *arg) {
-    (void)arg;
+static void yield_actor2(void *args, const hive_spawn_info *siblings,
+                         size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     g_actor2_order = ++g_yield_order;
     hive_yield();
     g_actor2_order = ++g_yield_order;
     hive_exit();
 }
 
-static void test3_yield(void *arg) {
-    (void)arg;
+static void test3_yield(void *args, const hive_spawn_info *siblings,
+                        size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 3: hive_yield returns control to scheduler\n");
     fflush(stdout);
 
@@ -99,9 +112,9 @@ static void test3_yield(void *arg) {
     g_actor2_order = 0;
 
     actor_id a1;
-    hive_spawn(yield_actor1, NULL, &a1);
+    hive_spawn(yield_actor1, NULL, NULL, NULL, &a1);
     actor_id a2;
-    hive_spawn(yield_actor2, NULL, &a2);
+    hive_spawn(yield_actor2, NULL, NULL, NULL, &a2);
 
     hive_link(a1);
     hive_link(a2);
@@ -127,13 +140,19 @@ static void test3_yield(void *arg) {
 // Test 4: hive_actor_alive with various IDs
 // ============================================================================
 
-static void quickly_exit_actor(void *arg) {
-    (void)arg;
+static void quickly_exit_actor(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     hive_exit();
 }
 
-static void test4_actor_alive(void *arg) {
-    (void)arg;
+static void test4_actor_alive(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 4: hive_actor_alive with various IDs\n");
     fflush(stdout);
 
@@ -161,7 +180,7 @@ static void test4_actor_alive(void *arg) {
 
     // Spawn and check alive
     actor_id child;
-    hive_spawn(quickly_exit_actor, NULL, &child);
+    hive_spawn(quickly_exit_actor, NULL, NULL, NULL, &child);
     hive_link(child);
 
     // Should be alive right after spawn
@@ -196,14 +215,20 @@ static void test4_actor_alive(void *arg) {
 #endif
 static int g_many_actors_count = 0;
 
-static void many_actor(void *arg) {
-    (void)arg;
+static void many_actor(void *args, const hive_spawn_info *siblings,
+                       size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     g_many_actors_count++;
     hive_exit();
 }
 
-static void test5_many_actors(void *arg) {
-    (void)arg;
+static void test5_many_actors(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 5: Scheduler handles many actors\n");
     fflush(stdout);
 
@@ -213,7 +238,7 @@ static void test5_many_actors(void *arg) {
     int spawned = 0;
     for (int i = 0; i < MANY_ACTORS; i++) {
         actor_id id;
-        if (HIVE_FAILED(hive_spawn(many_actor, NULL, &id))) {
+        if (HIVE_FAILED(hive_spawn(many_actor, NULL, NULL, NULL, &id))) {
             printf("    Failed to spawn actor %d\n", i);
             fflush(stdout);
             break;
@@ -247,8 +272,11 @@ static void test5_many_actors(void *arg) {
 // NOTE: hive_shutdown is declared but may not be fully implemented
 // ============================================================================
 
-static void test6_shutdown(void *arg) {
-    (void)arg;
+static void test6_shutdown(void *args, const hive_spawn_info *siblings,
+                           size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 6: hive_shutdown\n");
     printf("    NOTE: hive_shutdown behavior depends on implementation\n");
     fflush(stdout);
@@ -267,8 +295,11 @@ static void test6_shutdown(void *arg) {
 static bool g_small_stack_ok = false;
 static bool g_large_stack_ok = false;
 
-static void small_stack_actor(void *arg) {
-    (void)arg;
+static void small_stack_actor(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     // Just run with minimal stack usage
     int x = 42;
     (void)x;
@@ -283,8 +314,11 @@ static void small_stack_actor(void *arg) {
 #define LARGE_STACK_BUFFER_SIZE 16384
 #endif
 
-static void large_stack_actor(void *arg) {
-    (void)arg;
+static void large_stack_actor(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     // Use more stack
     char buffer[LARGE_STACK_BUFFER_SIZE];
     memset(buffer, 'A', sizeof(buffer));
@@ -294,8 +328,11 @@ static void large_stack_actor(void *arg) {
     hive_exit();
 }
 
-static void test7_stack_sizes(void *arg) {
-    (void)arg;
+static void test7_stack_sizes(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 7: Actor stack sizes\n");
     fflush(stdout);
 
@@ -308,7 +345,7 @@ static void test7_stack_sizes(void *arg) {
 
     actor_id small;
     if (HIVE_SUCCEEDED(
-            hive_spawn_ex(small_stack_actor, NULL, &small_cfg, &small))) {
+            hive_spawn(small_stack_actor, NULL, NULL, &small_cfg, &small))) {
         hive_link(small);
         hive_message msg;
         hive_ipc_recv(&msg, 500);
@@ -328,7 +365,7 @@ static void test7_stack_sizes(void *arg) {
 
     actor_id large;
     if (HIVE_SUCCEEDED(
-            hive_spawn_ex(large_stack_actor, NULL, &large_cfg, &large))) {
+            hive_spawn(large_stack_actor, NULL, NULL, &large_cfg, &large))) {
         hive_link(large);
         hive_message msg;
         hive_ipc_recv(&msg, 500);
@@ -352,14 +389,20 @@ static void test7_stack_sizes(void *arg) {
 static int g_priority_order[4] = {0, 0, 0, 0};
 static int g_priority_counter = 0;
 
-static void priority_actor(void *arg) {
-    int level = *(int *)arg;
+static void priority_actor(void *args, const hive_spawn_info *siblings,
+                           size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int level = *(int *)args;
     g_priority_order[level] = ++g_priority_counter;
     hive_exit();
 }
 
-static void test8_priorities(void *arg) {
-    (void)arg;
+static void test8_priorities(void *args, const hive_spawn_info *siblings,
+                             size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 8: Priority levels\n");
     fflush(stdout);
 
@@ -376,7 +419,7 @@ static void test8_priorities(void *arg) {
     for (int i = 0; i < 4; i++) {
         actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
         cfg.priority = levels[i];
-        hive_spawn_ex(priority_actor, &levels[i], &cfg, &ids[i]);
+        hive_spawn(priority_actor, NULL, &levels[i], &cfg, &ids[i]);
         hive_link(ids[i]);
     }
 
@@ -409,7 +452,7 @@ static void test8_priorities(void *arg) {
 // Test runner
 // ============================================================================
 
-static void (*test_funcs[])(void *) = {
+static void (*test_funcs[])(void *, const hive_spawn_info *, size_t) = {
     test2_self_outside_actor, test3_yield,    test4_actor_alive,
     test5_many_actors,        test6_shutdown, test7_stack_sizes,
     test8_priorities,
@@ -417,8 +460,11 @@ static void (*test_funcs[])(void *) = {
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
 
-static void run_all_tests(void *arg) {
-    (void)arg;
+static void run_all_tests(void *args, const hive_spawn_info *siblings,
+                          size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Test 1 runs outside actor context (sort of)
     test1_init_success();
@@ -428,7 +474,7 @@ static void run_all_tests(void *arg) {
         cfg.stack_size = TEST_STACK_SIZE(64 * 1024);
 
         actor_id test;
-        if (HIVE_FAILED(hive_spawn_ex(test_funcs[i], NULL, &cfg, &test))) {
+        if (HIVE_FAILED(hive_spawn(test_funcs[i], NULL, NULL, &cfg, &test))) {
             printf("Failed to spawn test %zu\n", i);
             fflush(stdout);
             continue;
@@ -458,7 +504,7 @@ int main(void) {
     cfg.stack_size = TEST_STACK_SIZE(128 * 1024);
 
     actor_id runner;
-    if (HIVE_FAILED(hive_spawn_ex(run_all_tests, NULL, &cfg, &runner))) {
+    if (HIVE_FAILED(hive_spawn(run_all_tests, NULL, NULL, &cfg, &runner))) {
         fprintf(stderr, "Failed to spawn test runner\n");
         hive_cleanup();
         return 1;

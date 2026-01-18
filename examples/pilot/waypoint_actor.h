@@ -14,6 +14,7 @@
 void waypoint_actor_init(bus_id state_bus, bus_id position_target_bus);
 
 // Actor entry point - spawn this with hive_spawn()
-void waypoint_actor(void *arg);
+void waypoint_actor(void *args, const hive_spawn_info *siblings,
+                    size_t sibling_count);
 
 #endif // WAYPOINT_ACTOR_H

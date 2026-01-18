@@ -34,12 +34,21 @@ void hive_cleanup(void);
 
 // Actor lifecycle API
 
-// Spawn a new actor with default configuration
-hive_status hive_spawn(actor_fn fn, void *arg, actor_id *out);
-
-// Spawn with explicit configuration
-hive_status hive_spawn_ex(actor_fn fn, void *arg, const actor_config *cfg,
-                          actor_id *out);
+// Spawn a new actor
+// fn: Actor entry function
+// init: Init function to transform init_args (NULL = skip, pass init_args directly)
+// init_args: Arguments to init function (or direct args to actor if init is NULL)
+// cfg: Actor configuration (NULL = use defaults)
+// out: Output actor ID
+//
+// If cfg->auto_register is true and cfg->name is set, the actor will be
+// automatically registered in the name registry. Spawn fails with
+// HIVE_ERR_EXISTS if the name is already taken.
+//
+// The actor receives its own spawn info as siblings[0] with sibling_count=1.
+// For supervised actors, siblings contains all sibling children.
+hive_status hive_spawn(actor_fn fn, hive_actor_init_fn init, void *init_args,
+                       const actor_config *cfg, actor_id *out);
 
 // Terminate current actor
 _Noreturn void hive_exit(void);

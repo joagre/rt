@@ -45,19 +45,52 @@ or sequential dependencies.
 .PP
 .nf
 typedef struct {
-    const char *id;              /* Identifier for logging */
-    actor_fn fn;                 /* Actor entry point */
-    void *arg;                   /* Argument to pass */
-    size_t arg_size;             /* Size to copy (0 = pointer) */
+    actor_fn start;              /* Actor entry point */
+    hive_actor_init_fn init;     /* Init function (NULL = skip) */
+    void *init_args;             /* Arguments to init/actor */
+    size_t init_args_size;       /* Size to copy (0 = pointer) */
+    const char *name;            /* Child identifier for tracking */
+    bool auto_register;          /* Auto-register in name registry */
     hive_child_restart restart;  /* Restart policy */
     actor_config actor_cfg;      /* Actor config */
 } hive_child_spec;
 .fi
 .PP
-If
-.I arg_size
-is non-zero, the argument is copied to supervisor-managed storage
+.TP
+.I start
+The actor entry function with signature:
+.nf
+void start(void *args, const hive_spawn_info *siblings, size_t sibling_count)
+.fi
+.TP
+.I init
+Optional init function called in supervisor context before each child starts:
+.nf
+void *init(void *init_args)
+.fi
+The return value is passed to the actor as
+.IR args .
+Pass NULL to skip initialization.
+.TP
+.I init_args
+Arguments passed to
+.I init
+(or directly to actor if
+.I init
+is NULL).
+.TP
+.I init_args_size
+If non-zero, the argument is copied to supervisor-managed storage
 (up to HIVE_MAX_MESSAGE_SIZE bytes). If zero, the pointer is passed directly.
+.TP
+.I name
+Identifier for the child, used for logging and tracking. Must be unique among
+siblings. The name is also passed to the actor in the sibling info array.
+.TP
+.I auto_register
+If true, the child is automatically registered in the name registry at startup.
+This allows other actors to find the child using
+.BR hive_whereis (3).
 .SS Supervisor Configuration
 .PP
 .nf
@@ -81,6 +114,34 @@ typedef struct {
     .shutdown_ctx = NULL \\
 }
 .fi
+.SS Two-Phase Child Start
+The supervisor uses two-phase startup for children:
+.IP 1. 3
+All children are allocated (actor structures created)
+.IP 2. 3
+Sibling info array is built with all child names and IDs
+.IP 3. 3
+All children are started, each receiving the complete sibling array
+.PP
+This allows children to discover sibling actor IDs at startup without using
+the name registry.
+.SS Sibling Info
+Each child actor receives a
+.I siblings
+array and
+.I sibling_count
+at startup. The array contains spawn info for all sibling children:
+.nf
+typedef struct {
+    const char *name;  /* Child name (from child_spec) */
+    actor_id id;       /* Actor ID */
+    bool registered;   /* Whether registered in name registry */
+} hive_spawn_info;
+.fi
+.PP
+Use
+.BR hive_find_sibling (3)
+to find a sibling by name.
 .SS Starting a Supervisor
 .BR hive_supervisor_start ()
 creates a new supervisor actor that immediately spawns and monitors all
@@ -134,6 +195,9 @@ non-zero count, NULL child function, or invalid supervisor ID.
 .B HIVE_ERR_NOMEM
 No supervisor slots available (see HIVE_MAX_SUPERVISORS), failed to spawn
 supervisor actor, or failed to send stop message.
+.TP
+.B HIVE_ERR_EXISTS
+A child with auto_register=true has a name that is already registered.
 .SH CONFIGURATION
 Supervisor limits are defined in
 .IR hive_static_config.h :
@@ -174,9 +238,14 @@ Preserved timer IDs (old timers cancelled, must create new ones)
 Preserved actor_id (new ID assigned on restart)
 .IP \(bu 2
 Preserved monitor/link state (must re-establish)
+.IP \(bu 2
+Preserved name registration (must re-register or use auto_register)
 .PP
 The only state preserved across restarts is the argument passed to the child
 function (copied by the supervisor at configuration time).
+.SS Init Function
+The init function is called again on each restart. This allows per-restart
+initialization such as opening fresh file handles or resetting state.
 .SS External Resources
 A restarted child MUST treat all external handles as invalid and reacquire them.
 This includes file descriptors, sockets, HAL handles, device state, and any
@@ -185,19 +254,27 @@ shared-memory pointers not owned by the runtime.
 Failure to do so causes "works in simulation, dies on hardware" bugs because
 resource lifetime is not actor lifetime.
 .SS Name Registration
-A supervised child intended to be discoverable MUST:
+A supervised child intended to be discoverable has two options:
 .IP \(bu 2
-Register its name during startup (call
+Set
+.I auto_register = true
+in the child spec (recommended for simplicity)
+.IP \(bu 2
+Call
 .BR hive_register ()
-early)
-.IP \(bu 2
-Tolerate name lookup from other actors at any time
+early in the actor function
+.PP
+Either way, the child will be automatically unregistered when it exits.
 .SS Client Rule
 Actors communicating with supervised children MUST NOT cache
 .I actor_id
 across awaits, timeouts, or receive calls. They MUST re-resolve by name
 .RB ( hive_whereis (3))
 on each interaction or after any failure signal (timeout, EXIT message).
+.PP
+Alternatively, supervised siblings can use
+.BR hive_find_sibling ()
+at startup to get sibling IDs, though these IDs become stale on restart.
 .PP
 This prevents the classic bug: client caches ID, server restarts, client sends
 to dead ID, silent failure or mysterious behavior.
@@ -216,7 +293,7 @@ Links and monitors cleared
 .IP \(bu 2
 actor_id changes
 .IP \(bu 2
-Name registration removed (must re-register)
+Name registration removed (must re-register or use auto_register)
 .IP \(bu 2
 External handles invalid (must reacquire)
 .PP
@@ -229,6 +306,10 @@ Restart strategy applied exactly as defined (no hidden backoff)
 Intensity limit is deterministic: when exceeded, supervisor shuts down, no further restarts
 .IP \(bu 2
 Supervisor never uses heap in hot paths; child-arg copies are bounded and static
+.IP \(bu 2
+Init function called again on each restart
+.IP \(bu 2
+Sibling array rebuilt on restart (with updated actor IDs)
 .PP
 .B Failure visibility:
 .IP \(bu 2
@@ -241,9 +322,18 @@ Every give-up is observable (log + shutdown callback)
 #include <hive_supervisor.h>
 #include <stdio.h>
 
-void worker(void *arg) {
-    int id = *(int *)arg;
-    printf("Worker %d started\\n", id);
+void worker(void *args, const hive_spawn_info *siblings,
+            size_t sibling_count) {
+    int id = *(int *)args;
+    printf("Worker %d started (actor %u)\\n", id, hive_self());
+
+    /* Find sibling by name */
+    const hive_spawn_info *peer = hive_find_sibling(siblings,
+                                                    sibling_count,
+                                                    "worker-1");
+    if (peer) {
+        printf("Found sibling worker-1 at actor %u\\n", peer->id);
+    }
 
     /* Do work... */
 
@@ -260,14 +350,29 @@ int main(void) {
     /* Define children */
     static int ids[3] = {0, 1, 2};
     hive_child_spec children[3] = {
-        {.id = "worker-0", .fn = worker, .arg = &ids[0],
-         .arg_size = sizeof(int), .restart = HIVE_CHILD_PERMANENT,
+        {.start = worker,
+         .init = NULL,
+         .init_args = &ids[0],
+         .init_args_size = sizeof(int),
+         .name = "worker-0",
+         .auto_register = false,
+         .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
-        {.id = "worker-1", .fn = worker, .arg = &ids[1],
-         .arg_size = sizeof(int), .restart = HIVE_CHILD_PERMANENT,
+        {.start = worker,
+         .init = NULL,
+         .init_args = &ids[1],
+         .init_args_size = sizeof(int),
+         .name = "worker-1",
+         .auto_register = true,   /* Register in name registry */
+         .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
-        {.id = "worker-2", .fn = worker, .arg = &ids[2],
-         .arg_size = sizeof(int), .restart = HIVE_CHILD_TRANSIENT,
+        {.start = worker,
+         .init = NULL,
+         .init_args = &ids[2],
+         .init_args_size = sizeof(int),
+         .name = "worker-2",
+         .auto_register = false,
+         .restart = HIVE_CHILD_TRANSIENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
     };
 

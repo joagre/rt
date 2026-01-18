@@ -25,8 +25,11 @@ typedef struct {
 #define TAG_DONE 2
 
 // Receiver that processes messages
-void receiver_actor(void *arg) {
-    (void)arg;
+void receiver_actor(void *args, const hive_spawn_info *siblings,
+                    size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     printf("Receiver: Started (ID: %u), mailbox count: %zu\n", hive_self(),
            hive_ipc_count());
@@ -94,7 +97,10 @@ void receiver_actor(void *arg) {
     hive_exit();
 }
 
-void sender_actor(void *arg) {
+void sender_actor(void *arg, const hive_spawn_info *siblings,
+                  size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
     test_args *args = (test_args *)arg;
     actor_id receiver = args->receiver;
 
@@ -227,10 +233,10 @@ int main(void) {
 
     test_args args = {0};
 
-    hive_spawn(receiver_actor, &args, &args.receiver);
+    hive_spawn(receiver_actor, NULL, &args, NULL, &args.receiver);
     printf("Main: Spawned receiver (ID: %u)\n", args.receiver);
 
-    hive_spawn(sender_actor, &args, &args.sender);
+    hive_spawn(sender_actor, NULL, &args, NULL, &args.sender);
     printf("Main: Spawned sender (ID: %u)\n", args.sender);
     fflush(stdout);
 

@@ -45,8 +45,11 @@ void altitude_actor_init(bus_id state_bus, bus_id thrust_bus,
 #define LANDING_DESCENT_RATE (-0.15f) // m/s - gentle descent
 #define LANDING_VELOCITY_GAIN 0.5f // thrust adjustment per m/s velocity error
 
-void altitude_actor(void *arg) {
-    (void)arg;
+void altitude_actor(void *args, const hive_spawn_info *siblings,
+                    size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Register self with name registry
     hive_status status = hive_register("altitude");

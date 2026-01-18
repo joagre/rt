@@ -54,6 +54,13 @@ typedef struct {
     size_t stack_size;
     bool stack_is_malloced; // true if malloc'd, false if from pool
 
+    // Startup info (used by context_entry to call actor function)
+    void *startup_args;                      // Arguments from init or direct
+    const hive_spawn_info *startup_siblings; // Sibling info array
+    size_t startup_sibling_count;            // Number of siblings
+    hive_spawn_info
+        self_spawn_info; // This actor's own spawn info (for standalone spawns)
+
     // Mailbox
     mailbox mailbox;
 
@@ -97,7 +104,14 @@ void hive_actor_cleanup(void);
 actor *hive_actor_get(actor_id id);
 
 // Allocate a new actor
-actor *hive_actor_alloc(actor_fn fn, void *arg, const actor_config *cfg);
+// fn: actor function
+// args: arguments to pass to actor (from init function or direct)
+// siblings: sibling info array (stack-allocated by spawner, copied to actor's stack)
+// sibling_count: number of siblings
+// cfg: actor configuration
+actor *hive_actor_alloc(actor_fn fn, void *args,
+                        const hive_spawn_info *siblings, size_t sibling_count,
+                        const actor_config *cfg);
 
 // Free an actor
 void hive_actor_free(actor *a);

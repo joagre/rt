@@ -46,11 +46,11 @@ typedef struct {
 void hive_context_switch(hive_context *from, hive_context *to);
 
 // Initialize a new context
-// stack: pointer to top of stack (stack grows down)
+// stack: pointer to base of stack allocation (stack grows down from top)
 // stack_size: size of stack in bytes
-// fn: function to execute
-// arg: argument to pass to function
+// fn: actor function to execute
+// Note: Actor startup info (args, siblings, count) is passed via actor struct
 void hive_context_init(hive_context *ctx, void *stack, size_t stack_size,
-                       void (*fn)(void *), void *arg);
+                       void (*fn)(void *, const void *, size_t));
 
 #endif // HIVE_CONTEXT_H

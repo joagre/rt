@@ -158,7 +158,13 @@ Convenience macros:
 - `HIVE_ERR_STR(s)` - Get error message string (handles NULL msg)
 
 ### Actor Lifecycle
-- Spawn actors with `hive_spawn()` or `hive_spawn_ex()`
+- Spawn actors with `hive_spawn(fn, init, init_args, cfg, out)`:
+  - `fn`: Actor function `void fn(void *args, const hive_spawn_info *siblings, size_t sibling_count)`
+  - `init`: Optional init function called in spawner context (NULL to skip)
+  - `init_args`: Arguments to init (or directly to actor if init is NULL)
+  - `cfg`: Actor configuration (NULL = defaults), includes `auto_register` for name registry
+- Actors receive sibling info at startup (for supervised actors: all siblings; for standalone: self only)
+- Use `hive_find_sibling(siblings, count, name)` to find sibling by name
 - Actors can link (bidirectional) or monitor (unidirectional) other actors for death notifications
 - When an actor dies: mailbox cleared, links/monitors notified, bus subscriptions removed, timers cancelled, resources freed
 

@@ -13,6 +13,7 @@
 void sensor_actor_init(bus_id sensor_bus);
 
 // Actor entry point - spawn this with hive_spawn()
-void sensor_actor(void *arg);
+void sensor_actor(void *args, const hive_spawn_info *siblings,
+                  size_t sibling_count);
 
 #endif // SENSOR_ACTOR_H

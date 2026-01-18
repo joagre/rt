@@ -9,8 +9,11 @@ static actor_id g_actor_a = ACTOR_ID_INVALID;
 static actor_id g_actor_b = ACTOR_ID_INVALID;
 
 // Actor A - links to B, then waits for exit notification
-static void actor_a(void *arg) {
-    (void)arg;
+static void actor_a(void *args, const hive_spawn_info *siblings,
+                    size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     printf("Actor A started (ID: %u)\n", hive_self());
     printf("Actor A: Waiting for Actor B to spawn...\n");
@@ -52,8 +55,11 @@ static void actor_a(void *arg) {
 }
 
 // Actor B - waits a bit, then exits normally
-static void actor_b(void *arg) {
-    (void)arg;
+static void actor_b(void *args, const hive_spawn_info *siblings,
+                    size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     printf("Actor B started (ID: %u)\n", hive_self());
     printf("Actor B: Waiting 500ms before exiting...\n");
@@ -83,7 +89,7 @@ int main(void) {
     // Spawn Actor B first
     actor_config actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT;
     actor_cfg.name = "actor_b";
-    if (HIVE_FAILED(hive_spawn_ex(actor_b, NULL, &actor_cfg, &g_actor_b))) {
+    if (HIVE_FAILED(hive_spawn(actor_b, NULL, NULL, &actor_cfg, &g_actor_b))) {
         fprintf(stderr, "Failed to spawn Actor B\n");
         hive_cleanup();
         return 1;
@@ -91,7 +97,7 @@ int main(void) {
 
     // Spawn Actor A
     actor_cfg.name = "actor_a";
-    if (HIVE_FAILED(hive_spawn_ex(actor_a, NULL, &actor_cfg, &g_actor_a))) {
+    if (HIVE_FAILED(hive_spawn(actor_a, NULL, NULL, &actor_cfg, &g_actor_a))) {
         fprintf(stderr, "Failed to spawn Actor A\n");
         hive_cleanup();
         return 1;

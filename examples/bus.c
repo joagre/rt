@@ -16,8 +16,11 @@ typedef struct {
 } sensor_data;
 
 // Publisher actor - publishes sensor data periodically
-static void publisher_actor(void *arg) {
-    (void)arg;
+static void publisher_actor(void *args, const hive_spawn_info *siblings,
+                            size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     printf("Publisher actor started (ID: %u)\n", hive_self());
 
@@ -66,8 +69,11 @@ static void publisher_actor(void *arg) {
 }
 
 // Subscriber actor - reads sensor data
-static void subscriber_actor(void *arg) {
-    const char *name = (const char *)arg;
+static void subscriber_actor(void *args, const hive_spawn_info *siblings,
+                             size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    const char *name = (const char *)args;
 
     printf("%s actor started (ID: %u)\n", name, hive_self());
 
@@ -153,8 +159,8 @@ int main(void) {
     actor_cfg.stack_size = 128 * 1024; // Increase stack size
 #endif
     actor_id sub_a;
-    if (HIVE_FAILED(hive_spawn_ex(subscriber_actor, (void *)"Subscriber A",
-                                  &actor_cfg, &sub_a))) {
+    if (HIVE_FAILED(hive_spawn(subscriber_actor, NULL, (void *)"Subscriber A",
+                               &actor_cfg, &sub_a))) {
         fprintf(stderr, "Failed to spawn subscriber A\n");
         hive_cleanup();
         return 1;
@@ -162,8 +168,8 @@ int main(void) {
 
     actor_cfg.name = "subscriber_b";
     actor_id sub_b;
-    if (HIVE_FAILED(hive_spawn_ex(subscriber_actor, (void *)"Subscriber B",
-                                  &actor_cfg, &sub_b))) {
+    if (HIVE_FAILED(hive_spawn(subscriber_actor, NULL, (void *)"Subscriber B",
+                               &actor_cfg, &sub_b))) {
         fprintf(stderr, "Failed to spawn subscriber B\n");
         hive_cleanup();
         return 1;
@@ -173,7 +179,8 @@ int main(void) {
     actor_cfg.name = "publisher";
     // Stack size already set above (reuse actor_cfg)
     actor_id pub;
-    if (HIVE_FAILED(hive_spawn_ex(publisher_actor, NULL, &actor_cfg, &pub))) {
+    if (HIVE_FAILED(
+            hive_spawn(publisher_actor, NULL, NULL, &actor_cfg, &pub))) {
         fprintf(stderr, "Failed to spawn publisher\n");
         hive_cleanup();
         return 1;

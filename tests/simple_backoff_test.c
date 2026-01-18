@@ -10,8 +10,11 @@
 #endif
 
 // Slow processor that drains messages gradually
-void slow_processor_actor(void *arg) {
-    (void)arg;
+void slow_processor_actor(void *args, const hive_spawn_info *siblings,
+                          size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     int processed = 0;
 
     printf("Processor: Starting to process messages slowly...\n");
@@ -42,8 +45,11 @@ void slow_processor_actor(void *arg) {
     hive_exit();
 }
 
-void aggressive_sender_actor(void *arg) {
-    actor_id processor = *(actor_id *)arg;
+void aggressive_sender_actor(void *args, const hive_spawn_info *siblings,
+                             size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    actor_id processor = *(actor_id *)args;
 
     printf("\nSender: Aggressively sending messages until pool exhausts...\n");
 
@@ -136,11 +142,11 @@ int main(void) {
     hive_init();
 
     actor_id processor;
-    hive_spawn(slow_processor_actor, NULL, &processor);
+    hive_spawn(slow_processor_actor, NULL, NULL, NULL, &processor);
     printf("Main: Spawned slow processor (ID: %u)\n", processor);
 
     actor_id sender;
-    hive_spawn(aggressive_sender_actor, &processor, &sender);
+    hive_spawn(aggressive_sender_actor, NULL, &processor, NULL, &sender);
     printf("Main: Spawned aggressive sender\n");
 
     hive_run();

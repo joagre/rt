@@ -33,8 +33,11 @@ static int tests_failed = 0;
 static actor_id g_test1_expected_id = ACTOR_ID_INVALID;
 static bool g_test1_lookup_success = false;
 
-static void test1_register_actor(void *arg) {
-    (void)arg;
+static void test1_register_actor(void *args, const hive_spawn_info *siblings,
+                                 size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     hive_status status = hive_register("test_actor");
     if (HIVE_FAILED(status)) {
@@ -52,8 +55,11 @@ static void test1_register_actor(void *arg) {
     hive_exit();
 }
 
-static void test1_lookup_actor(void *arg) {
-    (void)arg;
+static void test1_lookup_actor(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Give time for registration
     timer_id timer;
@@ -70,16 +76,20 @@ static void test1_lookup_actor(void *arg) {
     hive_exit();
 }
 
-static void test1_basic_register_whereis(void *arg) {
-    (void)arg;
+static void test1_basic_register_whereis(void *args,
+                                         const hive_spawn_info *siblings,
+                                         size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 1: Basic register and whereis\n");
 
     g_test1_expected_id = ACTOR_ID_INVALID;
     g_test1_lookup_success = false;
 
     actor_id reg_actor, lookup_actor;
-    hive_spawn(test1_register_actor, NULL, &reg_actor);
-    hive_spawn(test1_lookup_actor, NULL, &lookup_actor);
+    hive_spawn(test1_register_actor, NULL, NULL, NULL, &reg_actor);
+    hive_spawn(test1_lookup_actor, NULL, NULL, NULL, &lookup_actor);
 
     // Wait for completion
     timer_id timer;
@@ -103,8 +113,11 @@ static void test1_basic_register_whereis(void *arg) {
 static bool g_test2_first_registered = false;
 static bool g_test2_second_failed = false;
 
-static void test2_first_actor(void *arg) {
-    (void)arg;
+static void test2_first_actor(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     hive_status status = hive_register("shared_name");
     if (HIVE_SUCCEEDED(status)) {
@@ -120,8 +133,11 @@ static void test2_first_actor(void *arg) {
     hive_exit();
 }
 
-static void test2_second_actor(void *arg) {
-    (void)arg;
+static void test2_second_actor(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Give time for first actor
     timer_id timer;
@@ -137,16 +153,19 @@ static void test2_second_actor(void *arg) {
     hive_exit();
 }
 
-static void test2_duplicate_name(void *arg) {
-    (void)arg;
+static void test2_duplicate_name(void *args, const hive_spawn_info *siblings,
+                                 size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 2: Duplicate name registration fails\n");
 
     g_test2_first_registered = false;
     g_test2_second_failed = false;
 
     actor_id first, second;
-    hive_spawn(test2_first_actor, NULL, &first);
-    hive_spawn(test2_second_actor, NULL, &second);
+    hive_spawn(test2_first_actor, NULL, NULL, NULL, &first);
+    hive_spawn(test2_second_actor, NULL, NULL, NULL, &second);
 
     timer_id timer;
     hive_timer_after(200000, &timer);
@@ -169,8 +188,11 @@ static void test2_duplicate_name(void *arg) {
 static bool g_test3_found_before = false;
 static bool g_test3_not_found_after = false;
 
-static void test3_registering_actor(void *arg) {
-    (void)arg;
+static void test3_registering_actor(void *args, const hive_spawn_info *siblings,
+                                    size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     hive_register("auto_cleanup_name");
 
@@ -184,8 +206,11 @@ static void test3_registering_actor(void *arg) {
     hive_exit();
 }
 
-static void test3_checker_actor(void *arg) {
-    (void)arg;
+static void test3_checker_actor(void *args, const hive_spawn_info *siblings,
+                                size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Wait for registration
     timer_id timer;
@@ -211,16 +236,19 @@ static void test3_checker_actor(void *arg) {
     hive_exit();
 }
 
-static void test3_auto_cleanup(void *arg) {
-    (void)arg;
+static void test3_auto_cleanup(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 3: Auto-cleanup on actor exit\n");
 
     g_test3_found_before = false;
     g_test3_not_found_after = false;
 
     actor_id reg, checker;
-    hive_spawn(test3_registering_actor, NULL, &reg);
-    hive_spawn(test3_checker_actor, NULL, &checker);
+    hive_spawn(test3_registering_actor, NULL, NULL, NULL, &reg);
+    hive_spawn(test3_checker_actor, NULL, NULL, NULL, &checker);
 
     timer_id timer;
     hive_timer_after(400000, &timer); // Increased to account for longer checks
@@ -245,8 +273,11 @@ static void test3_auto_cleanup(void *arg) {
 static bool g_test4_found_before = false;
 static bool g_test4_not_found_after = false;
 
-static void test4_unregister_actor(void *arg) {
-    (void)arg;
+static void test4_unregister_actor(void *args, const hive_spawn_info *siblings,
+                                   size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     hive_register("will_unregister");
 
@@ -265,8 +296,11 @@ static void test4_unregister_actor(void *arg) {
     hive_exit();
 }
 
-static void test4_checker_actor(void *arg) {
-    (void)arg;
+static void test4_checker_actor(void *args, const hive_spawn_info *siblings,
+                                size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Wait for registration
     timer_id timer;
@@ -290,16 +324,19 @@ static void test4_checker_actor(void *arg) {
     hive_exit();
 }
 
-static void test4_unregister(void *arg) {
-    (void)arg;
+static void test4_unregister(void *args, const hive_spawn_info *siblings,
+                             size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 4: Unregister removes name\n");
 
     g_test4_found_before = false;
     g_test4_not_found_after = false;
 
     actor_id unreg, checker;
-    hive_spawn(test4_unregister_actor, NULL, &unreg);
-    hive_spawn(test4_checker_actor, NULL, &checker);
+    hive_spawn(test4_unregister_actor, NULL, NULL, NULL, &unreg);
+    hive_spawn(test4_checker_actor, NULL, NULL, NULL, &checker);
 
     timer_id timer;
     hive_timer_after(250000, &timer);
@@ -319,8 +356,12 @@ static void test4_unregister(void *arg) {
 // Test 5: Whereis non-existent name fails
 // ============================================================================
 
-static void test5_whereis_nonexistent(void *arg) {
-    (void)arg;
+static void test5_whereis_nonexistent(void *args,
+                                      const hive_spawn_info *siblings,
+                                      size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 5: Whereis non-existent name fails\n");
 
     actor_id found;
@@ -338,8 +379,11 @@ static void test5_whereis_nonexistent(void *arg) {
 // Test 6: NULL arguments rejected
 // ============================================================================
 
-static void test6_null_args(void *arg) {
-    (void)arg;
+static void test6_null_args(void *args, const hive_spawn_info *siblings,
+                            size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 6: NULL arguments rejected\n");
 
     hive_status status = hive_register(NULL);
@@ -380,8 +424,11 @@ static void test6_null_args(void *arg) {
 
 static bool g_test7_unregister_failed = false;
 
-static void test7_owner_actor(void *arg) {
-    (void)arg;
+static void test7_owner_actor(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     hive_register("owned_name");
 
@@ -394,8 +441,11 @@ static void test7_owner_actor(void *arg) {
     hive_exit();
 }
 
-static void test7_thief_actor(void *arg) {
-    (void)arg;
+static void test7_thief_actor(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Wait for registration
     timer_id timer;
@@ -412,15 +462,19 @@ static void test7_thief_actor(void *arg) {
     hive_exit();
 }
 
-static void test7_cannot_unregister_others(void *arg) {
-    (void)arg;
+static void test7_cannot_unregister_others(void *args,
+                                           const hive_spawn_info *siblings,
+                                           size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 7: Cannot unregister another actor's name\n");
 
     g_test7_unregister_failed = false;
 
     actor_id owner, thief;
-    hive_spawn(test7_owner_actor, NULL, &owner);
-    hive_spawn(test7_thief_actor, NULL, &thief);
+    hive_spawn(test7_owner_actor, NULL, NULL, NULL, &owner);
+    hive_spawn(test7_thief_actor, NULL, NULL, NULL, &thief);
 
     timer_id timer;
     hive_timer_after(250000, &timer);
@@ -442,8 +496,11 @@ static void test7_cannot_unregister_others(void *arg) {
 
 static bool g_test8_all_found = false;
 
-static void test8_multi_name_actor(void *arg) {
-    (void)arg;
+static void test8_multi_name_actor(void *args, const hive_spawn_info *siblings,
+                                   size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     hive_register("name_one");
     hive_register("name_two");
@@ -458,8 +515,11 @@ static void test8_multi_name_actor(void *arg) {
     hive_exit();
 }
 
-static void test8_checker_actor(void *arg) {
-    (void)arg;
+static void test8_checker_actor(void *args, const hive_spawn_info *siblings,
+                                size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Wait for registrations
     timer_id timer;
@@ -479,15 +539,18 @@ static void test8_checker_actor(void *arg) {
     hive_exit();
 }
 
-static void test8_multiple_names(void *arg) {
-    (void)arg;
+static void test8_multiple_names(void *args, const hive_spawn_info *siblings,
+                                 size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 8: Multiple names per actor\n");
 
     g_test8_all_found = false;
 
     actor_id multi, checker;
-    hive_spawn(test8_multi_name_actor, NULL, &multi);
-    hive_spawn(test8_checker_actor, NULL, &checker);
+    hive_spawn(test8_multi_name_actor, NULL, NULL, NULL, &multi);
+    hive_spawn(test8_checker_actor, NULL, NULL, NULL, &checker);
 
     timer_id timer;
     hive_timer_after(200000, &timer);
@@ -507,7 +570,7 @@ static void test8_multiple_names(void *arg) {
 // Test runner
 // ============================================================================
 
-static void (*test_funcs[])(void *) = {
+static void (*test_funcs[])(void *, const hive_spawn_info *, size_t) = {
     test1_basic_register_whereis,
     test2_duplicate_name,
     test3_auto_cleanup,
@@ -520,15 +583,18 @@ static void (*test_funcs[])(void *) = {
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
 
-static void run_all_tests(void *arg) {
-    (void)arg;
+static void run_all_tests(void *args, const hive_spawn_info *siblings,
+                          size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     for (size_t i = 0; i < NUM_TESTS; i++) {
         actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
         cfg.stack_size = TEST_STACK_SIZE(64 * 1024);
 
         actor_id test;
-        if (HIVE_FAILED(hive_spawn_ex(test_funcs[i], NULL, &cfg, &test))) {
+        if (HIVE_FAILED(hive_spawn(test_funcs[i], NULL, NULL, &cfg, &test))) {
             printf("Failed to spawn test %zu\n", i);
             continue;
         }
@@ -556,7 +622,7 @@ int main(void) {
     cfg.stack_size = TEST_STACK_SIZE(128 * 1024);
 
     actor_id runner;
-    if (HIVE_FAILED(hive_spawn_ex(run_all_tests, NULL, &cfg, &runner))) {
+    if (HIVE_FAILED(hive_spawn(run_all_tests, NULL, NULL, &cfg, &runner))) {
         fprintf(stderr, "Failed to spawn test runner\n");
         hive_cleanup();
         return 1;

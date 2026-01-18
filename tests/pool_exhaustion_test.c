@@ -10,8 +10,11 @@
 #endif
 
 // Receiver that accumulates messages without processing
-void slow_receiver_actor(void *arg) {
-    (void)arg;
+void slow_receiver_actor(void *args, const hive_spawn_info *siblings,
+                         size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("Receiver: Started, will not process messages to exhaust pool\n");
 
     // Just sleep - don't process messages
@@ -22,8 +25,11 @@ void slow_receiver_actor(void *arg) {
     hive_exit();
 }
 
-void sender_actor(void *arg) {
-    actor_id receiver = *(actor_id *)arg;
+void sender_actor(void *args, const hive_spawn_info *siblings,
+                  size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    actor_id receiver = *(actor_id *)args;
 
     printf("\nSender: Attempting to exhaust IPC pool by sending to slow "
            "receiver...\n");
@@ -126,12 +132,12 @@ int main(void) {
 
     // Spawn receiver that won't process messages
     actor_id receiver;
-    hive_spawn(slow_receiver_actor, NULL, &receiver);
+    hive_spawn(slow_receiver_actor, NULL, NULL, NULL, &receiver);
     printf("Main: Spawned slow receiver (ID: %u)\n", receiver);
 
     // Spawn sender that will exhaust pool and retry
     actor_id sender;
-    hive_spawn(sender_actor, &receiver, &sender);
+    hive_spawn(sender_actor, NULL, &receiver, NULL, &sender);
     printf("Main: Spawned sender (ID: %u)\n", sender);
 
     hive_run();

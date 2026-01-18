@@ -55,8 +55,11 @@ static void wait_ms(int ms) {
 // =============================================================================
 
 // Simple child that runs until killed
-static void stable_child(void *arg) {
-    int id = arg ? *(int *)arg : 0;
+static void stable_child(void *args, const hive_spawn_info *siblings,
+                         size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int id = args ? *(int *)args : 0;
     g_child_started[id]++;
 
     // Wait indefinitely (will be killed by supervisor)
@@ -68,24 +71,33 @@ static void stable_child(void *arg) {
 }
 
 // Child that crashes immediately
-static void crashing_child(void *arg) {
-    int id = arg ? *(int *)arg : 0;
+static void crashing_child(void *args, const hive_spawn_info *siblings,
+                           size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int id = args ? *(int *)args : 0;
     g_child_started[id]++;
     g_child_exited[id]++;
     // Return without calling hive_exit() = crash
 }
 
 // Child that exits normally
-static void exiting_child(void *arg) {
-    int id = arg ? *(int *)arg : 0;
+static void exiting_child(void *args, const hive_spawn_info *siblings,
+                          size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int id = args ? *(int *)args : 0;
     g_child_started[id]++;
     g_child_exited[id]++;
     hive_exit();
 }
 
 // Child that crashes after a short delay
-static void delayed_crash_child(void *arg) {
-    int id = arg ? *(int *)arg : 0;
+static void delayed_crash_child(void *args, const hive_spawn_info *siblings,
+                                size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int id = args ? *(int *)args : 0;
     g_child_started[id]++;
 
     wait_ms(50);
@@ -104,23 +116,30 @@ static void test_shutdown_callback(void *ctx) {
 // Test 1: Basic lifecycle (start/stop supervisor)
 // =============================================================================
 
-static void test1_basic_lifecycle(void *arg) {
-    (void)arg;
+static void test1_basic_lifecycle(void *args, const hive_spawn_info *siblings,
+                                  size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 1: Basic supervisor lifecycle\n");
     reset_test_state();
 
     static int child_ids[2] = {0, 1};
     hive_child_spec children[2] = {
-        {.id = "child0",
-         .fn = stable_child,
-         .arg = &child_ids[0],
-         .arg_size = sizeof(int),
+        {.start = stable_child,
+         .init = NULL,
+         .init_args = &child_ids[0],
+         .init_args_size = sizeof(int),
+         .name = "child0",
+         .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
-        {.id = "child1",
-         .fn = stable_child,
-         .arg = &child_ids[1],
-         .arg_size = sizeof(int),
+        {.start = stable_child,
+         .init = NULL,
+         .init_args = &child_ids[1],
+         .init_args_size = sizeof(int),
+         .name = "child1",
+         .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
     };
@@ -187,23 +206,30 @@ static void test1_basic_lifecycle(void *arg) {
 // Test 2: one_for_one - crash one child, only that child restarts
 // =============================================================================
 
-static void test2_one_for_one(void *arg) {
-    (void)arg;
+static void test2_one_for_one(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 2: one_for_one strategy\n");
     reset_test_state();
 
     static int child_ids[2] = {0, 1};
     hive_child_spec children[2] = {
-        {.id = "crasher",
-         .fn = delayed_crash_child,
-         .arg = &child_ids[0],
-         .arg_size = sizeof(int),
+        {.start = delayed_crash_child,
+         .init = NULL,
+         .init_args = &child_ids[0],
+         .init_args_size = sizeof(int),
+         .name = "crasher",
+         .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
-        {.id = "stable",
-         .fn = stable_child,
-         .arg = &child_ids[1],
-         .arg_size = sizeof(int),
+        {.start = stable_child,
+         .init = NULL,
+         .init_args = &child_ids[1],
+         .init_args_size = sizeof(int),
+         .name = "stable",
+         .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
     };
@@ -250,23 +276,30 @@ static void test2_one_for_one(void *arg) {
 // Test 3: one_for_all - crash one child, all restart
 // =============================================================================
 
-static void test3_one_for_all(void *arg) {
-    (void)arg;
+static void test3_one_for_all(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 3: one_for_all strategy\n");
     reset_test_state();
 
     static int child_ids[2] = {0, 1};
     hive_child_spec children[2] = {
-        {.id = "crasher",
-         .fn = delayed_crash_child,
-         .arg = &child_ids[0],
-         .arg_size = sizeof(int),
+        {.start = delayed_crash_child,
+         .init = NULL,
+         .init_args = &child_ids[0],
+         .init_args_size = sizeof(int),
+         .name = "crasher",
+         .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
-        {.id = "stable",
-         .fn = stable_child,
-         .arg = &child_ids[1],
-         .arg_size = sizeof(int),
+        {.start = stable_child,
+         .init = NULL,
+         .init_args = &child_ids[1],
+         .init_args_size = sizeof(int),
+         .name = "stable",
+         .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
     };
@@ -312,29 +345,38 @@ static void test3_one_for_all(void *arg) {
 // Test 4: rest_for_one - crash child N, children N+ restart
 // =============================================================================
 
-static void test4_rest_for_one(void *arg) {
-    (void)arg;
+static void test4_rest_for_one(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 4: rest_for_one strategy\n");
     reset_test_state();
 
     static int child_ids[3] = {0, 1, 2};
     hive_child_spec children[3] = {
-        {.id = "stable0",
-         .fn = stable_child,
-         .arg = &child_ids[0],
-         .arg_size = sizeof(int),
+        {.start = stable_child,
+         .init = NULL,
+         .init_args = &child_ids[0],
+         .init_args_size = sizeof(int),
+         .name = "stable0",
+         .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
-        {.id = "crasher",
-         .fn = delayed_crash_child,
-         .arg = &child_ids[1],
-         .arg_size = sizeof(int),
+        {.start = delayed_crash_child,
+         .init = NULL,
+         .init_args = &child_ids[1],
+         .init_args_size = sizeof(int),
+         .name = "crasher",
+         .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
-        {.id = "stable2",
-         .fn = stable_child,
-         .arg = &child_ids[2],
-         .arg_size = sizeof(int),
+        {.start = stable_child,
+         .init = NULL,
+         .init_args = &child_ids[2],
+         .init_args_size = sizeof(int),
+         .name = "stable2",
+         .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
     };
@@ -384,17 +426,22 @@ static void test4_rest_for_one(void *arg) {
 // Test 5: Restart intensity exceeded
 // =============================================================================
 
-static void test5_restart_intensity(void *arg) {
-    (void)arg;
+static void test5_restart_intensity(void *args, const hive_spawn_info *siblings,
+                                    size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 5: Restart intensity exceeded\n");
     reset_test_state();
 
     static int child_id = 0;
     hive_child_spec children[1] = {
-        {.id = "rapid_crasher",
-         .fn = crashing_child,
-         .arg = &child_id,
-         .arg_size = sizeof(int),
+        {.start = crashing_child,
+         .init = NULL,
+         .init_args = &child_id,
+         .init_args_size = sizeof(int),
+         .name = "rapid_crasher",
+         .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
     };
@@ -445,32 +492,41 @@ static void test5_restart_intensity(void *arg) {
 // Test 6: Restart types (permanent/transient/temporary)
 // =============================================================================
 
-static void test6_restart_types(void *arg) {
-    (void)arg;
+static void test6_restart_types(void *args, const hive_spawn_info *siblings,
+                                size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 6: Restart types\n");
     reset_test_state();
 
     static int child_ids[3] = {0, 1, 2};
     hive_child_spec children[3] = {
         // Permanent: should restart on normal exit
-        {.id = "permanent",
-         .fn = exiting_child,
-         .arg = &child_ids[0],
-         .arg_size = sizeof(int),
+        {.start = exiting_child,
+         .init = NULL,
+         .init_args = &child_ids[0],
+         .init_args_size = sizeof(int),
+         .name = "permanent",
+         .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
         // Transient: should NOT restart on normal exit
-        {.id = "transient",
-         .fn = exiting_child,
-         .arg = &child_ids[1],
-         .arg_size = sizeof(int),
+        {.start = exiting_child,
+         .init = NULL,
+         .init_args = &child_ids[1],
+         .init_args_size = sizeof(int),
+         .name = "transient",
+         .auto_register = false,
          .restart = HIVE_CHILD_TRANSIENT,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
         // Temporary: should never restart
-        {.id = "temporary",
-         .fn = crashing_child,
-         .arg = &child_ids[2],
-         .arg_size = sizeof(int),
+        {.start = crashing_child,
+         .init = NULL,
+         .init_args = &child_ids[2],
+         .init_args_size = sizeof(int),
+         .name = "temporary",
+         .auto_register = false,
          .restart = HIVE_CHILD_TEMPORARY,
          .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT},
     };
@@ -531,8 +587,11 @@ static void test6_restart_types(void *arg) {
 // Test 7: Empty children
 // =============================================================================
 
-static void test7_empty_children(void *arg) {
-    (void)arg;
+static void test7_empty_children(void *args, const hive_spawn_info *siblings,
+                                 size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 7: Empty children list\n");
     reset_test_state();
 
@@ -577,8 +636,11 @@ static void test7_empty_children(void *arg) {
 // Test 8: Invalid configurations
 // =============================================================================
 
-static void test8_invalid_config(void *arg) {
-    (void)arg;
+static void test8_invalid_config(void *args, const hive_spawn_info *siblings,
+                                 size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 8: Invalid configurations\n");
 
     actor_id supervisor;
@@ -621,8 +683,12 @@ static void test8_invalid_config(void *arg) {
 
     // NULL child function
     hive_child_spec bad_child = {
-        .id = "bad",
-        .fn = NULL,
+        .start = NULL,
+        .init = NULL,
+        .init_args = NULL,
+        .init_args_size = 0,
+        .name = "bad",
+        .auto_register = false,
         .restart = HIVE_CHILD_PERMANENT,
         .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT,
     };
@@ -642,8 +708,11 @@ static void test8_invalid_config(void *arg) {
 // Test 9: Utility functions
 // =============================================================================
 
-static void test9_utility_functions(void *arg) {
-    (void)arg;
+static void test9_utility_functions(void *args, const hive_spawn_info *siblings,
+                                    size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 9: Utility functions\n");
 
     // Test strategy string conversion
@@ -697,7 +766,7 @@ static void test9_utility_functions(void *arg) {
 // Test Runner
 // =============================================================================
 
-static void (*test_funcs[])(void *) = {
+static actor_fn test_funcs[] = {
     test1_basic_lifecycle, test2_one_for_one,       test3_one_for_all,
     test4_rest_for_one,    test5_restart_intensity, test6_restart_types,
     test7_empty_children,  test8_invalid_config,    test9_utility_functions,
@@ -705,15 +774,18 @@ static void (*test_funcs[])(void *) = {
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
 
-static void run_all_tests(void *arg) {
-    (void)arg;
+static void run_all_tests(void *args, const hive_spawn_info *siblings,
+                          size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     for (size_t i = 0; i < NUM_TESTS; i++) {
         actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
         cfg.stack_size = TEST_STACK_SIZE(128 * 1024);
 
         actor_id test;
-        if (HIVE_FAILED(hive_spawn_ex(test_funcs[i], NULL, &cfg, &test))) {
+        if (HIVE_FAILED(hive_spawn(test_funcs[i], NULL, NULL, &cfg, &test))) {
             printf("Failed to spawn test %zu\n", i);
             continue;
         }
@@ -741,7 +813,7 @@ int main(void) {
     cfg.stack_size = TEST_STACK_SIZE(128 * 1024);
 
     actor_id runner;
-    if (HIVE_FAILED(hive_spawn_ex(run_all_tests, NULL, &cfg, &runner))) {
+    if (HIVE_FAILED(hive_spawn(run_all_tests, NULL, NULL, &cfg, &runner))) {
         fprintf(stderr, "Failed to spawn test runner\n");
         hive_cleanup();
         return 1;

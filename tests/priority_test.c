@@ -34,8 +34,11 @@ static int tests_failed = 0;
 static int g_exec_order[MAX_EXEC_ORDER];
 static int g_exec_count = 0;
 
-static void priority_actor(void *arg) {
-    int id = *(int *)arg;
+static void priority_actor(void *args, const hive_spawn_info *siblings,
+                           size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int id = *(int *)args;
 
     // Record execution order
     if (g_exec_count < MAX_EXEC_ORDER) {
@@ -45,8 +48,11 @@ static void priority_actor(void *arg) {
     hive_exit();
 }
 
-static void test1_coordinator(void *arg) {
-    (void)arg;
+static void test1_coordinator(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 1: Higher priority runs first\n");
 
     g_exec_count = 0;
@@ -58,19 +64,19 @@ static void test1_coordinator(void *arg) {
     actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
     cfg.priority = HIVE_PRIORITY_LOW;
     actor_id id;
-    hive_spawn_ex(priority_actor, &ids[0], &cfg, &id);
+    hive_spawn(priority_actor, NULL, &ids[0], &cfg, &id);
 
     // Spawn NORMAL priority
     cfg.priority = HIVE_PRIORITY_NORMAL;
-    hive_spawn_ex(priority_actor, &ids[1], &cfg, &id);
+    hive_spawn(priority_actor, NULL, &ids[1], &cfg, &id);
 
     // Spawn HIGH priority
     cfg.priority = HIVE_PRIORITY_HIGH;
-    hive_spawn_ex(priority_actor, &ids[2], &cfg, &id);
+    hive_spawn(priority_actor, NULL, &ids[2], &cfg, &id);
 
     // Spawn CRITICAL priority
     cfg.priority = HIVE_PRIORITY_CRITICAL;
-    hive_spawn_ex(priority_actor, &ids[3], &cfg, &id);
+    hive_spawn(priority_actor, NULL, &ids[3], &cfg, &id);
 
     // Yield to let them all run
     // Since we're NORMAL priority, CRITICAL and HIGH should run before us
@@ -133,8 +139,11 @@ static void test1_coordinator(void *arg) {
 static int g_rr_order[8];
 static int g_rr_count = 0;
 
-static void rr_actor(void *arg) {
-    int id = *(int *)arg;
+static void rr_actor(void *args, const hive_spawn_info *siblings,
+                     size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int id = *(int *)args;
 
     // Record first execution
     if (g_rr_count < 8) {
@@ -151,8 +160,11 @@ static void rr_actor(void *arg) {
     hive_exit();
 }
 
-static void test2_coordinator(void *arg) {
-    (void)arg;
+static void test2_coordinator(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 2: Round-robin within same priority\n");
 
     g_rr_count = 0;
@@ -164,7 +176,7 @@ static void test2_coordinator(void *arg) {
 
     for (int i = 0; i < 3; i++) {
         actor_id id;
-        hive_spawn_ex(rr_actor, &ids[i], &cfg, &id);
+        hive_spawn(rr_actor, NULL, &ids[i], &cfg, &id);
     }
 
     // Wait for them to complete
@@ -210,8 +222,11 @@ static void test2_coordinator(void *arg) {
 static bool g_high_ran_first = false;
 static bool g_low_finished = false;
 
-static void high_prio_late_spawn(void *arg) {
-    (void)arg;
+static void high_prio_late_spawn(void *args, const hive_spawn_info *siblings,
+                                 size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     // This high-priority actor was spawned by the low-priority one
     // It should run before the low-priority actor continues
     if (!g_low_finished) {
@@ -220,14 +235,17 @@ static void high_prio_late_spawn(void *arg) {
     hive_exit();
 }
 
-static void low_prio_spawner(void *arg) {
-    (void)arg;
+static void low_prio_spawner(void *args, const hive_spawn_info *siblings,
+                             size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Spawn a high-priority actor
     actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
     cfg.priority = HIVE_PRIORITY_HIGH;
     actor_id id;
-    hive_spawn_ex(high_prio_late_spawn, NULL, &cfg, &id);
+    hive_spawn(high_prio_late_spawn, NULL, NULL, &cfg, &id);
 
     // Yield - high priority should run now
     hive_yield();
@@ -236,8 +254,11 @@ static void low_prio_spawner(void *arg) {
     hive_exit();
 }
 
-static void test3_coordinator(void *arg) {
-    (void)arg;
+static void test3_coordinator(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 3: High priority preempts after yield\n");
 
     g_high_ran_first = false;
@@ -247,7 +268,7 @@ static void test3_coordinator(void *arg) {
     actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
     cfg.priority = HIVE_PRIORITY_LOW;
     actor_id id;
-    hive_spawn_ex(low_prio_spawner, NULL, &cfg, &id);
+    hive_spawn(low_prio_spawner, NULL, NULL, &cfg, &id);
 
     // Wait for completion
     timer_id timer;
@@ -270,14 +291,20 @@ static void test3_coordinator(void *arg) {
 
 static bool g_prio_ran[4] = {false, false, false, false};
 
-static void starvation_actor(void *arg) {
-    int prio = *(int *)arg;
+static void starvation_actor(void *args, const hive_spawn_info *siblings,
+                             size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int prio = *(int *)args;
     g_prio_ran[prio] = true;
     hive_exit();
 }
 
-static void test4_coordinator(void *arg) {
-    (void)arg;
+static void test4_coordinator(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 4: No starvation (all priorities run)\n");
 
     memset(g_prio_ran, 0, sizeof(g_prio_ran));
@@ -289,7 +316,7 @@ static void test4_coordinator(void *arg) {
         actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
         cfg.priority = (hive_priority_level)i;
         actor_id id;
-        hive_spawn_ex(starvation_actor, &prios[i], &cfg, &id);
+        hive_spawn(starvation_actor, NULL, &prios[i], &cfg, &id);
     }
 
     // Wait for all to complete
@@ -321,8 +348,11 @@ static void test4_coordinator(void *arg) {
 
 static hive_priority_level g_default_prio = HIVE_PRIORITY_COUNT;
 
-static void check_default_prio(void *arg) {
-    (void)arg;
+static void check_default_prio(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     // We need to check the actor's priority - but we don't have direct access
     // We'll verify by checking HIVE_ACTOR_CONFIG_DEFAULT
     actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
@@ -330,8 +360,11 @@ static void check_default_prio(void *arg) {
     hive_exit();
 }
 
-static void test5_coordinator(void *arg) {
-    (void)arg;
+static void test5_coordinator(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 5: Default priority is NORMAL\n");
 
     // Check HIVE_ACTOR_CONFIG_DEFAULT directly
@@ -347,7 +380,7 @@ static void test5_coordinator(void *arg) {
 
     // Also spawn an actor with default config to verify
     actor_id checker;
-    hive_spawn(check_default_prio, NULL, &checker);
+    hive_spawn(check_default_prio, NULL, NULL, NULL, &checker);
 
     timer_id timer;
     hive_timer_after(50000, &timer);
@@ -361,22 +394,25 @@ static void test5_coordinator(void *arg) {
 // Test runner
 // ============================================================================
 
-static void (*test_funcs[])(void *) = {
+static actor_fn test_funcs[] = {
     test1_coordinator, test2_coordinator, test3_coordinator,
     test4_coordinator, test5_coordinator,
 };
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
 
-static void run_all_tests(void *arg) {
-    (void)arg;
+static void run_all_tests(void *args, const hive_spawn_info *siblings,
+                          size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     for (size_t i = 0; i < NUM_TESTS; i++) {
         actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
         cfg.stack_size = TEST_STACK_SIZE(64 * 1024);
 
         actor_id test;
-        if (HIVE_FAILED(hive_spawn_ex(test_funcs[i], NULL, &cfg, &test))) {
+        if (HIVE_FAILED(hive_spawn(test_funcs[i], NULL, NULL, &cfg, &test))) {
             printf("Failed to spawn test %zu\n", i);
             continue;
         }
@@ -406,7 +442,7 @@ int main(void) {
     cfg.stack_size = TEST_STACK_SIZE(128 * 1024);
 
     actor_id runner;
-    if (HIVE_FAILED(hive_spawn_ex(run_all_tests, NULL, &cfg, &runner))) {
+    if (HIVE_FAILED(hive_spawn(run_all_tests, NULL, NULL, &cfg, &runner))) {
         fprintf(stderr, "Failed to spawn test runner\n");
         hive_cleanup();
         return 1;

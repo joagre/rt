@@ -26,8 +26,11 @@ void rate_actor_init(bus_id state_bus, bus_id thrust_bus,
     s_torque_bus = torque_bus;
 }
 
-void rate_actor(void *arg) {
-    (void)arg;
+void rate_actor(void *args, const hive_spawn_info *siblings,
+                size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     hive_status status = hive_bus_subscribe(s_state_bus);
     assert(HIVE_SUCCEEDED(status));

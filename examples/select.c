@@ -32,8 +32,11 @@ typedef struct {
 static bus_id g_sensor_bus = BUS_ID_INVALID;
 
 // Sensor publisher actor - simulates sensor readings
-static void sensor_publisher(void *arg) {
-    (void)arg;
+static void sensor_publisher(void *args, const hive_spawn_info *siblings,
+                             size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("[Sensor] Publisher started\n");
 
     // Create periodic timer for sensor updates (100ms)
@@ -64,8 +67,11 @@ static void sensor_publisher(void *arg) {
 }
 
 // Command sender actor - sends shutdown command after delay
-static void command_sender(void *arg) {
-    actor_id controller = *(actor_id *)arg;
+static void command_sender(void *args, const hive_spawn_info *siblings,
+                           size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    actor_id controller = *(actor_id *)args;
     printf("[Command] Sender started, will send shutdown after 500ms\n");
 
     // Wait before sending shutdown
@@ -89,8 +95,11 @@ static void command_sender(void *arg) {
 }
 
 // Controller actor - uses hive_select() to wait on multiple sources
-static void controller(void *arg) {
-    (void)arg;
+static void controller(void *args, const hive_spawn_info *siblings,
+                       size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("[Controller] Started\n");
 
     // Subscribe to sensor bus
@@ -106,13 +115,13 @@ static void controller(void *arg) {
 
     // Spawn sensor publisher
     actor_id publisher;
-    hive_spawn(sensor_publisher, NULL, &publisher);
+    hive_spawn(sensor_publisher, NULL, NULL, NULL, &publisher);
     hive_link(publisher);
 
     // Spawn command sender
     actor_id self = hive_self();
     actor_id cmd_sender;
-    hive_spawn(command_sender, &self, &cmd_sender);
+    hive_spawn(command_sender, NULL, &self, NULL, &cmd_sender);
     hive_link(cmd_sender);
 
     // Set up select sources
@@ -229,7 +238,7 @@ int main(void) {
     cfg.name = "controller";
 
     actor_id id;
-    if (HIVE_FAILED(hive_spawn_ex(controller, NULL, &cfg, &id))) {
+    if (HIVE_FAILED(hive_spawn(controller, NULL, NULL, &cfg, &id))) {
         fprintf(stderr, "Failed to spawn controller\n");
         hive_bus_destroy(g_sensor_bus);
         hive_cleanup();

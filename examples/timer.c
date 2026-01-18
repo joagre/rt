@@ -4,8 +4,11 @@
 #include <stdio.h>
 
 // Timer test actor
-static void timer_actor(void *arg) {
-    (void)arg;
+static void timer_actor(void *args, const hive_spawn_info *siblings,
+                        size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     printf("Timer actor started (ID: %u)\n", hive_self());
 
@@ -91,7 +94,7 @@ int main(void) {
     actor_cfg.name = "timer";
 
     actor_id id;
-    if (HIVE_FAILED(hive_spawn_ex(timer_actor, NULL, &actor_cfg, &id))) {
+    if (HIVE_FAILED(hive_spawn(timer_actor, NULL, NULL, &actor_cfg, &id))) {
         fprintf(stderr, "Failed to spawn timer actor\n");
         hive_cleanup();
         return 1;

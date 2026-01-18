@@ -4,8 +4,11 @@
 #include <string.h>
 
 // File writer actor
-static void writer_actor(void *arg) {
-    (void)arg;
+static void writer_actor(void *args, const hive_spawn_info *siblings,
+                         size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     printf("Writer actor started (ID: %u)\n", hive_self());
 
@@ -51,8 +54,11 @@ static void writer_actor(void *arg) {
 }
 
 // File reader actor
-static void reader_actor(void *arg) {
-    (void)arg;
+static void reader_actor(void *args, const hive_spawn_info *siblings,
+                         size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     printf("Reader actor started (ID: %u)\n", hive_self());
 
@@ -115,7 +121,7 @@ int main(void) {
 
     actor_id writer_id;
     if (HIVE_FAILED(
-            hive_spawn_ex(writer_actor, NULL, &writer_cfg, &writer_id))) {
+            hive_spawn(writer_actor, NULL, NULL, &writer_cfg, &writer_id))) {
         fprintf(stderr, "Failed to spawn writer actor\n");
         hive_cleanup();
         return 1;
@@ -130,7 +136,7 @@ int main(void) {
 
     actor_id reader_id;
     if (HIVE_FAILED(
-            hive_spawn_ex(reader_actor, NULL, &reader_cfg, &reader_id))) {
+            hive_spawn(reader_actor, NULL, NULL, &reader_cfg, &reader_id))) {
         fprintf(stderr, "Failed to spawn reader actor\n");
         hive_cleanup();
         return 1;

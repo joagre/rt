@@ -15,8 +15,11 @@ static uint64_t get_time_ms(void) {
     return (uint64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
-void test_timeout_actor(void *arg) {
-    (void)arg;
+static void test_timeout_actor(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     printf("Test 1: Timeout when no message arrives\n");
     uint64_t start = get_time_ms();
@@ -73,7 +76,7 @@ void test_timeout_actor(void *arg) {
 int main(void) {
     hive_init();
     actor_id test;
-    hive_spawn(test_timeout_actor, NULL, &test);
+    hive_spawn(test_timeout_actor, NULL, NULL, NULL, &test);
     hive_run();
     hive_cleanup();
     return 0;

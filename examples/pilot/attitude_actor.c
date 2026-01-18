@@ -24,8 +24,11 @@ void attitude_actor_init(bus_id state_bus, bus_id attitude_setpoint_bus,
     s_rate_setpoint_bus = rate_setpoint_bus;
 }
 
-void attitude_actor(void *arg) {
-    (void)arg;
+void attitude_actor(void *args, const hive_spawn_info *siblings,
+                    size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     hive_status status = hive_bus_subscribe(s_state_bus);
     assert(HIVE_SUCCEEDED(status));

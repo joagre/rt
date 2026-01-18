@@ -7,8 +7,11 @@
 #include <time.h>
 
 // Worker actor - does some work then exits
-static void worker_actor(void *arg) {
-    int worker_id = *(int *)arg;
+static void worker_actor(void *args, const hive_spawn_info *siblings,
+                         size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int worker_id = *(int *)args;
 
     printf("Worker %d started (Actor ID: %u)\n", worker_id, hive_self());
 
@@ -27,8 +30,11 @@ static void worker_actor(void *arg) {
 }
 
 // Supervisor actor - monitors workers and reports when they exit
-static void supervisor_actor(void *arg) {
-    (void)arg;
+static void supervisor_actor(void *args, const hive_spawn_info *siblings,
+                             size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     printf("Supervisor started (Actor ID: %u)\n", hive_self());
 
@@ -44,8 +50,8 @@ static void supervisor_actor(void *arg) {
         worker_cfg.name = "worker";
 
         actor_id worker;
-        if (HIVE_FAILED(hive_spawn_ex(worker_actor, &worker_ids[i], &worker_cfg,
-                                      &worker))) {
+        if (HIVE_FAILED(hive_spawn(worker_actor, NULL, &worker_ids[i],
+                                   &worker_cfg, &worker))) {
             printf("Supervisor: Failed to spawn worker %d\n", i + 1);
             continue;
         }
@@ -113,7 +119,7 @@ int main(void) {
 
     actor_id supervisor;
     if (HIVE_FAILED(
-            hive_spawn_ex(supervisor_actor, NULL, &sup_cfg, &supervisor))) {
+            hive_spawn(supervisor_actor, NULL, NULL, &sup_cfg, &supervisor))) {
         fprintf(stderr, "Failed to spawn supervisor\n");
         hive_cleanup();
         return 1;

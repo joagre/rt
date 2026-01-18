@@ -177,7 +177,10 @@ All structures are statically allocated. Actor stacks use a static arena allocat
 #include "hive_ipc.h"
 #include <stdio.h>
 
-void my_actor(void *arg) {
+void my_actor(void *args, const hive_spawn_info *siblings, size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("Hello from actor %u\n", hive_self());
     hive_exit();
 }
@@ -186,7 +189,7 @@ int main(void) {
     hive_init();
 
     actor_id id;
-    hive_spawn(my_actor, NULL, &id);
+    hive_spawn(my_actor, NULL, NULL, NULL, &id);
 
     hive_run();
     hive_cleanup();
@@ -203,8 +206,9 @@ actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
 cfg.priority = 0;             // 0-3, lower is higher
 cfg.stack_size = 128 * 1024;
 cfg.malloc_stack = false;     // false=arena (default), true=malloc
+cfg.auto_register = false;    // true = auto-register name in registry
 actor_id worker;
-hive_spawn_ex(worker_actor, &args, &cfg, &worker);
+hive_spawn(worker_actor, NULL, &args, &cfg, &worker);
 
 // Notify (async message with tag for selective receive)
 int data = 42;
@@ -315,7 +319,7 @@ hive_bus_read_wait(bus, &received, sizeof(received), &bytes_read, -1);
 
 ```c
 actor_id other;
-hive_spawn(other_actor, NULL, &other);
+hive_spawn(other_actor, NULL, NULL, NULL, &other);
 hive_link(other);     // Bidirectional - both get exit notifications
 uint32_t mon_id;
 hive_monitor(other, &mon_id);  // Unidirectional - only monitor gets notifications
@@ -339,18 +343,22 @@ if (hive_is_exit_msg(&msg)) {
 static int worker_ids[2] = {1, 2};
 hive_child_spec children[] = {
     {
-        .id = "worker-1",
-        .fn = worker_actor,
-        .arg = &worker_ids[0],
-        .arg_size = sizeof(int),
+        .start = worker_actor,            // Actor entry point
+        .init = NULL,                     // Init function (NULL = skip)
+        .init_args = &worker_ids[0],      // Arguments to actor
+        .init_args_size = sizeof(int),    // Copy arg (0 = pass pointer)
+        .name = "worker-1",               // For debugging + supervisor tracking
+        .auto_register = false,           // Auto-register in name registry
         .restart = HIVE_CHILD_PERMANENT,  // Always restart
         .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT,
     },
     {
-        .id = "worker-2",
-        .fn = worker_actor,
-        .arg = &worker_ids[1],
-        .arg_size = sizeof(int),
+        .start = worker_actor,
+        .init = NULL,
+        .init_args = &worker_ids[1],
+        .init_args_size = sizeof(int),
+        .name = "worker-2",
+        .auto_register = false,
         .restart = HIVE_CHILD_TRANSIENT,  // Restart only on crash
         .actor_cfg = HIVE_ACTOR_CONFIG_DEFAULT,
     },
@@ -403,11 +411,15 @@ hive_supervisor_stop(supervisor);
 
 ### Actor Management
 
-- `hive_spawn(fn, arg, out)` - Spawn actor with default config
-- `hive_spawn_ex(fn, arg, config, out)` - Spawn actor with custom config
+- `hive_spawn(fn, init, init_args, cfg, out)` - Spawn actor (cfg=NULL for defaults)
+  - `fn`: Actor function with signature `void fn(void *args, const hive_spawn_info *siblings, size_t sibling_count)`
+  - `init`: Optional init function called in spawner context (NULL to skip)
+  - `init_args`: Arguments passed to init (or directly to actor if init is NULL)
+  - `cfg`: Actor configuration (NULL = defaults), includes `auto_register` for name registry
 - `hive_exit()` - Terminate current actor
 - `hive_self()` - Get current actor's ID
 - `hive_yield()` - Voluntarily yield to scheduler
+- `hive_find_sibling(siblings, count, name)` - Find sibling by name in spawn info array
 
 ### Name Registry
 

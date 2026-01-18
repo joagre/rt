@@ -1,17 +1,21 @@
-.\" Man page for hive_spawn, hive_spawn_ex, hive_exit, hive_self, hive_yield, hive_actor_alive, hive_register, hive_whereis, hive_unregister
+.\" Man page for hive_spawn, hive_exit, hive_self, hive_yield, hive_actor_alive, hive_register, hive_whereis, hive_unregister, hive_find_sibling
 .TH HIVE_SPAWN 3 "January 2026" "Hive 1.0" "Actor Runtime Manual"
 .SH NAME
-hive_spawn, hive_spawn_ex, hive_exit, hive_self, hive_yield, hive_actor_alive, hive_register, hive_whereis, hive_unregister \- actor lifecycle management
+hive_spawn, hive_exit, hive_self, hive_yield, hive_actor_alive, hive_find_sibling, hive_register, hive_whereis, hive_unregister \- actor lifecycle management
 .SH SYNOPSIS
 .nf
 .B #include <hive_runtime.h>
 .PP
-.BI "hive_status hive_spawn(actor_fn " fn ", void *" arg ", actor_id *" out ");"
-.BI "hive_status hive_spawn_ex(actor_fn " fn ", void *" arg ", const actor_config *" cfg ", actor_id *" out ");"
+.BI "hive_status hive_spawn(actor_fn " fn ", hive_actor_init_fn " init ","
+.BI "                       void *" init_args ", const actor_config *" cfg ","
+.BI "                       actor_id *" out ");"
 .BI "_Noreturn void hive_exit(void);"
 .BI "actor_id hive_self(void);"
 .BI "void hive_yield(void);"
 .BI "bool hive_actor_alive(actor_id " id ");"
+.PP
+.BI "const hive_spawn_info *hive_find_sibling(const hive_spawn_info *" siblings ","
+.BI "                                         size_t " count ", const char *" name ");"
 .PP
 .BI "hive_status hive_register(const char *" name ");"
 .BI "hive_status hive_whereis(const char *" name ", actor_id *" out ");"
@@ -21,17 +25,52 @@ hive_spawn, hive_spawn_ex, hive_exit, hive_self, hive_yield, hive_actor_alive, h
 These functions manage the lifecycle of actors in the runtime.
 .SS Spawning Actors
 .BR hive_spawn ()
-creates a new actor with default configuration. The actor function
+creates a new actor. The parameters are:
+.TP
 .I fn
-will be called with argument
-.I arg
-when the actor is scheduled. The new actor's ID is stored in
-.IR out .
-.PP
-.BR hive_spawn_ex ()
-creates a new actor with explicit configuration via the
+The actor entry function with signature:
+.nf
+void fn(void *args, const hive_spawn_info *siblings, size_t sibling_count)
+.fi
+.TP
+.I init
+Optional init function called in spawner context before actor starts:
+.nf
+void *init(void *init_args)
+.fi
+The return value is passed to the actor as
+.IR args .
+Pass NULL to skip initialization.
+.TP
+.I init_args
+Arguments passed to
+.I init
+(or directly to actor if
+.I init
+is NULL).
+.TP
 .I cfg
-parameter:
+Actor configuration (NULL = use defaults). See below for configuration options.
+.TP
+.I out
+Receives the new actor's ID on success.
+.PP
+The actor receives sibling information at startup:
+.IP \(bu 2
+For standalone actors: siblings[0] contains self info, sibling_count=1
+.IP \(bu 2
+For supervised actors: siblings contains all sibling children
+.SS Init Function
+The init function runs in the spawner's context before the actor starts.
+This allows argument transformation, validation, or resource acquisition
+that may fail. If init returns NULL, the actor receives NULL as args.
+.PP
+.B Important:
+The init function cannot return errors. Use validation in the spawner
+before calling
+.BR hive_spawn ()
+if you need to abort on initialization failure.
+.SS Actor Configuration
 .PP
 .nf
 typedef struct {
@@ -39,15 +78,24 @@ typedef struct {
     hive_priority_level priority;  /* 0-3, lower = higher */
     const char *name;          /* for debugging, may be NULL */
     bool        malloc_stack;  /* false = arena, true = malloc */
+    bool        auto_register; /* auto-register name in registry */
 } actor_config;
 
 #define HIVE_ACTOR_CONFIG_DEFAULT { \\
     .stack_size = 0, \\
     .priority = HIVE_PRIORITY_NORMAL, \\
     .name = NULL, \\
-    .malloc_stack = false \\
+    .malloc_stack = false, \\
+    .auto_register = false \\
 }
 .fi
+.PP
+If
+.I auto_register
+is true and
+.I name
+is set, the actor is automatically registered in the name registry at spawn.
+Spawn fails with HIVE_ERR_EXISTS if the name is already taken.
 .SS Priority Levels
 .TP
 .B HIVE_PRIORITY_CRITICAL (0)
@@ -64,6 +112,23 @@ Background tasks: diagnostics, housekeeping
 .PP
 Higher priority actors (lower numeric value) always run before lower priority
 actors. Within the same priority level, actors are scheduled round-robin.
+.SS Spawn Info Structure
+.PP
+.nf
+typedef struct {
+    const char *name;  /* Actor name (may be NULL) */
+    actor_id id;       /* Actor ID */
+    bool registered;   /* Whether registered in name registry */
+} hive_spawn_info;
+.fi
+.PP
+Actors receive an array of spawn info describing themselves and their siblings.
+This is useful for supervised actors to discover sibling actor IDs.
+.SS Finding Siblings
+.BR hive_find_sibling ()
+searches the sibling array for an actor with the given name. Returns a pointer
+to the matching entry, or NULL if not found. This is a convenience function
+for supervised actors to discover sibling IDs without using the name registry.
 .SS Terminating Actors
 .BR hive_exit ()
 terminates the calling actor. This function does not return. When an actor
@@ -78,6 +143,8 @@ Monitors receive EXIT notifications
 Bus subscriptions are removed
 .IP \(bu 2
 Timers owned by the actor are cancelled
+.IP \(bu 2
+Name registrations are removed
 .IP \(bu 2
 Stack memory is returned to the arena
 .PP
@@ -128,15 +195,14 @@ This is rarely needed since names are automatically unregistered on actor exit.
 .B Use with supervisors:
 When actors are restarted by a supervisor, they should call
 .BR hive_register ()
-with the same name. Actors that need to communicate with them should call
+with the same name (or use auto_register). Actors that need to communicate
+with them should call
 .BR hive_whereis ()
 each time they need to send a message, rather than caching the actor ID at startup.
 This ensures they get the current actor ID even after restarts.
 .SH RETURN VALUE
 .BR hive_spawn ()
-and
-.BR hive_spawn_ex ()
-return an
+returns an
 .I hive_status
 structure. On success,
 .I status.code
@@ -154,6 +220,9 @@ outside actor context.
 .BR hive_actor_alive ()
 returns true if the actor is alive, false otherwise.
 .PP
+.BR hive_find_sibling ()
+returns a pointer to the matching spawn info, or NULL if not found.
+.PP
 .BR hive_register (),
 .BR hive_whereis (),
 and
@@ -169,10 +238,14 @@ is
 .TP
 .B HIVE_ERR_INVALID
 .I fn
-is NULL, or invalid configuration parameters.
+is NULL, or invalid configuration parameters, or auto_register is true
+without a name.
 .TP
 .B HIVE_ERR_NOMEM
 Actor table full (HIVE_MAX_ACTORS reached) or stack arena exhausted.
+.TP
+.B HIVE_ERR_EXISTS
+auto_register is true and the name is already registered.
 .SS Registry Errors
 .TP
 .B HIVE_ERR_INVALID
@@ -211,14 +284,27 @@ is called.
 Spawn/exit are "cold path" operations with O(n) arena allocation. Hot paths
 (IPC, scheduling) use O(1) pool allocation. For deterministic timing, spawn
 actors at startup and reuse them.
+.SS Sibling Array Lifetime
+The sibling array passed to actor functions is only valid during actor startup.
+If you need sibling information later, copy the relevant data to actor-local
+storage.
 .SH EXAMPLE
 .nf
 #include <hive_runtime.h>
 #include <stdio.h>
 
-void worker(void *arg) {
-    int id = *(int *)arg;
+void worker(void *args, const hive_spawn_info *siblings,
+            size_t sibling_count) {
+    int id = *(int *)args;
     printf("Worker %d (actor %u) starting\\n", id, hive_self());
+
+    /* Print sibling info */
+    printf("Siblings: ");
+    for (size_t i = 0; i < sibling_count; i++) {
+        printf("%s(%u) ", siblings[i].name ? siblings[i].name : "?",
+               siblings[i].id);
+    }
+    printf("\\n");
 
     /* Do work... */
 
@@ -239,7 +325,8 @@ int main(void) {
     actor_id actors[3];
 
     for (int i = 0; i < 3; i++) {
-        hive_status s = hive_spawn_ex(worker, &worker_ids[i], &cfg, &actors[i]);
+        hive_status s = hive_spawn(worker, NULL, &worker_ids[i],
+                                   &cfg, &actors[i]);
         if (HIVE_FAILED(s)) {
             fprintf(stderr, "Spawn failed: %s\\n", HIVE_ERR_STR(s));
         }
@@ -250,14 +337,50 @@ int main(void) {
     return 0;
 }
 .fi
-.SS Name Registry Example
+.SS Init Function Example
 .nf
-/* Service actor that registers itself */
-void database_service(void *arg) {
-    (void)arg;
+/* Init function to allocate per-actor state */
+void *worker_init(void *init_args) {
+    worker_config *cfg = (worker_config *)init_args;
 
-    /* Register with a well-known name */
-    hive_register("database");
+    /* Validate configuration */
+    if (cfg->buffer_size > MAX_BUFFER) {
+        cfg->buffer_size = MAX_BUFFER;
+    }
+
+    /* Allocate state (freed by actor on exit) */
+    worker_state *state = malloc(sizeof(*state));
+    state->id = cfg->id;
+    state->buffer = malloc(cfg->buffer_size);
+    state->buffer_size = cfg->buffer_size;
+
+    return state;
+}
+
+void worker_actor(void *args, const hive_spawn_info *siblings,
+                  size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    worker_state *state = (worker_state *)args;
+
+    /* Use state... */
+
+    /* Cleanup */
+    free(state->buffer);
+    free(state);
+    hive_exit();
+}
+.fi
+.SS Auto-Register Example
+.nf
+/* Service actor using auto_register */
+void database_service(void *args, const hive_spawn_info *siblings,
+                      size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
+
+    /* Name automatically registered via auto_register=true */
 
     while (1) {
         hive_message msg;
@@ -266,9 +389,32 @@ void database_service(void *arg) {
     }
 }
 
+int main(void) {
+    hive_init();
+
+    actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
+    cfg.name = "database";
+    cfg.auto_register = true;
+
+    actor_id db;
+    hive_status s = hive_spawn(database_service, NULL, NULL, &cfg, &db);
+    if (s.code == HIVE_ERR_EXISTS) {
+        fprintf(stderr, "Database already registered\\n");
+    }
+
+    hive_run();
+    hive_cleanup();
+    return 0;
+}
+.fi
+.SS Name Registry Example
+.nf
 /* Client actor that uses whereis */
-void client(void *arg) {
-    (void)arg;
+void client(void *args, const hive_spawn_info *siblings,
+            size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     /* Look up database actor by name */
     actor_id db;

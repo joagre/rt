@@ -41,8 +41,11 @@ static int tests_failed = 0;
 // Test 1: Basic publish/subscribe
 // ============================================================================
 
-static void test1_basic_pubsub(void *arg) {
-    (void)arg;
+static void test1_basic_pubsub(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 1: Basic publish/subscribe\n");
 
     // Create bus
@@ -101,8 +104,11 @@ static void test1_basic_pubsub(void *arg) {
 static bus_id g_shared_bus;
 static int g_subscriber_received[3] = {0, 0, 0};
 
-static void subscriber_actor(void *arg) {
-    int id = *(int *)arg;
+static void subscriber_actor(void *args, const hive_spawn_info *siblings,
+                             size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int id = *(int *)args;
 
     hive_status status = hive_bus_subscribe(g_shared_bus);
     if (HIVE_FAILED(status)) {
@@ -123,8 +129,11 @@ static void subscriber_actor(void *arg) {
     hive_exit();
 }
 
-static void test2_multi_subscriber(void *arg) {
-    (void)arg;
+static void test2_multi_subscriber(void *args, const hive_spawn_info *siblings,
+                                   size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 2: Multiple subscribers\n");
 
     // Create bus
@@ -140,7 +149,7 @@ static void test2_multi_subscriber(void *arg) {
     for (int i = 0; i < 3; i++) {
         g_subscriber_received[i] = 0;
         actor_id sub;
-        hive_spawn(subscriber_actor, &ids[i], &sub);
+        hive_spawn(subscriber_actor, NULL, &ids[i], NULL, &sub);
     }
 
     // Give subscribers time to subscribe
@@ -183,8 +192,11 @@ static void test2_multi_subscriber(void *arg) {
 static bus_id g_max_readers_bus;
 static int g_max_readers_success[3] = {0, 0, 0};
 
-static void max_readers_subscriber(void *arg) {
-    int id = *(int *)arg;
+static void max_readers_subscriber(void *args, const hive_spawn_info *siblings,
+                                   size_t sibling_count) {
+    (void)siblings;
+    (void)sibling_count;
+    int id = *(int *)args;
 
     hive_bus_subscribe(g_max_readers_bus);
 
@@ -202,8 +214,11 @@ static void max_readers_subscriber(void *arg) {
     hive_exit();
 }
 
-static void test3_max_readers(void *arg) {
-    (void)arg;
+static void test3_max_readers(void *args, const hive_spawn_info *siblings,
+                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 3: max_readers retention policy\n");
 
     // Create bus with max_readers = 2 (entry consumed after 2 subscribers read)
@@ -224,7 +239,7 @@ static void test3_max_readers(void *arg) {
     static int ids[3] = {0, 1, 2};
     for (int i = 0; i < 3; i++) {
         actor_id sub;
-        hive_spawn(max_readers_subscriber, &ids[i], &sub);
+        hive_spawn(max_readers_subscriber, NULL, &ids[i], NULL, &sub);
     }
 
     // Give subscribers time to subscribe
@@ -266,8 +281,11 @@ static void test3_max_readers(void *arg) {
 // Test 4: Ring buffer wrap (oldest evicted)
 // ============================================================================
 
-static void test4_ring_buffer_wrap(void *arg) {
-    (void)arg;
+static void test4_ring_buffer_wrap(void *args, const hive_spawn_info *siblings,
+                                   size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 4: Ring buffer wrap (oldest evicted)\n");
 
     // Create bus with small ring buffer
@@ -320,8 +338,11 @@ static void test4_ring_buffer_wrap(void *arg) {
 // Test 5: Non-blocking read returns WOULDBLOCK
 // ============================================================================
 
-static void test5_nonblocking_read(void *arg) {
-    (void)arg;
+static void test5_nonblocking_read(void *args, const hive_spawn_info *siblings,
+                                   size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 5: Non-blocking read returns WOULDBLOCK\n");
 
     hive_bus_config cfg = TEST_BUS_CONFIG;
@@ -349,8 +370,12 @@ static void test5_nonblocking_read(void *arg) {
 // Test 6: Blocking read with timeout
 // ============================================================================
 
-static void test6_blocking_read_timeout(void *arg) {
-    (void)arg;
+static void test6_blocking_read_timeout(void *args,
+                                        const hive_spawn_info *siblings,
+                                        size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 6: Blocking read with timeout\n");
 
     hive_bus_config cfg = TEST_BUS_CONFIG;
@@ -382,8 +407,12 @@ static void test6_blocking_read_timeout(void *arg) {
 // Test 7: Destroy bus with subscribers fails
 // ============================================================================
 
-static void test7_destroy_with_subscribers(void *arg) {
-    (void)arg;
+static void test7_destroy_with_subscribers(void *args,
+                                           const hive_spawn_info *siblings,
+                                           size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 7: Destroy bus with subscribers fails\n");
 
     hive_bus_config cfg = TEST_BUS_CONFIG;
@@ -415,8 +444,12 @@ static void test7_destroy_with_subscribers(void *arg) {
 // Test 8: Invalid bus operations
 // ============================================================================
 
-static void test8_invalid_operations(void *arg) {
-    (void)arg;
+static void test8_invalid_operations(void *args,
+                                     const hive_spawn_info *siblings,
+                                     size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 8: Invalid bus operations\n");
 
     // Subscribe to invalid bus
@@ -452,8 +485,11 @@ static void test8_invalid_operations(void *arg) {
 // Test 9: max_age_ms retention policy (time-based expiry)
 // ============================================================================
 
-static void test9_max_age_expiry(void *arg) {
-    (void)arg;
+static void test9_max_age_expiry(void *args, const hive_spawn_info *siblings,
+                                 size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 9: max_age_ms retention policy (time-based expiry)\n");
     fflush(stdout);
 
@@ -527,8 +563,11 @@ static void test9_max_age_expiry(void *arg) {
 // Test 10: hive_bus_entry_count explicit test
 // ============================================================================
 
-static void test10_entry_count(void *arg) {
-    (void)arg;
+static void test10_entry_count(void *args, const hive_spawn_info *siblings,
+                               size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 10: hive_bus_entry_count\n");
     fflush(stdout);
 
@@ -621,8 +660,12 @@ static void test10_entry_count(void *arg) {
 // Test 11: Subscribe to destroyed bus
 // ============================================================================
 
-static void test11_subscribe_destroyed_bus(void *arg) {
-    (void)arg;
+static void test11_subscribe_destroyed_bus(void *args,
+                                           const hive_spawn_info *siblings,
+                                           size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 11: Subscribe to destroyed bus\n");
     fflush(stdout);
 
@@ -656,8 +699,12 @@ static void test11_subscribe_destroyed_bus(void *arg) {
 // Test 12: Buffer overflow protection (read with undersized buffer)
 // ============================================================================
 
-static void test12_buffer_overflow_protection(void *arg) {
-    (void)arg;
+static void test12_buffer_overflow_protection(void *args,
+                                              const hive_spawn_info *siblings,
+                                              size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
     printf("\nTest 12: Buffer overflow protection\n");
     fflush(stdout);
 
@@ -717,7 +764,7 @@ static void test12_buffer_overflow_protection(void *arg) {
 // Test runner
 // ============================================================================
 
-static void (*test_funcs[])(void *) = {
+static void (*test_funcs[])(void *, const hive_spawn_info *, size_t) = {
     test1_basic_pubsub,
     test2_multi_subscriber,
     test3_max_readers,
@@ -734,15 +781,18 @@ static void (*test_funcs[])(void *) = {
 
 #define NUM_TESTS (sizeof(test_funcs) / sizeof(test_funcs[0]))
 
-static void run_all_tests(void *arg) {
-    (void)arg;
+static void run_all_tests(void *args, const hive_spawn_info *siblings,
+                          size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     for (size_t i = 0; i < NUM_TESTS; i++) {
         actor_config cfg = HIVE_ACTOR_CONFIG_DEFAULT;
         cfg.stack_size = TEST_STACK_SIZE(64 * 1024);
 
         actor_id test;
-        if (HIVE_FAILED(hive_spawn_ex(test_funcs[i], NULL, &cfg, &test))) {
+        if (HIVE_FAILED(hive_spawn(test_funcs[i], NULL, NULL, &cfg, &test))) {
             printf("Failed to spawn test %zu\n", i);
             continue;
         }
@@ -770,7 +820,7 @@ int main(void) {
     cfg.stack_size = TEST_STACK_SIZE(128 * 1024);
 
     actor_id runner;
-    if (HIVE_FAILED(hive_spawn_ex(run_all_tests, NULL, &cfg, &runner))) {
+    if (HIVE_FAILED(hive_spawn(run_all_tests, NULL, NULL, &cfg, &runner))) {
         fprintf(stderr, "Failed to spawn test runner\n");
         hive_cleanup();
         return 1;

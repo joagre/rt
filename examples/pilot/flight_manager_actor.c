@@ -43,8 +43,11 @@ void flight_manager_actor_init(void) {
     // No initialization needed - targets looked up via whereis()
 }
 
-void flight_manager_actor(void *arg) {
-    (void)arg;
+void flight_manager_actor(void *args, const hive_spawn_info *siblings,
+                          size_t sibling_count) {
+    (void)args;
+    (void)siblings;
+    (void)sibling_count;
 
     // Register self with name registry
     hive_status status = hive_register("flight_manager");

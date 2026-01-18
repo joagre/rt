@@ -46,11 +46,14 @@ typedef enum {
 // -----------------------------------------------------------------------------
 
 typedef struct {
-    const char *id;             // Identifier for logging (may be NULL)
-    actor_fn fn;                // Actor entry point
-    void *arg;                  // Argument to pass to actor
-    size_t arg_size;            // Size to copy (0 = pass pointer directly)
-    hive_child_restart restart; // Restart policy
+    actor_fn start;          // Actor entry point
+    hive_actor_init_fn init; // Init function (NULL = skip)
+    void *init_args;         // Arguments to init function
+    size_t init_args_size;   // Size to copy (0 = pass pointer directly)
+    const char *name;   // Actor name (for registry AND supervisor tracking)
+    bool auto_register; // Register in name registry
+    hive_child_restart
+        restart;            // Restart policy (permanent, transient, temporary)
     actor_config actor_cfg; // Actor configuration (stack size, priority, etc.)
 } hive_child_spec;
 

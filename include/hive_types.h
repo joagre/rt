@@ -52,6 +52,7 @@ typedef enum {
     HIVE_ERR_CLOSED,
     HIVE_ERR_WOULDBLOCK,
     HIVE_ERR_IO,
+    HIVE_ERR_EXISTS, // Name already registered (for auto_register failure)
 } hive_error_code;
 
 // Status with optional message
@@ -67,22 +68,39 @@ typedef struct {
 #define HIVE_ERROR(c, m) ((hive_status){(c), (m)})
 #define HIVE_ERR_STR(s) ((s).msg ? (s).msg : "unknown error")
 
-// Actor entry point
-typedef void (*actor_fn)(void *arg);
+// Forward declaration for spawn info
+typedef struct hive_spawn_info hive_spawn_info;
+
+// Actor entry point (receives args, sibling info array, and count)
+typedef void (*actor_fn)(void *args, const hive_spawn_info *siblings,
+                         size_t sibling_count);
+
+// Actor init function: transforms init_args before actor runs
+// Called in spawner context. Return value becomes args to actor function.
+// Returning NULL is valid (actor receives NULL args).
+typedef void *(*hive_actor_init_fn)(void *init_args);
+
+// Info about a spawned actor (passed to actor function)
+struct hive_spawn_info {
+    const char *name; // Actor name (NULL if unnamed)
+    actor_id id;      // Actor ID
+    bool registered;  // Whether registered in name registry
+};
 
 // Actor configuration
 typedef struct {
     size_t stack_size; // bytes, 0 = default
     hive_priority_level priority;
-    const char *name;  // for debugging, may be NULL
-    bool malloc_stack; // false = use static arena (default), true = malloc
+    const char *name;   // for debugging AND registry (if auto_register)
+    bool malloc_stack;  // false = use static arena (default), true = malloc
+    bool auto_register; // Register name in registry (requires name != NULL)
 } actor_config;
 
 // Default configuration
 #define HIVE_ACTOR_CONFIG_DEFAULT                                        \
     {                                                                    \
         .stack_size = 0, .priority = HIVE_PRIORITY_NORMAL, .name = NULL, \
-        .malloc_stack = false                                            \
+        .malloc_stack = false, .auto_register = false                    \
     }
 
 // Message structure
@@ -144,5 +162,14 @@ typedef struct {
         } bus;
     };
 } hive_select_result;
+
+// -----------------------------------------------------------------------------
+// Sibling Helper Function
+// -----------------------------------------------------------------------------
+
+// Find a sibling actor by name in the spawn info array
+// Returns the actor_id if found, or ACTOR_ID_INVALID if not found
+actor_id hive_find_sibling(const hive_spawn_info *siblings, size_t count,
+                           const char *name);
 
 #endif // HIVE_TYPES_H
