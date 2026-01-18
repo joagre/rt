@@ -10,25 +10,18 @@
 // 7. Wait for LANDED, then send STOP to motor actor
 // 8. Close log file (DISARM phase)
 //
-// Uses name registry:
-// - Registers self as "flight_manager"
-// - Uses whereis() to find "waypoint", "altitude", "motor"
+// Uses sibling info to find waypoint, altitude, motor actors.
 
 #ifndef FLIGHT_MANAGER_ACTOR_H
 #define FLIGHT_MANAGER_ACTOR_H
 
-#include "hive_actor.h"
+#include "hive_runtime.h"
 
-// Initialize flight manager (no parameters - uses whereis for targets)
-void flight_manager_actor_init(void);
+// Init function - no buses needed, returns NULL
+void *flight_manager_actor_init(void *init_args);
 
 // Flight manager actor entry point
 void flight_manager_actor(void *args, const hive_spawn_info *siblings,
                           size_t sibling_count);
-
-// Startup delay in seconds (real hardware only)
-#ifndef SIMULATED_TIME
-#define FLIGHT_MANAGER_STARTUP_DELAY_US (60 * 1000000) // 60 seconds
-#endif
 
 #endif // FLIGHT_MANAGER_ACTOR_H

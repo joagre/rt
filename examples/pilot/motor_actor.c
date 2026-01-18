@@ -4,11 +4,9 @@
 // The HAL handles mixing (converting torque to individual motor commands).
 // Uses hive_select() to wait on torque bus OR STOP notification simultaneously,
 // ensuring immediate response to STOP commands (critical for safety).
-//
-// Uses auto_register:
-// - Auto-registered as "motor" via child spec
 
 #include "motor_actor.h"
+#include "pilot_buses.h"
 #include "notifications.h"
 #include "types.h"
 #include "config.h"
@@ -20,20 +18,26 @@
 #include <assert.h>
 #include <string.h>
 
-static bus_id s_torque_bus;
+// Actor state - initialized by motor_actor_init
+typedef struct {
+    bus_id torque_bus;
+} motor_state;
 
-void motor_actor_init(bus_id torque_bus) {
-    s_torque_bus = torque_bus;
+void *motor_actor_init(void *init_args) {
+    const pilot_buses *buses = init_args;
+    static motor_state state;
+    state.torque_bus = buses->torque_bus;
+    return &state;
 }
 
 void motor_actor(void *args, const hive_spawn_info *siblings,
                  size_t sibling_count) {
-    (void)args;
     (void)siblings;
     (void)sibling_count;
 
-    // Auto-registered as "motor" via child spec
-    hive_status status = hive_bus_subscribe(s_torque_bus);
+    motor_state *state = args;
+
+    hive_status status = hive_bus_subscribe(state->torque_bus);
     assert(HIVE_SUCCEEDED(status));
 
     bool stopped = false;
@@ -41,7 +45,7 @@ void motor_actor(void *args, const hive_spawn_info *siblings,
     // Set up hive_select() sources: torque bus + STOP notification
     enum { SEL_TORQUE, SEL_STOP };
     hive_select_source sources[] = {
-        [SEL_TORQUE] = {HIVE_SEL_BUS, .bus = s_torque_bus},
+        [SEL_TORQUE] = {HIVE_SEL_BUS, .bus = state->torque_bus},
         [SEL_STOP] = {HIVE_SEL_IPC, .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY,
                                             NOTIFY_FLIGHT_STOP}},
     };

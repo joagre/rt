@@ -2,11 +2,9 @@
 //
 // Subscribes to state bus to monitor position, publishes current target
 // to position target bus. Advances through waypoint list when arrival detected.
-//
-// Uses auto_register:
-// - Auto-registered as "waypoint" via child spec
 
 #include "waypoint_actor.h"
+#include "pilot_buses.h"
 #include "flight_profiles.h"
 #include "notifications.h"
 #include "types.h"
@@ -23,23 +21,29 @@
 #include <math.h>
 #include <string.h>
 
-static bus_id s_state_bus;
-static bus_id s_position_target_bus;
+// Actor state - initialized by waypoint_actor_init
+typedef struct {
+    bus_id state_bus;
+    bus_id position_target_bus;
+} waypoint_state;
 
-void waypoint_actor_init(bus_id state_bus, bus_id position_target_bus) {
-    s_state_bus = state_bus;
-    s_position_target_bus = position_target_bus;
+void *waypoint_actor_init(void *init_args) {
+    const pilot_buses *buses = init_args;
+    static waypoint_state state;
+    state.state_bus = buses->state_bus;
+    state.position_target_bus = buses->position_target_bus;
+    return &state;
 }
 
 // Check if drone has arrived at waypoint
-static bool check_arrival(const waypoint_t *wp, const state_estimate_t *state) {
-    float dx = wp->x - state->x;
-    float dy = wp->y - state->y;
+static bool check_arrival(const waypoint_t *wp, const state_estimate_t *est) {
+    float dx = wp->x - est->x;
+    float dy = wp->y - est->y;
     float dist_xy = sqrtf(dx * dx + dy * dy);
-    float alt_err = fabsf(wp->z - state->altitude);
-    float yaw_err = fabsf(NORMALIZE_ANGLE(wp->yaw - state->yaw));
-    float vel = sqrtf(state->x_velocity * state->x_velocity +
-                      state->y_velocity * state->y_velocity);
+    float alt_err = fabsf(wp->z - est->altitude);
+    float yaw_err = fabsf(NORMALIZE_ANGLE(wp->yaw - est->yaw));
+    float vel = sqrtf(est->x_velocity * est->x_velocity +
+                      est->y_velocity * est->y_velocity);
 
     return (dist_xy < WAYPOINT_TOLERANCE_XY) &&
            (alt_err < WAYPOINT_TOLERANCE_Z) &&
@@ -48,12 +52,12 @@ static bool check_arrival(const waypoint_t *wp, const state_estimate_t *state) {
 
 void waypoint_actor(void *args, const hive_spawn_info *siblings,
                     size_t sibling_count) {
-    (void)args;
     (void)siblings;
     (void)sibling_count;
 
-    // Auto-registered as "waypoint" via child spec
-    hive_status status = hive_bus_subscribe(s_state_bus);
+    waypoint_state *state = args;
+
+    hive_status status = hive_bus_subscribe(state->state_bus);
     assert(HIVE_SUCCEEDED(status));
 
     // Wait for START signal from flight manager before beginning flight
@@ -79,11 +83,11 @@ void waypoint_actor(void *args, const hive_spawn_info *siblings,
         // Publish current target
         position_target_t target = {
             .x = wp->x, .y = wp->y, .z = wp->z, .yaw = wp->yaw};
-        hive_bus_publish(s_position_target_bus, &target, sizeof(target));
+        hive_bus_publish(state->position_target_bus, &target, sizeof(target));
 
         // Wait for state update OR hover timer (unified event waiting)
         hive_select_source sources[] = {
-            [SEL_STATE] = {HIVE_SEL_BUS, .bus = s_state_bus},
+            [SEL_STATE] = {HIVE_SEL_BUS, .bus = state->state_bus},
             [SEL_HOVER_TIMER] = {HIVE_SEL_IPC,
                                  .ipc = {HIVE_SENDER_ANY, HIVE_MSG_TIMER,
                                          hover_timer}},
@@ -109,12 +113,12 @@ void waypoint_actor(void *args, const hive_spawn_info *siblings,
         }
 
         // SEL_STATE: Copy state data from select result
-        state_estimate_t state;
-        assert(result.bus.len == sizeof(state));
-        memcpy(&state, result.bus.data, sizeof(state));
+        state_estimate_t est;
+        assert(result.bus.len == sizeof(est));
+        memcpy(&est, result.bus.data, sizeof(est));
 
         // Check arrival and start hover timer
-        if (!hovering && check_arrival(wp, &state)) {
+        if (!hovering && check_arrival(wp, &est)) {
             HIVE_LOG_INFO("[WPT] Arrived at waypoint %d - hovering",
                           waypoint_index);
             hive_timer_after(WAYPOINT_HOVER_TIME_US, &hover_timer);

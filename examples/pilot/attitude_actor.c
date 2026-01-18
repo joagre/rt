@@ -4,6 +4,7 @@
 // controllers, publishes rate setpoints.
 
 #include "attitude_actor.h"
+#include "pilot_buses.h"
 #include "types.h"
 #include "config.h"
 #include "hal_config.h"
@@ -13,26 +14,32 @@
 #include "hive_timer.h"
 #include <assert.h>
 
-static bus_id s_state_bus;
-static bus_id s_attitude_setpoint_bus;
-static bus_id s_rate_setpoint_bus;
+// Actor state - initialized by attitude_actor_init
+typedef struct {
+    bus_id state_bus;
+    bus_id attitude_setpoint_bus;
+    bus_id rate_setpoint_bus;
+} attitude_state;
 
-void attitude_actor_init(bus_id state_bus, bus_id attitude_setpoint_bus,
-                         bus_id rate_setpoint_bus) {
-    s_state_bus = state_bus;
-    s_attitude_setpoint_bus = attitude_setpoint_bus;
-    s_rate_setpoint_bus = rate_setpoint_bus;
+void *attitude_actor_init(void *init_args) {
+    const pilot_buses *buses = init_args;
+    static attitude_state state;
+    state.state_bus = buses->state_bus;
+    state.attitude_setpoint_bus = buses->attitude_setpoint_bus;
+    state.rate_setpoint_bus = buses->rate_setpoint_bus;
+    return &state;
 }
 
 void attitude_actor(void *args, const hive_spawn_info *siblings,
                     size_t sibling_count) {
-    (void)args;
     (void)siblings;
     (void)sibling_count;
 
-    hive_status status = hive_bus_subscribe(s_state_bus);
+    attitude_state *state = args;
+
+    hive_status status = hive_bus_subscribe(state->state_bus);
     assert(HIVE_SUCCEEDED(status));
-    status = hive_bus_subscribe(s_attitude_setpoint_bus);
+    status = hive_bus_subscribe(state->attitude_setpoint_bus);
     assert(HIVE_SUCCEEDED(status));
 
     pid_state_t roll_pid, pitch_pid, yaw_pid;
@@ -53,12 +60,12 @@ void attitude_actor(void *args, const hive_spawn_info *siblings,
     uint64_t prev_time = hive_get_time();
 
     while (1) {
-        state_estimate_t state;
+        state_estimate_t est;
         attitude_setpoint_t new_attitude_sp;
         size_t len;
 
         // Block until state available
-        hive_bus_read_wait(s_state_bus, &state, sizeof(state), &len, -1);
+        hive_bus_read_wait(state->state_bus, &est, sizeof(est), &len, -1);
 
         // Measure actual dt
         uint64_t now = hive_get_time();
@@ -67,19 +74,18 @@ void attitude_actor(void *args, const hive_spawn_info *siblings,
 
         // Read attitude setpoints from position controller (non-blocking, use
         // last known)
-        if (hive_bus_read(s_attitude_setpoint_bus, &new_attitude_sp,
+        if (hive_bus_read(state->attitude_setpoint_bus, &new_attitude_sp,
                           sizeof(new_attitude_sp), &len)
                 .code == HIVE_OK) {
             attitude_sp = new_attitude_sp;
         }
 
         rate_setpoint_t setpoint;
-        setpoint.roll = pid_update(&roll_pid, attitude_sp.roll, state.roll, dt);
+        setpoint.roll = pid_update(&roll_pid, attitude_sp.roll, est.roll, dt);
         setpoint.pitch =
-            pid_update(&pitch_pid, attitude_sp.pitch, state.pitch, dt);
-        setpoint.yaw =
-            pid_update_angle(&yaw_pid, attitude_sp.yaw, state.yaw, dt);
+            pid_update(&pitch_pid, attitude_sp.pitch, est.pitch, dt);
+        setpoint.yaw = pid_update_angle(&yaw_pid, attitude_sp.yaw, est.yaw, dt);
 
-        hive_bus_publish(s_rate_setpoint_bus, &setpoint, sizeof(setpoint));
+        hive_bus_publish(state->rate_setpoint_bus, &setpoint, sizeof(setpoint));
     }
 }

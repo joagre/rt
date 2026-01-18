@@ -10,11 +10,10 @@
 // 7. Wait for LANDED, then send STOP to motor actor
 // 8. Close log file (DISARM phase)
 //
-// Uses auto_register and sibling info:
-// - Auto-registered as "flight_manager" via child spec
-// - Uses hive_find_sibling() to find "waypoint", "altitude", "motor"
+// Uses sibling info to find waypoint, altitude, motor actors.
 
 #include "flight_manager_actor.h"
+#include "pilot_buses.h"
 #include "notifications.h"
 #include "config.h"
 #include "hive_runtime.h"
@@ -39,15 +38,17 @@
 // Log sync interval (4 seconds)
 #define LOG_SYNC_INTERVAL_US (4 * 1000000)
 
-void flight_manager_actor_init(void) {
-    // No initialization needed - targets looked up via sibling info
+void *flight_manager_actor_init(void *init_args) {
+    (void)init_args;
+    // No bus state needed - uses sibling info for IPC targets
+    return NULL;
 }
 
 void flight_manager_actor(void *args, const hive_spawn_info *siblings,
                           size_t sibling_count) {
     (void)args;
 
-    // Look up sibling actors (auto-registered via child specs)
+    // Look up sibling actors
     const hive_spawn_info *wp_info =
         hive_find_sibling(siblings, sibling_count, "waypoint");
     const hive_spawn_info *alt_info =
@@ -75,7 +76,7 @@ void flight_manager_actor(void *args, const hive_spawn_info *siblings,
 
     HIVE_LOG_INFO("[FLM] Startup delay complete");
 #else
-    // Simulation: flight_manager spawns last, so all targets already registered
+    // Simulation mode
     HIVE_LOG_INFO("[FLM] Simulation mode");
 #endif
 

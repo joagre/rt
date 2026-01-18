@@ -5,23 +5,16 @@
 //
 // Supports controlled landing via NOTIFY_LANDING message. When received,
 // descends at a fixed rate until touchdown, then notifies flight manager.
-//
-// Uses name registry:
-// - Registers self as "altitude"
-// - Uses whereis() to find "flight_manager"
 
 #ifndef ALTITUDE_ACTOR_H
 #define ALTITUDE_ACTOR_H
 
-#include "hive_bus.h"
 #include "hive_runtime.h"
 
-// Initialize the altitude actor module with bus IDs.
-// Must be called before spawning the actor.
-void altitude_actor_init(bus_id state_bus, bus_id thrust_bus,
-                         bus_id position_target_bus);
+// Init function - extracts bus IDs from pilot_buses
+void *altitude_actor_init(void *init_args);
 
-// Actor entry point - spawn this with hive_spawn()
+// Actor entry point
 void altitude_actor(void *args, const hive_spawn_info *siblings,
                     size_t sibling_count);
 

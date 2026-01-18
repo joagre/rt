@@ -6,14 +6,12 @@
 #ifndef ATTITUDE_ACTOR_H
 #define ATTITUDE_ACTOR_H
 
-#include "hive_bus.h"
+#include "hive_runtime.h"
 
-// Initialize the attitude actor module with bus IDs.
-// Must be called before spawning the actor.
-void attitude_actor_init(bus_id state_bus, bus_id attitude_setpoint_bus,
-                         bus_id rate_setpoint_bus);
+// Init function - extracts bus IDs from pilot_buses
+void *attitude_actor_init(void *init_args);
 
-// Actor entry point - spawn this with hive_spawn()
+// Actor entry point
 void attitude_actor(void *args, const hive_spawn_info *siblings,
                     size_t sibling_count);
 

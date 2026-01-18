@@ -4,6 +4,7 @@
 // computes velocities, publishes state estimate.
 
 #include "estimator_actor.h"
+#include "pilot_buses.h"
 #include "types.h"
 #include "config.h"
 #include "math_utils.h"
@@ -25,21 +26,28 @@ static float pressure_to_altitude(float pressure_hpa, float ref_pressure) {
     return 44330.0f * (1.0f - powf(pressure_hpa / ref_pressure, 0.19029f));
 }
 
-static bus_id s_sensor_bus;
-static bus_id s_state_bus;
+// Actor state - initialized by estimator_actor_init
+typedef struct {
+    bus_id sensor_bus;
+    bus_id state_bus;
+} estimator_state;
 
-void estimator_actor_init(bus_id sensor_bus, bus_id state_bus) {
-    s_sensor_bus = sensor_bus;
-    s_state_bus = state_bus;
+void *estimator_actor_init(void *init_args) {
+    const pilot_buses *buses = init_args;
+    static estimator_state state;
+    state.sensor_bus = buses->sensor_bus;
+    state.state_bus = buses->state_bus;
+    return &state;
 }
 
 void estimator_actor(void *args, const hive_spawn_info *siblings,
                      size_t sibling_count) {
-    (void)args;
     (void)siblings;
     (void)sibling_count;
 
-    hive_status status = hive_bus_subscribe(s_sensor_bus);
+    estimator_state *state = args;
+
+    hive_status status = hive_bus_subscribe(state->sensor_bus);
     assert(HIVE_SUCCEEDED(status));
 
     // Initialize complementary filter
@@ -65,11 +73,12 @@ void estimator_actor(void *args, const hive_spawn_info *siblings,
 
     while (1) {
         sensor_data_t sensors;
-        state_estimate_t state;
+        state_estimate_t est;
         size_t len;
 
         // Block until sensor data available
-        hive_bus_read_wait(s_sensor_bus, &sensors, sizeof(sensors), &len, -1);
+        hive_bus_read_wait(state->sensor_bus, &sensors, sizeof(sensors), &len,
+                           -1);
 
         // Measure actual dt
         uint64_t now = hive_get_time();
@@ -80,30 +89,30 @@ void estimator_actor(void *args, const hive_spawn_info *siblings,
         cf_update(&filter, &sensors, dt);
 
         // Get attitude from filter
-        cf_get_attitude(&filter, &state.roll, &state.pitch, &state.yaw);
+        cf_get_attitude(&filter, &est.roll, &est.pitch, &est.yaw);
 
         // Angular rates directly from gyro
-        state.roll_rate = sensors.gyro[0];
-        state.pitch_rate = sensors.gyro[1];
-        state.yaw_rate = sensors.gyro[2];
+        est.roll_rate = sensors.gyro[0];
+        est.pitch_rate = sensors.gyro[1];
+        est.yaw_rate = sensors.gyro[2];
 
         // Position from GPS (if available)
         if (sensors.gps_valid) {
-            state.x = sensors.gps_x;
-            state.y = sensors.gps_y;
-            state.altitude = sensors.gps_z;
+            est.x = sensors.gps_x;
+            est.y = sensors.gps_y;
+            est.altitude = sensors.gps_z;
         } else {
-            state.x = 0.0f;
-            state.y = 0.0f;
+            est.x = 0.0f;
+            est.y = 0.0f;
             // Altitude from barometer
             if (sensors.baro_valid) {
                 if (baro_ref_pressure == 0.0f) {
                     baro_ref_pressure = sensors.pressure_hpa;
                 }
-                state.altitude = pressure_to_altitude(sensors.pressure_hpa,
-                                                      baro_ref_pressure);
+                est.altitude = pressure_to_altitude(sensors.pressure_hpa,
+                                                    baro_ref_pressure);
             } else {
-                state.altitude = 0.0f;
+                est.altitude = 0.0f;
             }
         }
 
@@ -114,21 +123,21 @@ void estimator_actor(void *args, const hive_spawn_info *siblings,
             vertical_velocity = 0.0f;
             first_sample = false;
         } else if (dt > 0.0f) {
-            float raw_vx = (state.x - prev_x) / dt;
-            float raw_vy = (state.y - prev_y) / dt;
-            float raw_vvel = (state.altitude - prev_altitude) / dt;
+            float raw_vx = (est.x - prev_x) / dt;
+            float raw_vy = (est.y - prev_y) / dt;
+            float raw_vvel = (est.altitude - prev_altitude) / dt;
             x_velocity = LPF(x_velocity, raw_vx, HVEL_FILTER_ALPHA);
             y_velocity = LPF(y_velocity, raw_vy, HVEL_FILTER_ALPHA);
             vertical_velocity =
                 LPF(vertical_velocity, raw_vvel, VVEL_FILTER_ALPHA);
         }
-        prev_x = state.x;
-        prev_y = state.y;
-        prev_altitude = state.altitude;
-        state.x_velocity = x_velocity;
-        state.y_velocity = y_velocity;
-        state.vertical_velocity = vertical_velocity;
+        prev_x = est.x;
+        prev_y = est.y;
+        prev_altitude = est.altitude;
+        est.x_velocity = x_velocity;
+        est.y_velocity = y_velocity;
+        est.vertical_velocity = vertical_velocity;
 
-        hive_bus_publish(s_state_bus, &state, sizeof(state));
+        hive_bus_publish(state->state_bus, &est, sizeof(est));
     }
 }

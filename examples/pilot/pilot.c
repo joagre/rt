@@ -35,9 +35,10 @@
 //                v
 //           Torque Bus --> Motor <-- Thrust Bus
 //
-// IPC coordination via sibling info and name registry:
-//   flight_manager, waypoint, altitude, motor use auto_register
-//   Uses hive_find_sibling() to look up sibling actor IDs for IPC
+// Actor initialization:
+//   All actors receive pilot_buses via init_args
+//   Each actor's init function extracts the buses it needs
+//   Actors use hive_find_sibling() to look up sibling actor IDs for IPC
 //
 // Supervision:
 //   All 9 actors are supervised with ONE_FOR_ALL strategy.
@@ -59,6 +60,7 @@
 #include "hive_actor.h"
 #include "hive_supervisor.h"
 
+#include "pilot_buses.h"
 #include "types.h"
 #include "config.h"
 #include "sensor_actor.h"
@@ -75,18 +77,6 @@
 
 // Bus configuration from HAL (platform-specific)
 #define PILOT_BUS_CONFIG HAL_BUS_CONFIG
-
-// ============================================================================
-// BUSES
-// ============================================================================
-
-static bus_id s_sensor_bus;
-static bus_id s_state_bus;
-static bus_id s_thrust_bus;
-static bus_id s_position_target_bus;
-static bus_id s_attitude_setpoint_bus;
-static bus_id s_rate_setpoint_bus;
-static bus_id s_torque_bus;
 
 // ============================================================================
 // SUPERVISOR CALLBACK
@@ -114,105 +104,93 @@ int main(void) {
     hive_init();
 
     // Create buses (single entry = latest value only)
+    // All actors share these via pilot_buses struct passed through init_args
+    static pilot_buses buses;
     hive_bus_config cfg = PILOT_BUS_CONFIG;
-    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_sensor_bus)));
-    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_state_bus)));
-    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_thrust_bus)));
-    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_position_target_bus)));
-    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_attitude_setpoint_bus)));
-    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_rate_setpoint_bus)));
-    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &s_torque_bus)));
-
-    // Initialize actors with bus connections (actor IDs via sibling info)
-    flight_manager_actor_init();
-    sensor_actor_init(s_sensor_bus);
-    estimator_actor_init(s_sensor_bus, s_state_bus);
-    waypoint_actor_init(s_state_bus, s_position_target_bus);
-    altitude_actor_init(s_state_bus, s_thrust_bus, s_position_target_bus);
-    position_actor_init(s_state_bus, s_attitude_setpoint_bus,
-                        s_position_target_bus);
-    attitude_actor_init(s_state_bus, s_attitude_setpoint_bus,
-                        s_rate_setpoint_bus);
-    rate_actor_init(s_state_bus, s_thrust_bus, s_rate_setpoint_bus,
-                    s_torque_bus);
-    motor_actor_init(s_torque_bus);
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &buses.sensor_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &buses.state_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &buses.thrust_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &buses.position_target_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &buses.attitude_setpoint_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &buses.rate_setpoint_bus)));
+    assert(HIVE_SUCCEEDED(hive_bus_create(&cfg, &buses.torque_bus)));
 
     // clang-format off
     // Define child specs for supervisor (9 actors)
-    // All actors receive sibling info array at startup with all sibling IDs.
+    // Each actor's init function receives pilot_buses and extracts what it needs.
     // Control loop order: sensor -> estimator -> waypoint -> altitude ->
     //                     position -> attitude -> rate -> motor -> flight_manager
     // clang-format on
     hive_child_spec children[] = {
         {.start = sensor_actor,
-         .init = NULL,
-         .init_args = NULL,
-         .init_args_size = 0,
+         .init = sensor_actor_init,
+         .init_args = &buses,
+         .init_args_size = sizeof(buses),
          .name = "sensor",
          .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = {.priority = HIVE_PRIORITY_CRITICAL, .name = "sensor"}},
         {.start = estimator_actor,
-         .init = NULL,
-         .init_args = NULL,
-         .init_args_size = 0,
+         .init = estimator_actor_init,
+         .init_args = &buses,
+         .init_args_size = sizeof(buses),
          .name = "estimator",
          .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = {.priority = HIVE_PRIORITY_CRITICAL,
                        .name = "estimator"}},
         {.start = waypoint_actor,
-         .init = NULL,
-         .init_args = NULL,
-         .init_args_size = 0,
+         .init = waypoint_actor_init,
+         .init_args = &buses,
+         .init_args_size = sizeof(buses),
          .name = "waypoint",
          .auto_register = true,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = {.priority = HIVE_PRIORITY_CRITICAL, .name = "waypoint"}},
         {.start = altitude_actor,
-         .init = NULL,
-         .init_args = NULL,
-         .init_args_size = 0,
+         .init = altitude_actor_init,
+         .init_args = &buses,
+         .init_args_size = sizeof(buses),
          .name = "altitude",
          .auto_register = true,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = {.priority = HIVE_PRIORITY_CRITICAL, .name = "altitude"}},
         {.start = position_actor,
-         .init = NULL,
-         .init_args = NULL,
-         .init_args_size = 0,
+         .init = position_actor_init,
+         .init_args = &buses,
+         .init_args_size = sizeof(buses),
          .name = "position",
          .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = {.priority = HIVE_PRIORITY_CRITICAL, .name = "position"}},
         {.start = attitude_actor,
-         .init = NULL,
-         .init_args = NULL,
-         .init_args_size = 0,
+         .init = attitude_actor_init,
+         .init_args = &buses,
+         .init_args_size = sizeof(buses),
          .name = "attitude",
          .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = {.priority = HIVE_PRIORITY_CRITICAL, .name = "attitude"}},
         {.start = rate_actor,
-         .init = NULL,
-         .init_args = NULL,
-         .init_args_size = 0,
+         .init = rate_actor_init,
+         .init_args = &buses,
+         .init_args_size = sizeof(buses),
          .name = "rate",
          .auto_register = false,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = {.priority = HIVE_PRIORITY_CRITICAL, .name = "rate"}},
         {.start = motor_actor,
-         .init = NULL,
-         .init_args = NULL,
-         .init_args_size = 0,
+         .init = motor_actor_init,
+         .init_args = &buses,
+         .init_args_size = sizeof(buses),
          .name = "motor",
          .auto_register = true,
          .restart = HIVE_CHILD_PERMANENT,
          .actor_cfg = {.priority = HIVE_PRIORITY_CRITICAL, .name = "motor"}},
         {.start = flight_manager_actor,
-         .init = NULL,
-         .init_args = NULL,
-         .init_args_size = 0,
+         .init = flight_manager_actor_init,
+         .init_args = &buses,
+         .init_args_size = sizeof(buses),
          .name = "flight_manager",
          .auto_register = true,
          .restart = HIVE_CHILD_PERMANENT,

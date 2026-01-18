@@ -4,6 +4,7 @@
 // Sensor fusion is done by the estimator actor.
 
 #include "sensor_actor.h"
+#include "pilot_buses.h"
 #include "config.h"
 #include "hal/hal.h"
 #include "hive_runtime.h"
@@ -14,17 +15,24 @@
 
 #define SENSOR_INTERVAL_US (TIME_STEP_MS * 1000)
 
-static bus_id s_sensor_bus;
+// Actor state - initialized by sensor_actor_init
+typedef struct {
+    bus_id sensor_bus;
+} sensor_state;
 
-void sensor_actor_init(bus_id sensor_bus) {
-    s_sensor_bus = sensor_bus;
+void *sensor_actor_init(void *init_args) {
+    const pilot_buses *buses = init_args;
+    static sensor_state state;
+    state.sensor_bus = buses->sensor_bus;
+    return &state;
 }
 
 void sensor_actor(void *args, const hive_spawn_info *siblings,
                   size_t sibling_count) {
-    (void)args;
     (void)siblings;
     (void)sibling_count;
+
+    sensor_state *state = args;
 
     timer_id timer;
     hive_status status = hive_timer_every(SENSOR_INTERVAL_US, &timer);
@@ -36,6 +44,6 @@ void sensor_actor(void *args, const hive_spawn_info *siblings,
 
         sensor_data_t sensors;
         hal_read_sensors(&sensors);
-        hive_bus_publish(s_sensor_bus, &sensors, sizeof(sensors));
+        hive_bus_publish(state->sensor_bus, &sensors, sizeof(sensors));
     }
 }

@@ -5,12 +5,9 @@
 //
 // Landing is triggered by NOTIFY_LANDING message. When complete,
 // sends NOTIFY_FLIGHT_LANDED to flight manager.
-//
-// Uses auto_register and sibling info:
-// - Auto-registered as "altitude" via child spec
-// - Uses hive_find_sibling() to find "flight_manager"
 
 #include "altitude_actor.h"
+#include "pilot_buses.h"
 #include "notifications.h"
 #include "types.h"
 #include "config.h"
@@ -27,17 +24,6 @@
 #include <math.h>
 #include <string.h>
 
-static bus_id s_state_bus;
-static bus_id s_thrust_bus;
-static bus_id s_position_target_bus;
-
-void altitude_actor_init(bus_id state_bus, bus_id thrust_bus,
-                         bus_id position_target_bus) {
-    s_state_bus = state_bus;
-    s_thrust_bus = thrust_bus;
-    s_position_target_bus = position_target_bus;
-}
-
 // Thrust ramp duration for gentle takeoff (microseconds)
 #define THRUST_RAMP_DURATION_US (500000) // 0.5 seconds
 
@@ -45,19 +31,37 @@ void altitude_actor_init(bus_id state_bus, bus_id thrust_bus,
 #define LANDING_DESCENT_RATE (-0.15f) // m/s - gentle descent
 #define LANDING_VELOCITY_GAIN 0.5f // thrust adjustment per m/s velocity error
 
+// Actor state - initialized by altitude_actor_init
+typedef struct {
+    bus_id state_bus;
+    bus_id thrust_bus;
+    bus_id position_target_bus;
+    actor_id flight_manager;
+} altitude_state;
+
+void *altitude_actor_init(void *init_args) {
+    const pilot_buses *buses = init_args;
+    static altitude_state state;
+    state.state_bus = buses->state_bus;
+    state.thrust_bus = buses->thrust_bus;
+    state.position_target_bus = buses->position_target_bus;
+    state.flight_manager = ACTOR_ID_INVALID; // Set from siblings in actor
+    return &state;
+}
+
 void altitude_actor(void *args, const hive_spawn_info *siblings,
                     size_t sibling_count) {
-    (void)args;
+    altitude_state *state = args;
 
-    // Look up flight_manager from sibling info (auto-registered via child spec)
+    // Look up flight_manager from sibling info
     const hive_spawn_info *fm_info =
         hive_find_sibling(siblings, sibling_count, "flight_manager");
     assert(fm_info != NULL);
-    actor_id flight_manager = fm_info->id;
+    state->flight_manager = fm_info->id;
 
-    hive_status status = hive_bus_subscribe(s_state_bus);
+    hive_status status = hive_bus_subscribe(state->state_bus);
     assert(HIVE_SUCCEEDED(status));
-    status = hive_bus_subscribe(s_position_target_bus);
+    status = hive_bus_subscribe(state->position_target_bus);
     assert(HIVE_SUCCEEDED(status));
 
     pid_state_t alt_pid;
@@ -78,13 +82,13 @@ void altitude_actor(void *args, const hive_spawn_info *siblings,
     // Set up hive_select() sources: state bus + landing command
     enum { SEL_STATE, SEL_LANDING };
     hive_select_source sources[] = {
-        [SEL_STATE] = {HIVE_SEL_BUS, .bus = s_state_bus},
+        [SEL_STATE] = {HIVE_SEL_BUS, .bus = state->state_bus},
         [SEL_LANDING] = {HIVE_SEL_IPC, .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY,
                                                NOTIFY_LANDING}},
     };
 
     while (1) {
-        state_estimate_t state;
+        state_estimate_t est;
         position_target_t target;
         size_t len;
 
@@ -102,8 +106,8 @@ void altitude_actor(void *args, const hive_spawn_info *siblings,
         }
 
         // SEL_STATE: Copy state data from select result
-        assert(result.bus.len == sizeof(state));
-        memcpy(&state, result.bus.data, sizeof(state));
+        assert(result.bus.len == sizeof(est));
+        memcpy(&est, result.bus.data, sizeof(est));
 
         // Measure dt
         uint64_t now = hive_get_time();
@@ -111,20 +115,21 @@ void altitude_actor(void *args, const hive_spawn_info *siblings,
         prev_time = now;
 
         // Read target altitude (non-blocking)
-        if (hive_bus_read(s_position_target_bus, &target, sizeof(target), &len)
+        if (hive_bus_read(state->position_target_bus, &target, sizeof(target),
+                          &len)
                 .code == HIVE_OK) {
             target_altitude = target.z;
         }
 
         // Emergency cutoff conditions
-        bool attitude_emergency = (fabsf(state.roll) > EMERGENCY_TILT_LIMIT) ||
-                                  (fabsf(state.pitch) > EMERGENCY_TILT_LIMIT);
-        bool altitude_emergency = (state.altitude > EMERGENCY_ALTITUDE_MAX);
+        bool attitude_emergency = (fabsf(est.roll) > EMERGENCY_TILT_LIMIT) ||
+                                  (fabsf(est.pitch) > EMERGENCY_TILT_LIMIT);
+        bool altitude_emergency = (est.altitude > EMERGENCY_ALTITUDE_MAX);
 
         // Touchdown detection (only in landing mode)
         bool touchdown = landing_mode &&
-                         (state.altitude < LANDED_ACTUAL_THRESHOLD) &&
-                         (fabsf(state.vertical_velocity) < 0.1f);
+                         (est.altitude < LANDED_ACTUAL_THRESHOLD) &&
+                         (fabsf(est.vertical_velocity) < 0.1f);
 
         bool cutoff = attitude_emergency || altitude_emergency || touchdown;
 
@@ -138,14 +143,14 @@ void altitude_actor(void *args, const hive_spawn_info *siblings,
             if (touchdown && !landed) {
                 landed = true;
                 HIVE_LOG_INFO("[ALT] Touchdown - notifying flight manager");
-                hive_ipc_notify(flight_manager, NOTIFY_FLIGHT_LANDED, NULL, 0);
+                hive_ipc_notify(state->flight_manager, NOTIFY_FLIGHT_LANDED,
+                                NULL, 0);
             }
         } else if (landing_mode) {
             // Landing mode: control descent rate, not altitude
             // Target velocity = LANDING_DESCENT_RATE, adjust thrust to achieve
             // it
-            float velocity_error =
-                LANDING_DESCENT_RATE - state.vertical_velocity;
+            float velocity_error = LANDING_DESCENT_RATE - est.vertical_velocity;
             thrust = HAL_BASE_THRUST + LANDING_VELOCITY_GAIN * velocity_error;
             thrust = CLAMPF(thrust, 0.0f, 1.0f);
         } else {
@@ -156,11 +161,10 @@ void altitude_actor(void *args, const hive_spawn_info *siblings,
 
             // PID altitude control
             float pos_correction =
-                pid_update(&alt_pid, target_altitude, state.altitude, dt);
+                pid_update(&alt_pid, target_altitude, est.altitude, dt);
 
             // Velocity damping
-            float vel_damping =
-                -HAL_VVEL_DAMPING_GAIN * state.vertical_velocity;
+            float vel_damping = -HAL_VVEL_DAMPING_GAIN * est.vertical_velocity;
 
             // Thrust ramp for gentle takeoff
             uint64_t elapsed_us = hive_get_time() - ramp_start_time;
@@ -174,13 +178,12 @@ void altitude_actor(void *args, const hive_spawn_info *siblings,
         }
 
         thrust_cmd_t cmd = {.thrust = thrust};
-        hive_bus_publish(s_thrust_bus, &cmd, sizeof(cmd));
+        hive_bus_publish(state->thrust_bus, &cmd, sizeof(cmd));
 
         if (++count % DEBUG_PRINT_INTERVAL == 0) {
             HIVE_LOG_DEBUG("[ALT] tgt=%.2f alt=%.2f vvel=%.2f thrust=%.3f %s",
-                           target_altitude, state.altitude,
-                           state.vertical_velocity, thrust,
-                           landing_mode ? "[LANDING]" : "");
+                           target_altitude, est.altitude, est.vertical_velocity,
+                           thrust, landing_mode ? "[LANDING]" : "");
         }
     }
 }

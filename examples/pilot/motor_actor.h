@@ -1,17 +1,17 @@
 // Motor actor - Output layer
 //
 // Subscribes to torque bus, writes to hardware via HAL.
+// Uses hive_select() to wait on torque bus OR STOP notification simultaneously.
 
 #ifndef MOTOR_ACTOR_H
 #define MOTOR_ACTOR_H
 
-#include "hive_bus.h"
+#include "hive_runtime.h"
 
-// Initialize the motor actor module with bus ID.
-// Must be called before spawning the actor.
-void motor_actor_init(bus_id torque_bus);
+// Init function - extracts bus IDs from pilot_buses
+void *motor_actor_init(void *init_args);
 
-// Actor entry point - spawn this with hive_spawn()
+// Actor entry point
 void motor_actor(void *args, const hive_spawn_info *siblings,
                  size_t sibling_count);
 

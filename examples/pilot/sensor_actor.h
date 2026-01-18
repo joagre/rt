@@ -6,13 +6,12 @@
 #ifndef SENSOR_ACTOR_H
 #define SENSOR_ACTOR_H
 
-#include "hive_bus.h"
+#include "hive_runtime.h"
 
-// Initialize the sensor actor module with bus ID.
-// Must be called before spawning the actor.
-void sensor_actor_init(bus_id sensor_bus);
+// Init function - extracts bus IDs from pilot_buses
+void *sensor_actor_init(void *init_args);
 
-// Actor entry point - spawn this with hive_spawn()
+// Actor entry point
 void sensor_actor(void *args, const hive_spawn_info *siblings,
                   size_t sibling_count);
 

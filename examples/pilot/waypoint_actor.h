@@ -6,14 +6,12 @@
 #ifndef WAYPOINT_ACTOR_H
 #define WAYPOINT_ACTOR_H
 
-#include "hive_bus.h"
 #include "hive_runtime.h"
 
-// Initialize the waypoint actor module with bus IDs.
-// Must be called before spawning the actor.
-void waypoint_actor_init(bus_id state_bus, bus_id position_target_bus);
+// Init function - extracts bus IDs from pilot_buses
+void *waypoint_actor_init(void *init_args);
 
-// Actor entry point - spawn this with hive_spawn()
+// Actor entry point
 void waypoint_actor(void *args, const hive_spawn_info *siblings,
                     size_t sibling_count);
 
