@@ -83,8 +83,9 @@ void altitude_actor(void *args, const hive_spawn_info *siblings,
     enum { SEL_STATE, SEL_LANDING };
     hive_select_source sources[] = {
         [SEL_STATE] = {HIVE_SEL_BUS, .bus = state->state_bus},
-        [SEL_LANDING] = {HIVE_SEL_IPC, .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY,
-                                               NOTIFY_LANDING}},
+        [SEL_LANDING] = {HIVE_SEL_IPC,
+                         .ipc = {state->flight_manager, HIVE_MSG_NOTIFY,
+                                 NOTIFY_LANDING}},
     };
 
     while (1) {

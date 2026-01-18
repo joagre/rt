@@ -25,6 +25,7 @@
 typedef struct {
     bus_id state_bus;
     bus_id position_target_bus;
+    actor_id flight_manager;
 } waypoint_state;
 
 void *waypoint_actor_init(void *init_args) {
@@ -32,6 +33,7 @@ void *waypoint_actor_init(void *init_args) {
     static waypoint_state state;
     state.state_bus = buses->state_bus;
     state.position_target_bus = buses->position_target_bus;
+    state.flight_manager = ACTOR_ID_INVALID; // Set from siblings in actor
     return &state;
 }
 
@@ -52,10 +54,13 @@ static bool check_arrival(const waypoint_t *wp, const state_estimate_t *est) {
 
 void waypoint_actor(void *args, const hive_spawn_info *siblings,
                     size_t sibling_count) {
-    (void)siblings;
-    (void)sibling_count;
-
     waypoint_state *state = args;
+
+    // Look up flight_manager from sibling info
+    const hive_spawn_info *fm_info =
+        hive_find_sibling(siblings, sibling_count, "flight_manager");
+    assert(fm_info != NULL);
+    state->flight_manager = fm_info->id;
 
     hive_status status = hive_bus_subscribe(state->state_bus);
     assert(HIVE_SUCCEEDED(status));
@@ -66,8 +71,8 @@ void waypoint_actor(void *args, const hive_spawn_info *siblings,
                   WAYPOINT_HOVER_TIME_US / 1000000.0f);
     HIVE_LOG_INFO("[WPT] Waiting for flight manager START signal");
     hive_message msg;
-    hive_ipc_recv_match(HIVE_SENDER_ANY, HIVE_MSG_NOTIFY, NOTIFY_FLIGHT_START,
-                        &msg, -1);
+    hive_ipc_recv_match(state->flight_manager, HIVE_MSG_NOTIFY,
+                        NOTIFY_FLIGHT_START, &msg, -1);
     HIVE_LOG_INFO("[WPT] START received - beginning flight sequence");
 
     int waypoint_index = 0;

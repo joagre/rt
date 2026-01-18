@@ -21,21 +21,26 @@
 // Actor state - initialized by motor_actor_init
 typedef struct {
     bus_id torque_bus;
+    actor_id flight_manager;
 } motor_state;
 
 void *motor_actor_init(void *init_args) {
     const pilot_buses *buses = init_args;
     static motor_state state;
     state.torque_bus = buses->torque_bus;
+    state.flight_manager = ACTOR_ID_INVALID; // Set from siblings in actor
     return &state;
 }
 
 void motor_actor(void *args, const hive_spawn_info *siblings,
                  size_t sibling_count) {
-    (void)siblings;
-    (void)sibling_count;
-
     motor_state *state = args;
+
+    // Look up flight_manager from sibling info
+    const hive_spawn_info *fm_info =
+        hive_find_sibling(siblings, sibling_count, "flight_manager");
+    assert(fm_info != NULL);
+    state->flight_manager = fm_info->id;
 
     hive_status status = hive_bus_subscribe(state->torque_bus);
     assert(HIVE_SUCCEEDED(status));
@@ -46,8 +51,9 @@ void motor_actor(void *args, const hive_spawn_info *siblings,
     enum { SEL_TORQUE, SEL_STOP };
     hive_select_source sources[] = {
         [SEL_TORQUE] = {HIVE_SEL_BUS, .bus = state->torque_bus},
-        [SEL_STOP] = {HIVE_SEL_IPC, .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY,
-                                            NOTIFY_FLIGHT_STOP}},
+        [SEL_STOP] = {HIVE_SEL_IPC,
+                      .ipc = {state->flight_manager, HIVE_MSG_NOTIFY,
+                              NOTIFY_FLIGHT_STOP}},
     };
 
     while (1) {

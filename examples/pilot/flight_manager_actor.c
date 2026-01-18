@@ -139,7 +139,7 @@ void flight_manager_actor(void *args, const hive_spawn_info *siblings,
     hive_select_source landing_sources[] = {
         [SEL_SYNC] = {HIVE_SEL_IPC,
                       .ipc = {HIVE_SENDER_ANY, HIVE_MSG_TIMER, sync_timer}},
-        [SEL_LANDED] = {HIVE_SEL_IPC, .ipc = {HIVE_SENDER_ANY, HIVE_MSG_NOTIFY,
+        [SEL_LANDED] = {HIVE_SEL_IPC, .ipc = {altitude, HIVE_MSG_NOTIFY,
                                               NOTIFY_FLIGHT_LANDED}},
     };
 
